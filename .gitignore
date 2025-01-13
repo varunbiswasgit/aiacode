@@ -1,0 +1,43 @@
+# Ignore temporary or backup files
+*.tmp
+*.bak
+*.log
+
+# Ignore compiled or generated files
+*.exe
+*.dll
+*.obj
+*.pdb
+*.msi
+
+# Ignore metadata files from code editors or IDEs
+*.suo
+*.user
+*.htm
+*.html
+.vscode/
+.idea/
+
+# Ignore VBA-specific temporary and backup files
+~$*.*
+*.xlam
+*.xltm
+
+# Ignore version control directories (just in case they appear)
+.vs/
+.DS_Store
+Thumbs.db
+
+# PowerShell-specific
+*.ps1xml   # PowerShell format definition files
+*.psd1     # PowerShell module manifest files (optional if you're not committing modules)
+*.pssc     # PowerShell session configuration files
+*.pfx      # Certificate/private key files
+
+# Ignore sensitive credentials or local configuration
+secrets.json
+.env
+*.config
+*.key
+
+
