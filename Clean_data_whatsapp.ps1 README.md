@@ -98,23 +98,23 @@ Date       Time       Name        Message
 ---
 
 ## Future Improvements
-To make this script even more robust and user-friendly, the following enhancements are planned:
+The following enhancements are planned to  make this script even more robust and user-friendly:
 
 ### 1. **Error Handling**
-   - Add more descriptive error messages to help users improve and resolve issues.
-   - Implement exception handling for unexpected scenarios, such as file permission errors or incorrect input formats.
+   - [ ] Add more descriptive error messages to help users improve and resolve issues.
+   - [ ] Implement exception handling for unexpected scenarios, such as file permission errors or incorrect input formats.
 
 ### 2. **Parameterization**
-   - Allow input and output file paths to be passed as command-line parameters to improve flexibility and enable pipeline automation.
+   - [ ] Allow input and output file paths to be passed as command-line parameters to improve flexibility and enable pipeline automation.
 
 ### 3. **Logging**
-   - Introduce logging capabilities to track script execution and facilitate troubleshooting.
+   - [ ] Introduce logging capabilities to track script execution and facilitate troubleshooting.
 
 ### 4. **Code Comments**
-   - Enhance code documentation by adding comments explaining each section's purpose for better readability.
+   -  [ ] Enhance code documentation by adding comments explaining each section's purpose for better readability.
 
 ### 5. **Performance Optimization**
-   - Optimize regular expressions and loops for faster execution, especially for large input files.
+   - [ ] Optimize regular expressions and loops for faster execution, especially for large input files.
 
 ---
 
