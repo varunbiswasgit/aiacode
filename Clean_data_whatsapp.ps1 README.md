@@ -10,7 +10,7 @@ While optimized for WhatsApp chats, this script can also be used for other gener
 ## Key Features
 1. **Date and Time Detection:**
    - Matches messages based on timestamps using a regular expression (e.g., `[1/12/23, 9:45:00 PM]`).
-   - Groups messages with their associated participants.
+   - Groups' messages with their associated participants.
 
 2. **Unicode Character Handling:**
    - Removes problematic characters, such as `Left-to-Right Mark (LRM)` and unusual spaces, for better readability.
@@ -33,7 +33,7 @@ While optimized for WhatsApp chats, this script can also be used for other gener
 ### 2. Run the Script
 1. Open a PowerShell terminal.
 2. Run the script:
-   ```powershell
+   ```PowerShell
    .\Clean_data_whatsapp.ps1
    ```
 3. Follow the prompts:
@@ -63,7 +63,7 @@ How are you doing?
 [1/12/23, 09:00:00] System: Server started
 [1/12/23, 09:10:00] User: Login attempt successful
 [1/12/23, 09:15:00] User: Action performed
-Another action detail on the next line.
+Another action detail is on the next line.
 ```
 
 ### Output File
@@ -101,17 +101,17 @@ Date       Time       Name        Message
 To make this script even more robust and user-friendly, the following enhancements are planned:
 
 ### 1. **Error Handling**
-   - Add more descriptive error messages to help users understand issues.
+   - Add more descriptive error messages to help users improve and resolve issues.
    - Implement exception handling for unexpected scenarios, such as file permission errors or incorrect input formats.
 
 ### 2. **Parameterization**
-   - Allow input and output file paths to be passed as command-line parameters to improve flexibility and enable automation in pipelines.
+   - Allow input and output file paths to be passed as command-line parameters to improve flexibility and enable pipeline automation.
 
 ### 3. **Logging**
    - Introduce logging capabilities to track script execution and facilitate troubleshooting.
 
 ### 4. **Code Comments**
-   - Enhance code documentation by adding comments to explain the purpose of each section for better readability.
+   - Enhance code documentation by adding comments explaining each section's purpose for better readability.
 
 ### 5. **Performance Optimization**
    - Optimize regular expressions and loops for faster execution, especially for large input files.
@@ -119,7 +119,7 @@ To make this script even more robust and user-friendly, the following enhancemen
 ---
 
 ## Error Handling
-- If the input file does not exist, the script terminates with an error message.
+- The script terminates with an error message if the input file does not exist.
 - Ensures continuation lines only append to valid records.
 
 ---
