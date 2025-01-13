@@ -29,6 +29,6 @@ This repository contains a collection of PowerShell, MS Macros and BASH scripts 
 Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
 ## License
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the [GNU General Public License v3.0](LICENSE).
 
 ---
