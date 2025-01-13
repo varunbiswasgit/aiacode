@@ -43,6 +43,7 @@ We welcome contributions to make these scripts more robust and user-friendly. Wh
 - For questions, suggestions, or help, create a GitHub issue or reach out via discussions.
 
 ## License
-By contributing, you agree that your contributions will be licensed under the MIT License.
+By contributing, you agree that your contributions will be licensed under the [GNU General Public License v3.0](LICENSE)
+.
 
 ---
