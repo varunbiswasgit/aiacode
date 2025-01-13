@@ -1,10 +1,11 @@
+---
 # AI Assisted Microsoft Macro, Bash and Poweshell Scripts
 
 ## Overview
 This repository contains a collection of PowerShell, MS Macros and BASH scripts that were devloped using AI tools. The sitps are tetsed and works best to my knwpodlege of the time of posting.
 
 ## Scripts Index
-1. **Clean_data.ps1**: A script for cleaning and processing text files, such as removing extra quotes, validating paths, and extracting data matching specific patterns.
+1. **Clean_data_Whatsapp.ps1**: A script for cleaning and processing text files, such as removing extra quotes, validating paths, and extracting data matching specific patterns.
 2. _[Placeholder for additional scripts]_: Add descriptions for other scripts as you add them.
 
 ## Features
