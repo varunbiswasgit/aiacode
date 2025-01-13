@@ -3,7 +3,7 @@
 # AI Assisted Microsoft Macro, Bash, and PowerShell Scripts
 
 ## Overview
-This repository contains a collection of PowerShell, MS Macros, and Bash scripts developed using AI tools. To my knowledge, the scripts are tested and work best at the time of posting. The repository also includes tools and scripts for automating workflows, such as bulk issue creation in GitHub.
+This repository contains a collection of PowerShell, MS Macros, and Bash scripts developed using AI tools. The scripts have been tested and worked to the best of my knowledge at the time of posting. The repository also includes tools and scripts for automating workflows, such as bulk issue creation in GitHub.
 
 ## Scripts Index
 1. **Clean_data_Whatsapp.ps1**: A script for cleaning and processing text files, such as removing extra quotes, validating paths, and extracting data matching specific patterns.
@@ -29,9 +29,8 @@ This repository contains a collection of PowerShell, MS Macros, and Bash scripts
    cd aiacode
    ```
 
-### 3. Adding Task Lists in Script-Specific `README.md` Files
-For each script in this repository, use task lists in the script's `README.md` file to track specific tasks, planned improvements, or testing workflows. Task lists are a Markdown feature that allows easy tracking and progress management.
----
+### 3. Adding Task Lists in Script-Specific `README.md` Files.
+Use task lists in the script's `README.md` file for each script in this repository to track specific tasks, planned improvements, or testing workflows. Task lists are a Markdown feature that allows easy tracking and progress management.
 
 #### **Task List Syntax**
 To add a task list, use the following syntax:
@@ -61,10 +60,11 @@ For the `Clean_data_Whatsapp.ps1` script:
 
 #### Viewing Task Progress
 When the `README.md` is viewed in GitHub, task lists display progress with checkboxes:
+```
 - Example:
   - [ ] Incomplete Task
   - [x] Completed Task3. Follow instructions in each script's individual `README.md`.
----
+```
 
 ### 4. Individual README files are named `<filename.extension README.md>`, e.g., `Clean_data_whatsapp.ps1 README.md`.
 
