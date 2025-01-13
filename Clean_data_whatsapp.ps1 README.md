@@ -82,7 +82,7 @@ Date       Time       Name        Message
 ## Generic Use Cases
 
 ### 1. **Log File Processing**
-   - **Purpose:** Clean and structure server or application log files with timestamped entries for better readability and analysis.
+   Purpose: Clean and structure server or application log files with timestamped entries to improve readability and analysis.
    - **Example Input:** Log files with entries like `[M/D/YY, H:MM:SS]`.
 
 ### 2. **Survey or Interview Data**
