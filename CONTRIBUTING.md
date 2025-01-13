@@ -5,9 +5,20 @@
 
 # Contributing to PowerShell Utilities Collection
 
-We welcome contributions to make these scripts more robust and user-friendly. Whether it's fixing bugs, adding features, or improving documentation, your efforts are appreciated!
+We welcome contributions to make these scripts more robust and user-friendly. Whether you fix bugs, add features, or improve documentation, your efforts are appreciated!
 
 ## Guidelines for Contributions
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/varunbiswasgit/aiacode.git
+   ```
+2. Fork
+3. Write some code (with tests if possible)
+4. Write some docs
+5. Check code formatting.
+6. Run the tests
+7. Create a pull request on GitHub
+---
 
 1. **Reporting Issues**
    - Use the GitHub issue tracker to report bugs or suggest features.
@@ -31,13 +42,6 @@ We welcome contributions to make these scripts more robust and user-friendly. Wh
 4. **Documentation**
    - Update the script-specific `README.md` with details about new features or changes.
    - Provide examples and use cases when applicable.
-
-## Setting Up the Project
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/varunbiswasgit/aiacode.git
-   ```
-2. Test the scripts in a PowerShell environment.
 
 ## Communication
 - For questions, suggestions, or help, create a GitHub issue or reach out via discussions.
