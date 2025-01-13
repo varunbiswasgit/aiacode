@@ -23,6 +23,7 @@ This repository contains a collection of PowerShell, MS Macros and BASH scripts 
    cd PowerShell-Utilities
    ```
 3. Follow instructions in each script's individual `README.md`.
+   Individual README files are simply named <filename.extension README.md> e.g. "Clean_data_whatsapp.ps1 README.md"
 
 ## Contributing
 Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
