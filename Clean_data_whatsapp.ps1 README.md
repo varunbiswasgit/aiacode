@@ -3,10 +3,10 @@
 ### **README.md for `Clean_data_whatsapp.ps1` (Script-Specific)**
 
 ```markdown
-# Clean_data.ps1
+# Clean_data_whatsapp.ps1
 
 ## Overview
-The `Clean_data.ps1` script is designed to clean and process text files by:
+The `Clean_data_whatsapp.ps1` script is designed to clean and process text files by:
 - Removing extra quotes from file paths.
 - Validating the existence of input and output files.
 - Extracting and correcting lines matching specific patterns, such as dates enclosed in square brackets.
@@ -14,7 +14,7 @@ The `Clean_data.ps1` script is designed to clean and process text files by:
 ## Usage
 1. Run the script in a PowerShell terminal:
    ```powershell
-   .\Clean_data.ps1
+   .\Clean_data_whatsapp.ps1
    ```
 2. Follow the prompts:
    - Provide the full path to the input file.
