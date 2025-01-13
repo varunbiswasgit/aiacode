@@ -111,7 +111,7 @@ The following enhancements are planned to  make this script even more robust and
    - [ ] Introduce logging capabilities to track script execution and facilitate troubleshooting.
 
 ### 4. **Code Comments**
-   -  [ ] Enhance code documentation by adding comments explaining each section's purpose for better readability.
+   - [ ] Enhance code documentation by adding comments explaining each section's purpose for better readability.
 
 ### 5. **Performance Optimization**
    - [ ] Optimize regular expressions and loops for faster execution, especially for large input files.
