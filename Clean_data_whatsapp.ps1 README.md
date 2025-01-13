@@ -36,5 +36,3 @@ The `Clean_data_whatsapp.ps1` script is designed to clean and process text files
 If you have ideas to improve this script or find issues, refer to the [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ---
-
-
