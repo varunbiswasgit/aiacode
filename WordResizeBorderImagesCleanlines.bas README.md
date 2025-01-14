@@ -1,10 +1,21 @@
 # Resize Images and Clean Documents - VBA Program
 
-This program, written in VBA (Visual Basic for Applications), performs three key tasks in a Microsoft Word document:
+This program, written in VBA (Visual Basic for Applications), performs two key tasks in a Microsoft Word document:
 
-1. **Resize Images**
-2. **The resized images are also styled with a border for a consistent appearance.**
-3. **Cleans the Document**
+1. **Resize Images**: This function adjusts the width of inline images if they exceed a specified minimum width. The resized images are also styled with a border for a consistent appearance.
+2. **Cleans the Document**: This function removes unnecessary empty lines (more than two consecutive line breaks) to enhance document readability.
+
+---
+
+## Features
+
+1. **Image Resizing**
+   - Ensures all images wider than the minimum width are resized to a maximum width while maintaining their aspect ratio.
+   - Adds a customizable border to resized images for visual consistency.
+   - Option to apply the border to all images or only to those that meet the resizing criteria (minimum size). This can be adjusted by modifying the border application code inside the size-checking loop.
+
+2. **Empty Line Cleanup**
+   - Detects and removes three or more consecutive empty lines, replacing them with two empty lines.
 
 ---
 
@@ -26,49 +37,53 @@ This program, written in VBA (Visual Basic for Applications), performs three key
    - Press `Alt + F8` in Word.
    - Select `ResizeImagesAndCleanDocument` and click `Run`.
 
+7. Enter the required parameters when prompted:
+   - Minimum width (in inches).
+   - Maximum width (in inches).
+   - Border width (in points).
+   - Red, Green, and Blue components of the border color (each ranging from 0 to 255).
+
 ---
 
 ## Code Overview
 
+### User Inputs
+
+- **Minimum Width**: The minimum width (in inches) for resizing images.
+- **Maximum Width**: The maximum width (in inches) for resized images.
+- **Border Width**: The thickness of the border (in poborder's thickness**: The RGB color values for the border.
+
 ### Variables
 
 - **`minWidth`** and **`maxWidth`**:
-  - Define images' minimum and maximum width (in points, converted from inches).
+  - Define the user-specified minimum and maximum width for images (converted toimage widthhes).
+- **`borderWidth`**, **`borderColorR`**, **`borderColorG`**, **`borderColorB`**:
+  - Define the border thickness and color based on user inputs.
 - **`docRange`**:
   - Represents the content range of the document for processing empty lines.
 
 ### Functions
 
 - **Image Resizing**:
-  - Check each inline image and resize it if it exceeds the minimum width.
-  - Adds a single-line border with a weight of points to resize images.
+  - Checks each inline image and resizes it if it exceeds the minimum width.
+  - Applies a customizable border with the specified width and color.
+  - Border application can be adjusted to all images or only those that fit the resizing criteria.
 - **Document Cleanup**:
-  - Using wildcards, find and replace three or more consecutive empty lines with two empty lines.
+  - Use wildcards to find and replace three or more consecutive empty lines with two empty lines.
 
 ---
 
 ## Customization
 
-### Adjust Image Width
+The program allows full customization through user inputs. You will be prompted to provide values for:
 
-To modify the resizing thresholds:
+1. Minimum width (in inches).
+2. Maximum width (in inches).
+3. Border width (in points).
+4. Border color (RGB values).
 
-- Update the values of `minWidth` and `maxWidth`:
-  ```vb
-  minWidth = InchesToPoints(<your_min_width_in_inches>)
-  maxWidth = InchesToPoints(<your_max_width_in_inches>)
-  ```
-
-### Change Border Style
-
-To customize the image border:
-
-- Update the properties of `.Line`:
-  ```vb
-  .Line.Weight = <your_line_weight>
-  .Line.Style = <your_line_style>
-  .Line.ForeColor.RGB = RGB(<red>, <green>, <blue>)
-  ```
+To adjust the border application behavior:
+- Move the border-related code inside or outside the resizing condition loop, depending on whether borders should apply to all images or only resized ones.
 
 ---
 
