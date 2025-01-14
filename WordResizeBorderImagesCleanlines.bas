@@ -1,4 +1,3 @@
-Attribute VB_Name = "Module1"
 Sub ResizeImagesAndCleanDocument()
     Dim i As Long
     Dim minWidth As Single
