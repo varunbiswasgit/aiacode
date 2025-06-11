@@ -7,8 +7,8 @@ This repository contains a collection of PowerShell, MS Macros, and Bash scripts
 
 ## Scripts Index
 1. **Clean_data_Whatsapp.ps1**: A script for cleaning and processing text files, such as removing extra quotes, validating paths, and extracting data matching specific patterns.
-2. **WordResizeBorderImagesCleanlines.bas**: This program, written in VBA (Visual Basic for Applications), performs Resize and border Images:  and Cleans the Document.
-2. _[Placeholder for additional scripts]_: Add descriptions for other scripts as you add them.
+2. **WordResizeBorderImagesCleanlines.bas**: This VBA script resizes images, adds a border, and cleans the document.
+3. _[Placeholder for additional scripts]_: Add descriptions for other scripts as you add them.
 
 ---
 
