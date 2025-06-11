@@ -39,9 +39,10 @@ Get-Content $inputFile -Encoding UTF8 | ForEach-Object {
         
         # Extract Column C (Name) by capturing text between ] and :
         $columnC = ($_ -replace ".*\] (.*?):.*", '$1').Trim()  # Trim leading/trailing spaces
-        
-        # Extract Column D (Message) by capturing text after the colon
-        $columnD = ($_ -replace ".*: (.*)", '$1').Trim()  # Trim leading/trailing spaces
+
+        # Extract Column D (Message) by removing the timestamp and name prefix
+        # This avoids truncating messages that themselves contain colons
+        $columnD = ($_ -replace "^\[[^\]]+\] [^:]+: ?", '').Trim()
 
         # Concatenate and store the result for output (CSV-like format with tab separation)
         $fixedLines += "$date`t$time`t$columnC`t$columnD"
