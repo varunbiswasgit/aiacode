@@ -20,6 +20,8 @@ While optimized for WhatsApp chats, this script can also be used for other gener
 
 4. **Tab-Separated Output:**
    - Saves cleaned data in a tab-separated format for easy import into Excel or other tools.
+5. **Colon Handling:**
+   - Correctly parses messages even when the text itself contains colons.
 
 ---
 
