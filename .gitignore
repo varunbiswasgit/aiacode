@@ -40,4 +40,8 @@ secrets.json
 *.config
 *.key
 
+# Ignore directories created by split_excel_by_manager.py
+output/
+__pycache__/
+
 

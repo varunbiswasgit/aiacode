@@ -8,7 +8,9 @@ This repository contains a collection of PowerShell, MS Macros, and Bash scripts
 ## Scripts Index
 1. **Clean_data_Whatsapp.ps1**: A script for cleaning and processing text files, such as removing extra quotes, validating paths, and extracting data matching specific patterns.
 2. **WordResizeBorderImagesCleanlines.bas**: This program, written in VBA (Visual Basic for Applications), performs Resize and border Images:  and Cleans the Document.
-2. _[Placeholder for additional scripts]_: Add descriptions for other scripts as you add them.
+3. **split_excel_by_manager.py**: Split an Excel workbook into separate files for each manager in the `Manager` column.
+4. **SplitExcelByManager.bas**: VBA macro that creates a new workbook for every manager in the active sheet and lets you choose the save folder.
+5. _[Placeholder for additional scripts]_: Add descriptions for other scripts as you add them.
 
 ---
 
