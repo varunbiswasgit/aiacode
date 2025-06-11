@@ -17,8 +17,10 @@ if (-not (Test-Path $inputFile)) {
 $outputFile = Read-Host "Please enter the full path of the output text file"
 $outputFile = Clean-Path $outputFile  # Remove any extra quotes
 
-# Regular expression to match date and time enclosed in square brackets, e.g., [M/D/YY, H:MM:SS AM/PM]
-$pattern = "^\[\d{1,2}/\d{1,2}/\d{2,4}, \d{1,2}:\d{2}:\d{2} [AP]M\]"
+# Regular expression to match date and time enclosed in square brackets, supporting
+# both 12-hour (with AM/PM) and 24-hour formats, e.g., [M/D/YY, H:MM:SS] or
+# [M/D/YY, H:MM:SS AM/PM]
+$pattern = "^\[\d{1,2}/\d{1,2}/\d{2,4}, \d{1,2}:\d{2}:\d{2}(?: [AP]M)?\]"
 
 # Initialize a list to store corrected records
 $fixedLines = @()
