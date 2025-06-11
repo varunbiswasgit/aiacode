@@ -51,12 +51,13 @@ This program, written in VBA (Visual Basic for Applications), performs two key t
 
 - **Minimum Width**: The minimum width (in inches) for resizing images.
 - **Maximum Width**: The maximum width (in inches) for resized images.
-- **Border Width**: The thickness of the border (in poborder's thickness**: The RGB color values for the border.
+- **Border Width**: The thickness of the border (in points).
+- **Border Color**: The RGB values for the border.
 
 ### Variables
 
 - **`minWidth`** and **`maxWidth`**:
-  - Define the user-specified minimum and maximum width for images (converted toimage widthhes).
+  - Define the user-specified minimum and maximum width for images (converted to image widths).
 - **`borderWidth`**, **`borderColorR`**, **`borderColorG`**, **`borderColorB`**:
   - Define the border thickness and color based on user inputs.
 - **`docRange`**:
