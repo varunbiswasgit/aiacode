@@ -7,79 +7,100 @@ Sub ResizeImagesAndCleanDocument()
     Dim borderColorR As Integer
     Dim borderColorG As Integer
     Dim borderColorB As Integer
-    Dim inputValid As Boolean
+    Dim s As String
+    Dim ok As Boolean
 
-    ' Validate Minimum Width
     Do
-        minWidth = InchesToPoints(InputBox("Enter the minimum width (in inches):", "Minimum Width", 3))
-        inputValid = minWidth > 0
-        If Not inputValid Then MsgBox "Please enter a valid positive number for Minimum Width.", vbExclamation
-    Loop Until inputValid
+        s = InputBox("Enter the minimum width (in inches):", "Minimum Width", 3)
+        If s = "" Then Exit Sub
+        ok = IsNumeric(s) And CDbl(s) > 0
+        If ok Then
+            minWidth = InchesToPoints(CDbl(s))
+        Else
+            MsgBox "Please enter a valid positive number for Minimum Width.", vbExclamation
+        End If
+    Loop Until ok
 
-    ' Validate Maximum Width
     Do
-        maxWidth = InchesToPoints(InputBox("Enter the maximum width (in inches):", "Maximum Width", 6.3))
-        inputValid = maxWidth > minWidth
-        If Not inputValid Then MsgBox "Maximum Width must be greater than Minimum Width.", vbExclamation
-    Loop Until inputValid
+        s = InputBox("Enter the maximum width (in inches):", "Maximum Width", 6.3)
+        If s = "" Then Exit Sub
+        ok = IsNumeric(s) And CDbl(s) > 0 And InchesToPoints(CDbl(s)) > minWidth
+        If ok Then
+            maxWidth = InchesToPoints(CDbl(s))
+        Else
+            MsgBox "Maximum Width must be a valid number greater than Minimum Width.", vbExclamation
+        End If
+    Loop Until ok
 
-    ' Validate Border Width
     Do
-        borderWidth = InputBox("Enter the border width (in points):", "Border Width", 1.2)
-        inputValid = borderWidth > 0
-        If Not inputValid Then MsgBox "Please enter a valid positive number for Border Width.", vbExclamation
-    Loop Until inputValid
+        s = InputBox("Enter the border width (in points):", "Border Width", 1.2)
+        If s = "" Then Exit Sub
+        ok = IsNumeric(s) And CDbl(s) > 0
+        If ok Then
+            borderWidth = CSng(s)
+        Else
+            MsgBox "Please enter a valid positive number for Border Width.", vbExclamation
+        End If
+    Loop Until ok
 
-    ' Validate Border Color - Red
     Do
-        borderColorR = InputBox("Enter the red component of the border color (0-255):", "Border Color - Red", 68)
-        inputValid = borderColorR >= 0 And borderColorR <= 255
-        If Not inputValid Then MsgBox "Please enter a valid number between 0 and 255 for the Red component.", vbExclamation
-    Loop Until inputValid
+        s = InputBox("Enter the red component of the border color (0-255):", "Border Color - Red", 68)
+        If s = "" Then Exit Sub
+        ok = IsNumeric(s) And CLng(s) >= 0 And CLng(s) <= 255
+        If ok Then
+            borderColorR = CLng(s)
+        Else
+            MsgBox "Please enter a valid number between 0 and 255 for the Red component.", vbExclamation
+        End If
+    Loop Until ok
 
-    ' Validate Border Color - Green
     Do
-        borderColorG = InputBox("Enter the green component of the border color (0-255):", "Border Color - Green", 114)
-        inputValid = borderColorG >= 0 And borderColorG <= 255
-        If Not inputValid Then MsgBox "Please enter a valid number between 0 and 255 for the Green component.", vbExclamation
-    Loop Until inputValid
+        s = InputBox("Enter the green component of the border color (0-255):", "Border Color - Green", 114)
+        If s = "" Then Exit Sub
+        ok = IsNumeric(s) And CLng(s) >= 0 And CLng(s) <= 255
+        If ok Then
+            borderColorG = CLng(s)
+        Else
+            MsgBox "Please enter a valid number between 0 and 255 for the Green component.", vbExclamation
+        End If
+    Loop Until ok
 
-    ' Validate Border Color - Blue
     Do
-        borderColorB = InputBox("Enter the blue component of the border color (0-255):", "Border Color - Blue", 198)
-        inputValid = borderColorB >= 0 And borderColorB <= 255
-        If Not inputValid Then MsgBox "Please enter a valid number between 0 and 255 for the Blue component.", vbExclamation
-    Loop Until inputValid
+        s = InputBox("Enter the blue component of the border color (0-255):", "Border Color - Blue", 198)
+        If s = "" Then Exit Sub
+        ok = IsNumeric(s) And CLng(s) >= 0 And CLng(s) <= 255
+        If ok Then
+            borderColorB = CLng(s)
+        Else
+            MsgBox "Please enter a valid number between 0 and 255 for the Blue component.", vbExclamation
+        End If
+    Loop Until ok
 
     With ActiveDocument
-        ' Loop through all inline shapes in the document
         For i = 1 To .InlineShapes.Count
             With .InlineShapes(i)
                 If .Type = wdInlineShapePicture Then
-                    ' Resize only if the width exceeds the minimum width
                     If .Width > minWidth Then
                         .LockAspectRatio = msoTrue
                         .Width = maxWidth
-                        ' Apply border to all images
-                        .Line.Weight = borderWidth
-                        .Line.Style = msoLineSingle
-                        .Line.ForeColor.RGB = RGB(borderColorR, borderColorG, borderColorB)
                     End If
                 End If
             End With
         Next i
 
-        ' Remove multiple empty lines (more than 2 consecutive)
         Set docRange = .Content
         With docRange.Find
             .ClearFormatting
-            .Text = "^13{3,}" ' Finds three or more consecutive empty lines
-            .Replacement.Text = "^p^p" ' Replaces with two empty lines
+            .Replacement.ClearFormatting
+            .Text = "^p^p^p"
+            .Replacement.Text = "^p^p"
             .Forward = True
             .Wrap = wdFindStop
             .Format = False
-            .MatchWildcards = True
+            .MatchWildcards = False
             .Execute Replace:=wdReplaceAll
         End With
+
+        MsgBox "Images resized and document cleaned.", vbInformation
     End With
 End Sub
