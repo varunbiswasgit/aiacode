@@ -83,13 +83,9 @@ Sub ResizeImagesAndCleanDocument()
                     If .Width > minWidth Then
                         .LockAspectRatio = msoTrue
                         .Width = maxWidth
-                        ' Apply border to resized images
-                        On Error Resume Next
-                        .Line.Visible = msoTrue
                         .Line.Weight = borderWidth
                         .Line.Style = msoLineSingle
                         .Line.ForeColor.RGB = RGB(borderColorR, borderColorG, borderColorB)
-                        On Error GoTo 0
                     End If
                 End If
             End With
@@ -98,13 +94,12 @@ Sub ResizeImagesAndCleanDocument()
         Set docRange = .Content
         With docRange.Find
             .ClearFormatting
-            .Replacement.ClearFormatting
-            .Text = "^p^p^p"
+            .Text = "^13{3,}"
             .Replacement.Text = "^p^p"
             .Forward = True
             .Wrap = wdFindStop
             .Format = False
-            .MatchWildcards = False
+            .MatchWildcards = True
             .Execute Replace:=wdReplaceAll
         End With
 
