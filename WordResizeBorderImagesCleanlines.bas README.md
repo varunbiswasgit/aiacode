@@ -1,102 +1,84 @@
-# Resize Images and Clean Documents - VBA Program
+# Resize Images and Clean Document — VBA Macro
 
-This program, written in VBA (Visual Basic for Applications), performs two key tasks in a Microsoft Word document:
+This VBA macro for Microsoft Word performs two tasks on the active document:
 
-1. **Resize Images**: This function adjusts the width of inline images if they exceed a specified minimum width. The resized images are also styled with a border for a consistent appearance.
-2. **Cleans the Document**: This function removes unnecessary empty lines (more than two consecutive line breaks) to enhance document readability.
+1. **Resize Images**: Adjusts inline images wider than a user-specified minimum width to a user-specified maximum width, maintaining aspect ratio.
+2. **Clean Empty Lines**: Removes three or more consecutive blank lines, replacing them with two.
 
 ---
 
 ## Features
 
-1. **Image Resizing**
-   - Ensures all images wider than the minimum width are resized to a maximum width while maintaining their aspect ratio.
-   - Adds a customizable border to resized images for visual consistency.
-   - Option to apply the border to all images or only to those that meet the resizing criteria (minimum size). This can be adjusted by modifying the border application code inside the size-checking loop.
+### Image Resizing
+- Prompts for minimum and maximum width (in inches) with cancel-safe, validated input.
+- Resizes only inline images that exceed the minimum width.
+- Locks aspect ratio during resizing to prevent distortion.
+- Processes `wdInlineShapePicture` types only; floating/anchored shapes are not affected.
 
-2. **Empty Line Cleanup**
-   - Detects and removes three or more consecutive empty lines, replacing them with two empty lines.
+### Border Application
+- Prompts for border width (in points) and RGB color values.
+- Border settings are captured but **border rendering on inline pictures depends on your Word version and shape type**. If borders do not appear, apply them manually via Format Picture > Line in Word.
+
+### Empty Line Cleanup
+- Replaces three or more consecutive paragraph marks with two, using a non-wildcard find-and-replace for consistent behavior across Word versions.
 
 ---
 
 ## How to Use
 
 ### Prerequisites
+- Microsoft Word with VBA macros enabled.
 
-- Microsoft Word (with support for running VBA macros).
-
-### Steps to Run
+### Steps
 
 1. Open the Word document you want to modify.
-2. Press `Alt + F11` to open the VBA editor.
-3. Create a new module:
-   - In the VBA editor, click `Insert > Module`.
-4. Paste the provided code into the module.
-5. Close the VBA editor.
-6. Run the macro:
-   - Press `Alt + F8` in Word.
-   - Select `ResizeImagesAndCleanDocument` and click `Run`.
+2. Press `Alt + F11` to open the VBA Editor.
+3. Click `Insert > Module` to create a new module.
+4. Paste the macro code into the module.
+5. Close the VBA Editor.
+6. Press `Alt + F8`, select `ResizeImagesAndCleanDocument`, and click **Run**.
 
-7. Enter the required parameters when prompted:
-   - Minimum width (in inches).
-   - Maximum width (in inches).
-   - Border width (in points).
-   - Red, Green, and Blue components of the border color (each ranging from 0 to 255).
+### Input Prompts
+
+You will be prompted for the following values. Press **Cancel** on any prompt to exit the macro safely.
+
+| Prompt | Unit | Default |
+|---|---|---|
+| Minimum image width | Inches | 3 |
+| Maximum image width | Inches | 6.3 |
+| Border width | Points | 1.2 |
+| Border color — Red | 0–255 | 68 |
+| Border color — Green | 0–255 | 114 |
+| Border color — Blue | 0–255 | 198 |
+
+All inputs are validated. Non-numeric or out-of-range values will prompt a retry message.
 
 ---
 
-## Code Overview
+## Known Limitations
 
-### User Inputs
-
-- **Minimum Width**: The minimum width (in inches) for resizing images.
-- **Maximum Width**: The maximum width (in inches) for resized images.
-- **Border Width**: The thickness of the border (in points).
-- **Border Color**: The RGB values for the border.
-
-### Variables
-
-- **`minWidth`** and **`maxWidth`**:
-  - Define the user-specified minimum and maximum width for images (converted to image widths).
-- **`borderWidth`**, **`borderColorR`**, **`borderColorG`**, **`borderColorB`**:
-  - Define the border thickness and color based on user inputs.
-- **`docRange`**:
-  - Represents the content range of the document for processing empty lines.
-
-### Functions
-
-- **Image Resizing**:
-  - Checks each inline image and resizes it if it exceeds the minimum width.
-  - Applies a customizable border with the specified width and color.
-  - Border application can be adjusted to all images or only those that fit the resizing criteria.
-- **Document Cleanup**:
-  - Use wildcards to find and replace three or more consecutive empty lines with two empty lines.
+- **Inline shapes only**: The macro does not process floating images or shapes wrapped with text.
+- **Border rendering**: The `.Line` property on `wdInlineShapePicture` shapes is not universally supported in all Word builds. Border prompts are retained for forward compatibility, but visual borders may need to be applied manually in some environments.
+- **Cancel behavior**: Pressing Cancel on any input box exits the macro immediately without making changes.
+- **Consecutive blank line cleanup**: Uses a non-wildcard pattern (`^p^p^p` → `^p^p`) for reliability. Wildcard-based patterns (`^13{3,}`) are not used due to inconsistent behavior across Word versions.
 
 ---
 
 ## Customization
 
-The program allows full customization through user inputs. You will be prompted to provide values for:
+To apply borders to **all** images regardless of size, move the border-related code outside the `If .Width > minWidth Then` block.
 
-1. Minimum width (in inches).
-2. Maximum width (in inches).
-3. Border width (in points).
-4. Border color (RGB values).
-
-To adjust the border application behavior:
-- Move the border-related code inside or outside the resizing condition loop, depending on whether borders should apply to all images or only resized ones.
+To skip border prompts entirely, remove the border input and `.Line` assignment sections from the code.
 
 ---
 
 ## Notes
 
-- Ensure macros are enabled in Word to execute this program.
-- Always save a backup of your document before running macros.
-- This macro processes inline shapes only. Floating shapes (e.g., text-wrapped images) are not modified.
+- Always save a backup of your document before running any macro.
+- Ensure **Enable All Macros** or a trusted publisher setting is active in Word's Trust Center.
 
 ---
 
 ## License
 
-This program is licensed under the [GNU General Public License v3.0](LICENSE).
-
+Licensed under the [GNU General Public License v3.0](LICENSE).
