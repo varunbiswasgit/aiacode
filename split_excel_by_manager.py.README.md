@@ -1,197 +1,148 @@
-# Split Excel by Manager - Python Script
+# Split Excel by Manager — Python Script
 
-## Overview
-This Python script reads an Excel file and creates separate workbooks for each unique manager in a specified column. The enhanced version includes comprehensive error handling, data validation, and improved user experience.
+This script reads an Excel file and writes one output workbook per unique manager into a dedicated folder (default: `manager_reports/`). It supports `.xlsx`, `.xls`, and `.xlsm` input files and handles common edge cases such as locked files, missing columns, blank manager names, and file-system-unsafe characters.
 
-## Features
+---
 
-### ✨ **Core Functionality**
-- **Multi-format Support**: Works with `.xlsx`, `.xls`, and `.xlsm` files
-- **Automatic Column Width Adjustment**: Optimizes column widths for readability
-- **Organized Output**: Creates reports in a dedicated `manager_reports/` directory
-- **Cross-platform Compatibility**: Works on Windows, macOS, and Linux
+## Requirements
 
-### 🛡️ **Robust Error Handling**
-- **File Validation**: Checks file existence, format, and accessibility
-- **Data Validation**: Validates column existence and data integrity
-- **Permission Handling**: Graceful handling of file access restrictions
-- **Individual Processing**: One manager's failure doesn't stop others
-
-### 📝 **Enhanced User Experience**
-- **Progress Reporting**: Real-time feedback during processing
-- **Detailed Error Messages**: Clear explanations when issues occur
-- **Success Statistics**: Summary of completed vs. failed operations
-- **Help Documentation**: Built-in usage instructions
-
-## Installation
-
-### Prerequisites
-Install required Python packages:
 ```bash
-pip install pandas openpyxl pathlib
+pip install pandas openpyxl
 ```
 
-### Dependencies
-- **pandas**: Excel file reading and data manipulation
-- **openpyxl**: Excel file writing and formatting
-- **pathlib**: Cross-platform file path handling
-- **re**: Regular expressions for filename sanitization
+> `pathlib` and `re` are part of the Python standard library — no separate install needed.
+
+---
 
 ## Usage
 
-### Basic Usage
 ```bash
-python split_excel_by_manager.py <excel_file> [manager_column]
+python split_excel_by_manager.py <file> [column] [output_dir]
 ```
 
-### Parameters
-- **`excel_file`** (required): Path to the input Excel file
-- **`manager_column`** (optional): Column name containing manager data (default: 'Manager')
+### Arguments
+
+| Argument | Required | Default | Description |
+|---|---|---|---|
+| `file` | Yes | — | Path to the input Excel file |
+| `column` | No | `Manager` | Header name of the manager column |
+| `output_dir` | No | `manager_reports` | Folder where reports are written |
 
 ### Examples
 
-#### Example 1: Default Manager Column
 ```bash
+# Default 'Manager' column, output to manager_reports/
 python split_excel_by_manager.py employees.xlsx
-```
-Uses the 'Manager' column to split the data.
 
-#### Example 2: Custom Column Name
-```bash
-python split_excel_by_manager.py staff_data.xlsx "Supervisor"
-```
-Uses the 'Supervisor' column to split the data.
+# Custom column name
+python split_excel_by_manager.py staff.xlsx Supervisor
 
-#### Example 3: File with Spaces in Path
-```bash
-python split_excel_by_manager.py "C:\\Data Files\\employee list.xlsx" "Team Lead"
+# Custom column and output folder
+python split_excel_by_manager.py staff.xlsx Supervisor ./output
+
+# Path with spaces
+python split_excel_by_manager.py "C:/Data Files/employee list.xlsx" "Team Lead"
 ```
-Handles file paths with spaces and custom column names.
+
+---
 
 ## Output Structure
 
-### Directory Organization
 ```
 project_directory/
 ├── split_excel_by_manager.py
-├── your_input_file.xlsx
+├── employees.xlsx
 └── manager_reports/
     ├── John_Smith_report.xlsx
     ├── Sarah_Johnson_report.xlsx
-    ├── Michael_Brown_report.xlsx
     └── ...
 ```
 
-### File Naming Convention
-- **Pattern**: `{Manager_Name}_report.xlsx`
-- **Sanitization**: Special characters replaced with underscores
-- **Length Limits**: Filenames truncated if too long
-- **Reserved Names**: Handles Windows reserved names (CON, PRN, etc.)
+- File name pattern: `{sanitized_manager_name}_report.xlsx`
+- Special characters (`/ \ : * ? < > |`) replaced with `_`
+- Windows reserved names (CON, PRN, AUX, NUL, COM1–9, LPT1–9) replaced with `Unknown_Manager`
+- Names truncated to 200 characters
 
-## Error Handling Features
+---
 
-### 📝 **File System Errors**
-- File not found
-- Permission denied (file open in another app)
-- Invalid file extensions
-- Directory creation failures
+## Column Width Handling
 
-### 📋 **Data Validation**
-- Empty Excel files
-- Missing or invalid column names
-- Null/empty manager data
-- Corrupted Excel files
+Each output file is post-processed to auto-fit column widths:
 
-### 💾 **Processing Errors**
-- Individual manager processing failures
-- Memory limitations
-- Disk space issues
-- Keyboard interruption (Ctrl+C)
+| Setting | Value |
+|---|---|
+| Minimum width | 8 characters |
+| Maximum width | 50 characters |
+| Method | Content-length scan via `openpyxl` |
 
-## Advanced Features
+---
 
-### Filename Sanitization
-```python
-# Special characters are automatically handled:
-"John & Mary's Team" → "John___Mary_s_Team_report.xlsx"
-"Sales/Marketing Dept" → "Sales_Marketing_Dept_report.xlsx"
+## Error Handling
+
+| Scenario | Behaviour |
+|---|---|
+| Input file not found | Prints error, exits |
+| Unsupported file extension | Prints error, exits |
+| File locked in Excel | Prints error, exits |
+| Manager column missing | Prints error with available column names, exits |
+| All manager values null | Prints error, exits |
+| Output folder creation fails | Prints error, exits |
+| Single manager write fails | Skips that manager, continues others |
+| Column auto-fit fails | Warns, still counts file as written |
+| Blank/null manager row | Skipped silently |
+
+---
+
+## Sample Console Output
+
+```
+Split Excel by Manager
+========================================
+Input file    : employees.xlsx
+Manager column: Manager
+Output folder : manager_reports
+----------------------------------------
+Reading: employees.xlsx
+Found 3 unique manager(s).
+  Writing: 'John Smith' -> manager_reports/John_Smith_report.xlsx
+  Writing: 'Sarah Johnson' -> manager_reports/Sarah_Johnson_report.xlsx
+  Writing: 'Michael Brown' -> manager_reports/Michael_Brown_report.xlsx
+
+Done. 3/3 report(s) saved to: /home/user/project/manager_reports
+
+✅ Completed successfully.
 ```
 
-### Column Width Optimization
-- **Minimum width**: 8 characters
-- **Maximum width**: 50 characters
-- **Dynamic sizing**: Based on content length
-- **Readable formatting**: Adds padding for clarity
-
-### Progress Tracking
-The script provides real-time feedback:
-```
-Reading Excel file: employees.xlsx
-Found 5 unique managers.
-Creating report for: John Smith -> manager_reports/John_Smith_report.xlsx
-Creating report for: Sarah Johnson -> manager_reports/Sarah_Johnson_report.xlsx
-...
-Processing complete!
-Successfully created 5 out of 5 manager reports.
-```
+---
 
 ## Troubleshooting
 
-### Common Issues
+**"Column not found"** — Check exact spelling and capitalisation. Column names are case-sensitive. The error message lists all available columns.
 
-#### “File not found”
-- Verify the file path is correct
-- Use quotes around paths with spaces
-- Check file permissions
+**"File is locked"** — Close the file in Excel before running the script.
 
-#### “Column not found”
-- Check the exact column name (case-sensitive)
-- View available columns in the error message
-- Ensure the header row exists
+**"Permission denied" on output folder** — Run from a directory where you have write access, or specify a writable `output_dir`.
 
-#### “Permission denied”
-- Close the Excel file if it's open
-- Check folder write permissions
-- Run as administrator if necessary
+**No output files created** — Verify the manager column contains non-blank values. Run without arguments to see the usage prompt.
 
-### Getting Help
-Run the script without arguments to see usage instructions:
-```bash
-python split_excel_by_manager.py
-```
-
-## Performance Considerations
-
-### Large Files
-- **Memory Usage**: Pandas loads entire file into memory
-- **Processing Time**: Linear with number of rows and managers
-- **Disk Space**: Requires space for all output files
-
-### Optimization Tips
-- Close other applications when processing large files
-- Ensure sufficient disk space (2-3x input file size)
-- Use SSD storage for faster I/O operations
+---
 
 ## Version History
 
-### v2.0 (Latest)
-- ✅ Comprehensive error handling
-- ✅ Filename sanitization
-- ✅ Organized output directory
-- ✅ Progress reporting
-- ✅ Enhanced user interface
-- ✅ Cross-platform compatibility
+### v3.0
+- `output_dir` added as an optional third CLI argument (default: `manager_reports`)
+- `autofit_columns` extracted as a standalone reusable helper
+- Full Windows reserved device name list in `sanitize_filename` (COM1–9, LPT1–9)
+- `Path`-based file handling throughout (replaces `os.path`)
+- Simplified `groupby` loop — blank managers skipped inline
+- Redundant nested `try/except` blocks removed
 
-### v1.0 (Original)
-- ✅ Basic Excel splitting functionality
-- ✅ Column width adjustment
-- ❌ Limited error handling
-- ❌ No input validation
+### v2.0
+- Comprehensive error handling added
+- Filename sanitization
+- Organised output into `manager_reports/` directory
+- Real-time progress reporting
 
-## Contributing
-
-Contributions are welcome! Please see the [CONTRIBUTING.md](CONTRIBUTING.md) for details on how to contribute.
-
-## License
-
-This project is licensed under the [GNU General Public License v3.0](LICENSE).
+### v1.0
+- Basic Excel split by manager column
+- Column width auto-fit
