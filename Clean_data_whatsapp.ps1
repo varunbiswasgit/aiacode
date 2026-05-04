@@ -3,57 +3,168 @@ function Clean-Path($path) {
     return $path -replace '"', ''  # Remove any quotes from the path
 }
 
-# Prompt the user for the input file location
-$inputFile = Read-Host "Please enter the full path of the input text file"
-$inputFile = Clean-Path $inputFile  # Remove any extra quotes
+# Normalise any supported timestamp format to M/D/YY so the rest of the
+# pipeline works with a single canonical form.
+# Supported inputs:
+#   M/D/YY or M/D/YYYY   (WhatsApp default)
+#   DD/MM/YYYY           (European)
+#   YYYY-MM-DD           (ISO 8601)
+function Normalize-Date($raw) {
+    if ($raw -match '^(\d{4})-(\d{1,2})-(\d{1,2})$') {
+        # ISO 8601: YYYY-MM-DD -> M/D/YY
+        $y = $Matches[1]; $m = $Matches[2]; $d = $Matches[3]
+        return "$([int]$m)/$([int]$d)/$($y.Substring(2))"
+    }
+    if ($raw -match '^(\d{1,2})/(\d{1,2})/(\d{4})$') {
+        # DD/MM/YYYY (day first, 4-digit year) -> M/D/YY
+        $d = $Matches[1]; $m = $Matches[2]; $y = $Matches[3]
+        return "$([int]$m)/$([int]$d)/$($y.Substring(2))"
+    }
+    # M/D/YY or M/D/YYYY already — return as-is (strip leading zeros for consistency)
+    if ($raw -match '^(\d{1,2})/(\d{1,2})/(\d{2,4})$') {
+        return "$([int]$Matches[1])/$([int]$Matches[2])/$($Matches[3])"
+    }
+    return $raw  # Unrecognised format — pass through unchanged
+}
 
-# Check if the input file exists
+# ── Prompts ──────────────────────────────────────────────────────────────────
+
+$inputFile = Read-Host "Please enter the full path of the input text file"
+$inputFile = Clean-Path $inputFile
+
 if (-not (Test-Path $inputFile)) {
     Write-Host "Error: The input file '$inputFile' does not exist. Exiting..."
     exit
 }
 
-# Prompt the user for the output file location
-$outputFile = Read-Host "Please enter the full path of the output text file"
-$outputFile = Clean-Path $outputFile  # Remove any extra quotes
+$outputFile = Read-Host "Please enter the full path of the output file"
+$outputFile = Clean-Path $outputFile
 
-# Regular expression to match date and time enclosed in square brackets, supporting
-# both 12-hour (with AM/PM) and 24-hour formats, e.g., [M/D/YY, H:MM:SS] or
-# [M/D/YY, H:MM:SS AM/PM]
-$pattern = "^\[\d{1,2}/\d{1,2}/\d{2,4}, \d{1,2}:\d{2}:\d{2}(?: [AP]M)?\]"
+# Output format
+$formatChoice = Read-Host "Output format — enter T for Tab-separated (default) or C for CSV"
+if ($formatChoice -match '^[Cc]') {
+    $outputFormat = 'CSV'
+    $sep = ','
+} else {
+    $outputFormat = 'TSV'
+    $sep = "`t"
+}
 
-# Initialize a list to store corrected records
-$fixedLines = @()
+# Optional sender filter
+$senderFilter = Read-Host "Filter by sender name (leave blank for all senders)"
+$senderFilter = $senderFilter.Trim()
 
-# Read the input file line by line
+# Optional date range filter
+$dateFromStr = Read-Host "Filter FROM date (MM/DD/YYYY, leave blank for no start limit)"
+$dateToStr   = Read-Host "Filter TO date   (MM/DD/YYYY, leave blank for no end limit)"
+
+$dateFrom = $null
+$dateTo   = $null
+if ($dateFromStr.Trim() -ne '') {
+    try { $dateFrom = [datetime]::ParseExact($dateFromStr.Trim(), 'M/d/yyyy', $null) }
+    catch { Write-Host "Warning: Could not parse FROM date '$dateFromStr'. Date filter ignored." }
+}
+if ($dateToStr.Trim() -ne '') {
+    try { $dateTo = [datetime]::ParseExact($dateToStr.Trim(), 'M/d/yyyy', $null) }
+    catch { Write-Host "Warning: Could not parse TO date '$dateToStr'. Date filter ignored." }
+}
+
+# ── Pattern (supports M/D/YY, DD/MM/YYYY, YYYY-MM-DD) ───────────────────────
+# Match any of the three date formats followed by comma+space+time+optional AM/PM
+$pattern = "^\[(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}/\d{1,2}/\d{2,4}), \d{1,2}:\d{2}:\d{2}(?: [AP]M)?\]"
+
+# ── Parse ────────────────────────────────────────────────────────────────────
+$records = @()  # Each element is a hashtable: Date, Time, Sender, Message
+
 Get-Content $inputFile -Encoding UTF8 | ForEach-Object {
-    # Remove LRM characters and replace problematic Unicode characters with spaces
-    $_ = $_ -replace '\u200E', ''  # Remove Left-to-Right Mark (LRM) entirely
-    $_ = $_ -replace '\u202F|\u00A0|\u2007', ' '  # Replace other problematic Unicode spaces with regular spaces
+    $_ = $_ -replace '\u200E', ''
+    $_ = $_ -replace '\u202F|\u00A0|\u2007', ' '
 
-    # Check if the line starts with a date and time enclosed in square brackets
     if ($_ -match $pattern) {
-        # Extract Column A (Date) and Column B (Time) from inside the square brackets
         $dateTime = $_ -replace "\[(.*?)\].*", '$1'
-        $date, $time = $dateTime -split ', '  # Split date and time by comma
-        
-        # Extract Column C (Name) by capturing text between ] and :
-        $columnC = ($_ -replace ".*\] (.*?):.*", '$1').Trim()  # Trim leading/trailing spaces
+        $rawDate, $time = $dateTime -split ', '
+        $date     = Normalize-Date $rawDate
+        $sender   = ($_ -replace ".*\] (.*?):.*", '$1').Trim()
+        $message  = ($_ -replace "^\[[^\]]+\] [^:]+: ?", '').Trim()
 
-        # Extract Column D (Message) by removing the timestamp and name prefix
-        # This avoids truncating messages that themselves contain colons
-        $columnD = ($_ -replace "^\[[^\]]+\] [^:]+: ?", '').Trim()
-
-        # Concatenate and store the result for output (CSV-like format with tab separation)
-        $fixedLines += "$date`t$time`t$columnC`t$columnD"
-    } elseif ($fixedLines.Count -gt 0) {
-        # Ensure there's already a record before appending a continuation line
-        $fixedLines[-1] += " " + $_.Trim()  # Append to the last message (Column D), also Trim
+        $records += @{ Date = $date; Time = $time; Sender = $sender; Message = $message }
+    } elseif ($records.Count -gt 0) {
+        $records[-1].Message += ' ' + $_.Trim()
     }
 }
 
-# Write the corrected records to the output file with newline between records
-$fixedLines -join "`n" | Set-Content $outputFile
+# ── Filter ───────────────────────────────────────────────────────────────────
+$filtered = $records | Where-Object {
+    $keep = $true
 
-# Confirmation message
-Write-Host "Data processing complete. Output has been saved to $outputFile"
+    # Sender filter
+    if ($senderFilter -ne '' -and $_.Sender -notlike "*$senderFilter*") { $keep = $false }
+
+    # Date range filter
+    if ($keep -and ($dateFrom -or $dateTo)) {
+        try {
+            $msgDate = [datetime]::ParseExact($_.Date, 'M/d/yy',   $null)
+        } catch {
+            try { $msgDate = [datetime]::ParseExact($_.Date, 'M/d/yyyy', $null) }
+            catch { $msgDate = $null }
+        }
+        if ($msgDate) {
+            if ($dateFrom -and $msgDate -lt $dateFrom) { $keep = $false }
+            if ($dateTo   -and $msgDate -gt $dateTo)   { $keep = $false }
+        }
+    }
+    $keep
+}
+
+# ── Format & Write ───────────────────────────────────────────────────────────
+function Format-Field($value, $format) {
+    if ($format -eq 'CSV') {
+        # Wrap in quotes if the value contains a comma, quote, or newline
+        if ($value -match '[,"\n]') {
+            return '"' + ($value -replace '"', '""') + '"'
+        }
+    }
+    return $value
+}
+
+$outputLines = $filtered | ForEach-Object {
+    $d = Format-Field $_.Date    $outputFormat
+    $t = Format-Field $_.Time    $outputFormat
+    $s = Format-Field $_.Sender  $outputFormat
+    $m = Format-Field $_.Message $outputFormat
+    "$d$sep$t$sep$s$sep$m"
+}
+
+$outputLines -join "`n" | Set-Content $outputFile -Encoding UTF8
+
+# ── Summary Report ───────────────────────────────────────────────────────────
+$totalMessages  = $filtered.Count
+$uniqueSenders  = ($filtered | ForEach-Object { $_.Sender } | Sort-Object -Unique).Count
+$allSenders     = ($filtered | ForEach-Object { $_.Sender } | Sort-Object -Unique) -join ', '
+
+# Determine earliest and latest dates from filtered records
+$parsedDates = $filtered | ForEach-Object {
+    try { [datetime]::ParseExact($_.Date, 'M/d/yy',   $null) } catch {
+    try { [datetime]::ParseExact($_.Date, 'M/d/yyyy', $null) } catch { $null } }
+} | Where-Object { $_ -ne $null } | Sort-Object
+
+if ($parsedDates.Count -gt 0) {
+    $earliest = $parsedDates[0].ToString('MM/dd/yyyy')
+    $latest   = $parsedDates[-1].ToString('MM/dd/yyyy')
+} else {
+    $earliest = 'N/A'
+    $latest   = 'N/A'
+}
+
+Write-Host ""
+Write-Host "========================================"
+Write-Host "           PROCESSING SUMMARY"
+Write-Host "========================================"
+Write-Host "Output format   : $outputFormat"
+Write-Host "Output file     : $outputFile"
+Write-Host "Total messages  : $totalMessages"
+Write-Host "Unique senders  : $uniqueSenders"
+Write-Host "Senders         : $allSenders"
+Write-Host "Date range      : $earliest  ->  $latest"
+Write-Host "========================================"
+Write-Host ""
