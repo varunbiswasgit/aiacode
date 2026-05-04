@@ -17,10 +17,12 @@ This VBA macro for Microsoft Word performs two tasks on the active document:
 
 ### Border Application
 - Prompts for border width (in points) and RGB color values.
-- Border settings are captured but **border rendering on inline pictures depends on your Word version and shape type**. If borders do not appear, apply them manually via Format Picture > Line in Word.
+- Applies a solid single-line border to each resized image using `.Line.Weight`, `.Line.Style`, and `.Line.ForeColor.RGB`.
+- Border is applied **only to images that meet the minimum width threshold** and are resized — images below the minimum width are not bordered.
+- Default color (RGB 68, 114, 198) renders as a medium blue, matching a standard corporate blue tone.
 
 ### Empty Line Cleanup
-- Replaces three or more consecutive paragraph marks with two, using a non-wildcard find-and-replace for consistent behavior across Word versions.
+- Uses a wildcard find-and-replace pattern (`^13{3,}`) with `MatchWildcards = True` to locate three or more consecutive paragraph marks and replace them with two.
 
 ---
 
@@ -58,17 +60,16 @@ All inputs are validated. Non-numeric or out-of-range values will prompt a retry
 ## Known Limitations
 
 - **Inline shapes only**: The macro does not process floating images or shapes wrapped with text.
-- **Border rendering**: The `.Line` property on `wdInlineShapePicture` shapes is not universally supported in all Word builds. Border prompts are retained for forward compatibility, but visual borders may need to be applied manually in some environments.
 - **Cancel behavior**: Pressing Cancel on any input box exits the macro immediately without making changes.
-- **Consecutive blank line cleanup**: Uses a non-wildcard pattern (`^p^p^p` → `^p^p`) for reliability. Wildcard-based patterns (`^13{3,}`) are not used due to inconsistent behavior across Word versions.
+- **Border scope**: Only images wider than the minimum width threshold receive a border. Images at or below the minimum are not resized or bordered.
 
 ---
 
 ## Customization
 
-To apply borders to **all** images regardless of size, move the border-related code outside the `If .Width > minWidth Then` block.
-
-To skip border prompts entirely, remove the border input and `.Line` assignment sections from the code.
+- To apply borders to **all** images regardless of size, move the `.Line` border code outside the `If .Width > minWidth Then` block.
+- To skip border prompts entirely, remove the border input variables and the `.Line` assignment lines from the code.
+- To change the default border color, update the default values in the `InputBox` calls for Red, Green, and Blue.
 
 ---
 
