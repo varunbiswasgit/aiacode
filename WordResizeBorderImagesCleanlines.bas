@@ -83,6 +83,13 @@ Sub ResizeImagesAndCleanDocument()
                     If .Width > minWidth Then
                         .LockAspectRatio = msoTrue
                         .Width = maxWidth
+                        ' Apply border to resized images
+                        On Error Resume Next
+                        .Line.Visible = msoTrue
+                        .Line.Weight = borderWidth
+                        .Line.Style = msoLineSingle
+                        .Line.ForeColor.RGB = RGB(borderColorR, borderColorG, borderColorB)
+                        On Error GoTo 0
                     End If
                 End If
             End With
