@@ -20,8 +20,12 @@ While optimized for WhatsApp chats, this script can also be used for other gener
 
 4. **Tab-Separated Output:**
    - Saves cleaned data in a tab-separated format for easy import into Excel or other tools.
+
 5. **Colon Handling:**
    - Correctly parses messages even when the text itself contains colons.
+
+6. **Path Quote Stripping:**
+   - Automatically removes surrounding quotes from file paths, supporting drag-and-drop input in PowerShell terminals.
 
 ---
 
@@ -30,7 +34,7 @@ While optimized for WhatsApp chats, this script can also be used for other gener
 - If using WhatsApp, export your chat as a `.txt` file.
 - For generic use cases, ensure your file contains:
   - Lines starting with timestamps.
-  - Messages structured with participants’ names followed by text.
+  - Messages structured with participants' names followed by text.
 
 ### 2. Run the Script
 1. Open a PowerShell terminal.
@@ -81,6 +85,32 @@ Date       Time       Name        Message
 
 ---
 
+## Testing
+
+The script is covered by a [Pester](https://pester.dev/) test suite located at `tests/Clean_data_whatsapp.Tests.ps1`.
+
+### Test Cases
+| # | Test | What It Validates |
+|---|---|---|
+| 1 | AM/PM parsing | 12-hour and 24-hour time formats parse correctly |
+| 2 | Quote stripping | `Clean-Path` removes `"` from drag-dropped file paths |
+| 3 | Unicode cleanup | LRM (`\u200E`) removed; `\u202F` replaced with a space |
+| 4 | Colon in message | Message body containing colons is preserved intact in Column D |
+| 5 | Missing input file | Script exits gracefully with an error message; no output file created |
+| 6 | Empty input file | Output file is created but empty — no crash or silent failure |
+| 7 | Continuation lines | Multi-line messages are merged with a space into the preceding Column D entry |
+
+### Run the Tests
+```PowerShell
+# Install Pester if not already installed
+Install-Module -Name Pester -Force -Scope CurrentUser
+
+# Run all tests with detailed output
+Invoke-Pester -Path ".\tests\Clean_data_whatsapp.Tests.ps1" -Output Detailed
+```
+
+---
+
 ## Generic Use Cases
 
 ### 1. **Log File Processing**
@@ -100,8 +130,12 @@ Date       Time       Name        Message
 ---
 
 ## Future Improvements
-The following enhancements are planned to  make this script even more robust and user-friendly:
-- [ ] Continue
+The following enhancements are planned to make this script even more robust and user-friendly:
+- [ ] Add support for additional WhatsApp timestamp formats (e.g., `DD/MM/YYYY` and `YYYY-MM-DD`).
+- [ ] Add a `-Silent` switch to suppress interactive prompts and accept file paths as parameters for automation pipelines.
+- [ ] Support CSV output format as an alternative to tab-separated output.
+- [ ] Add an option to filter messages by sender name or date range.
+- [ ] Provide a summary report (total messages, unique senders, date range) after processing.
 
 ---
 
