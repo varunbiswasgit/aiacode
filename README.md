@@ -1,14 +1,13 @@
----
-
-# AI Assisted Microsoft Macro, Bash, and PowerShell Scripts
+# AI Assisted Microsoft Macro, Bash, PowerShell, and Python Scripts
 
 ## Overview
-This repository contains a collection of PowerShell, MS Macros, and Bash scripts developed using AI tools. The scripts have been tested and worked to the best of my knowledge at the time of posting. The repository also includes tools and scripts for automating workflows, such as bulk issue creation in GitHub.
+This repository contains a collection of PowerShell, MS Macros, Bash, and Python scripts developed using AI tools. The scripts have been tested and worked to the best of my knowledge at the time of posting. The repository also includes tools and scripts for automating workflows, such as bulk issue creation in GitHub.
 
 ## Scripts Index
 1. **Clean_data_Whatsapp.ps1**: A script for cleaning and processing text files, such as removing extra quotes, validating paths, and extracting data matching specific patterns.
 2. **WordResizeBorderImagesCleanlines.bas**: This VBA script resizes images, adds a border, and cleans the document.
-3. _[Placeholder for additional scripts]_: Add descriptions for other scripts as you add them.
+3. **SplitExcelByManager.bas**: A VBA macro that splits an Excel workbook into separate sheets or files, organized by manager name.
+4. **split_excel_by_manager.py**: A Python script that replicates the split-by-manager logic from the VBA macro, offering a cross-platform alternative using pandas or openpyxl.
 
 ---
 
@@ -93,7 +92,7 @@ To use the script, ensure the following tools are installed on your system:
      ```
 
 #### 2. **Chocolatey (`choco`)**
-   - If you don’t have Chocolatey installed (Windows users), follow these steps:
+   - If you don't have Chocolatey installed (Windows users), follow these steps:
      1. Open a Command Prompt or PowerShell with admin rights.
      2. Install Chocolatey by running:
         ```
