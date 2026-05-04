@@ -4,10 +4,11 @@
 This repository contains a collection of PowerShell, MS Macros, Bash, and Python scripts developed using AI tools. The scripts have been tested and worked to the best of my knowledge at the time of posting. The repository also includes tools and scripts for automating workflows, such as bulk issue creation in GitHub.
 
 ## Scripts Index
-1. **Clean_data_Whatsapp.ps1**: A script for cleaning and processing text files, such as removing extra quotes, validating paths, and extracting data matching specific patterns.
-2. **WordResizeBorderImagesCleanlines.bas**: This VBA script resizes images, adds a border, and cleans the document.
+1. **Clean_data_Whatsapp.ps1**: A PowerShell script for cleaning and processing text files, such as removing extra quotes, validating paths, and extracting data matching specific patterns.
+2. **WordResizeBorderImagesCleanlines.bas**: A VBA script that resizes images, adds a border, and cleans the document in Microsoft Word.
 3. **SplitExcelByManager.bas**: A VBA macro that splits an Excel workbook into separate sheets or files, organized by manager name.
 4. **split_excel_by_manager.py**: A Python script that replicates the split-by-manager logic from the VBA macro, offering a cross-platform alternative using pandas or openpyxl.
+5. **ExcelFormatting.bas**: A unified VBA macro for Excel data formatting and cleanup. Offers four processing modes via an interactive menu: (1) simple formatting across all worksheets, (2) advanced formatting on the active sheet, (3) advanced formatting with an optional column split using a user-selected delimiter, and (4) SAP output processing with marker-based row/column trimming, duplicate removal, blank row/column deletion, and optional table conversion. Includes a shared `CleanAndTrim` function, `Scripting.Dictionary`-based deduplication, `Find`-based last-row detection, and full application state management via `BeginAppState`/`EndAppState`.
 
 ---
 
