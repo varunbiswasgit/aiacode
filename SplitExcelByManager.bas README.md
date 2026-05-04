@@ -1,15 +1,26 @@
-# Split Excel by Manager — VBA Macro
+# Split Excel by Manager — VBA Macro (v3.0)
 
-This VBA macro splits the active worksheet into separate workbooks, one per unique manager. It reads manager names from **column A** (row 1 = header, data from row 2), filters rows for each manager, and saves each output workbook to the **same folder as the source file**.
-
-Each output workbook has auto-fitted column widths for readability.
+This VBA macro splits the active worksheet into one workbook per unique manager. Reports are saved to a `manager_reports` subfolder alongside the source workbook. **Feature-synchronized with `split_excel_by_manager.py` v3.0.**
 
 ---
 
 ## Requirements
 
 - Microsoft Excel (any version supporting `.xlsx` / `xlOpenXMLWorkbook`)
-- The source workbook **must be saved to disk** before running the macro
+- Source workbook **must be saved to disk** before running the macro
+
+---
+
+## Configuration
+
+Two constants at the top of the macro control its behaviour — no code changes needed anywhere else:
+
+```vba
+Const MANAGER_COL_NAME  As String = "Manager"          ' Header of the manager column
+Const OUTPUT_SUBFOLDER  As String = "manager_reports"  ' Output folder under workbook path
+```
+
+Change `MANAGER_COL_NAME` to match your actual column header (e.g. `"Supervisor"`, `"Team Lead"`).
 
 ---
 
@@ -19,7 +30,7 @@ Each output workbook has auto-fitted column widths for readability.
 2. Press `Alt + F11` to open the VBA Editor.
 3. Go to **File → Import File** and select `SplitExcelByManager.bas`.
 4. Press `F5` or click **Run** to execute `SplitExcelByManager`.
-5. Output files are saved in the same folder as the source workbook, named `<ManagerName>_Report.xlsx`.
+5. A confirmation box shows the count and full path of saved reports.
 
 ---
 
@@ -27,9 +38,9 @@ Each output workbook has auto-fitted column widths for readability.
 
 | Requirement | Detail |
 |---|---|
-| Manager column | Column A (row 1 = header, data starts row 2) |
-| File must be saved | Macro uses `ThisWorkbook.Path` to determine output location |
-| No pre-existing AutoFilter conflict | Macro clears any active AutoFilter before running |
+| Manager column | Located by header name (configurable via `MANAGER_COL_NAME`) |
+| File must be saved | Macro uses `ThisWorkbook.Path` for output location |
+| Header row | Must be in row 1; data from row 2 downward |
 
 ---
 
@@ -37,51 +48,75 @@ Each output workbook has auto-fitted column widths for readability.
 
 ```
 source_folder/
-├── YourWorkbook.xlsx          ← source file
-├── JohnSmith_Report.xlsx
-├── SarahJohnson_Report.xlsx
-└── ...
+├── YourWorkbook.xlsx
+└── manager_reports/
+    ├── John_Smith_report.xlsx
+    ├── Sarah_Johnson_report.xlsx
+    └── ...
 ```
+
+- File name pattern: `{sanitized_name}_report.xlsx` (lowercase suffix, matches Python)
+- Invalid characters (`/ \ : * ? < > |`) replaced with `_`
+- Windows reserved names (CON, PRN, AUX, NUL, COM1–9, LPT1–9) replaced with `Unknown_Manager`
+- Names truncated to 200 characters
+- Column widths clamped between 8 and 50 characters
 
 ---
 
-## Key Fixes Applied (v2.0)
+## Feature Parity with Python v3.0
 
-| Issue | Fix |
-|---|---|
-| Output saved to Excel default directory | Now uses `ThisWorkbook.Path` |
-| No guard if workbook was unsaved | Added check; shows message and exits |
-| AutoFilter conflict if already active | Cleared before applying new filter |
-| Manager names with `/\:*?<>|` crashed SaveAs | Sanitization loop replaces invalid chars with `-` |
-| `On Error Resume Next` scope too broad | Narrowed to Collection deduplication only |
-| Blank/null manager names not filtered | Skipped before processing |
+| Feature | Python | VBA |
+|---|---|---|
+| Configurable manager column | CLI arg 2 | `MANAGER_COL_NAME` constant |
+| Configurable output folder | CLI arg 3 | `OUTPUT_SUBFOLDER` constant |
+| Column located by header name | Yes | Yes |
+| Skip blank/null managers | Yes | Yes |
+| Sanitize invalid filename chars | `_` replacement | `_` replacement |
+| Windows reserved name check | CON–NUL, COM1–9, LPT1–9 | CON–NUL, COM1–9, LPT1–9 |
+| Name length cap | 200 chars | 200 chars |
+| Column width cap | 8–50 chars | 8–50 chars |
+| Per-manager error handling | try/except, continues | On Error GoTo, continues |
+| Output file suffix | `_report.xlsx` | `_report.xlsx` |
+| Missing column error | Yes | Yes (MsgBox) |
+| Empty data guard | Yes | Yes (MsgBox) |
+| Completion summary | Print to console | MsgBox with count + path |
 
 ---
 
 ## Troubleshooting
 
-**"Please save the workbook first"**
-Save the file to a folder on disk (`Ctrl + S`) before running the macro.
+**"Please save the workbook first"** — Save the file (`Ctrl + S`) before running.
 
-**Output file not found**
-Check the folder where the source workbook is saved — all reports are written there.
+**"Column not found"** — Update `MANAGER_COL_NAME` to match the exact header in your data (case-sensitive).
 
-**Special characters in manager names**
-Characters invalid in Windows file names (`/ \ : * ? < > |`) are automatically replaced with `-`.
+**Reports not appearing** — Check the `manager_reports` subfolder in the same directory as your workbook.
+
+**Special characters in names** — Characters `/ \ : * ? < > |` are automatically replaced with `_`.
 
 ---
 
 ## Version History
 
+### v3.0
+- Manager column located by configurable header name (not hardcoded column A)
+- Configurable output subfolder via `OUTPUT_SUBFOLDER` constant
+- Full Windows reserved name list added (COM1–9, LPT1–9)
+- 200-character name length cap
+- Explicit column width cap (min 8, max 50) — matches Python
+- Per-manager `On Error GoTo` error handling (failed manager skipped, loop continues)
+- Sanitization changed from `-` to `_` to match Python
+- Output suffix standardised to lowercase `_report.xlsx`
+- Column-missing and empty-data guards with `MsgBox`
+
 ### v2.0
 - Fixed output path to use `ThisWorkbook.Path`
 - Added unsaved workbook guard
-- Added AutoFilter state reset before execution
-- Added manager name sanitization for file-system safety
-- Added null/blank manager name skip
-- Added completion message box with file count and path
+- Added AutoFilter state reset
+- Added manager name sanitization
+- Added blank manager name skip
+- Added completion MsgBox
 
 ### v1.0
 - Basic split-by-manager functionality
-- AutoFilter + `SpecialCells` copy approach
+- AutoFilter + SpecialCells copy approach
 - Column auto-fit on output workbooks
