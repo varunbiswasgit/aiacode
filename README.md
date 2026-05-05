@@ -9,6 +9,7 @@ This repository contains a collection of PowerShell, MS Macros, Bash, and Python
 3. **SplitExcelByManager.bas**: A VBA macro that splits an Excel workbook into separate sheets or files, organized by manager name.
 4. **split_excel_by_manager.py**: A Python script that replicates the split-by-manager logic from the VBA macro, offering a cross-platform alternative using pandas or openpyxl.
 5. **ExcelFormatting.bas**: A unified VBA macro for Excel data formatting and cleanup, with four interactive modes covering simple formatting, advanced formatting, optional column splitting, and SAP output processing.
+6. **NormalizeTable.bas**: A lightweight, single-pass Word VBA macro (`NormalizeTables_Light`) that standardizes all tables in the active document — normalizing widths to 100%, clearing row/column constraints, and applying Arial 10pt formatting. Designed as a fast daily-driver; use `StandardizeTables_TwoPass_AllStories` for documents with embedded images or nested tables.
 
 ---
 
