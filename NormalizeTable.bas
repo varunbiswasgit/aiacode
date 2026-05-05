@@ -12,7 +12,7 @@ Option Explicit
 Private Const TARGET_FONT_NAME As String = "Arial"
 Private Const TARGET_FONT_SIZE As Single = 10
 
-Public Sub NormalizeTables_Light()
+Public Sub NormalizeTables()
     Dim doc As Document
     Dim srStory As Range, sr As Range, tbl As Table
     Dim startT As Double
