@@ -5,16 +5,20 @@ A combined, hardened Excel VBA macro module for generic workbook formatting and 
 ## Features
 
 | Option | Scope | What it does |
-|--------|-------|-------------- |
-| 1 – Simple formatting | All worksheets | Trims/cleans text, caps column width at 55, wraps text, auto-fits rows and columns |
-| 2 – Advanced formatting | Active sheet | Same as above plus `TextToColumns` datatype coercion on every column |
-| 3 – Advanced + optional split | Active sheet | Option 2 plus an interactive column-split prompt with delimiter choice |
-| 4 – SAP output processing | Active sheet | Marker-based row/column cropping, deduplication, blank row/column removal, optional table conversion |
+|--------|-------|------|
+| 1 – Simple formatting | Active sheet | Trims and cleans text, runs `TextToColumns` on all columns for automatic data-type detection, caps column width at 55, wraps text, auto-fits rows and columns |
+| 2 – Advanced formatting | Active sheet | Identical to Option 1; intended for explicit advanced use |
+| 3 – SAP output processing | Active sheet | Marker-based row/column cropping, deduplication, blank row/column removal, optional Excel table conversion |
+
+## How Column Normalisation Works
+
+All options run `TextToColumns` on every column with **no delimiters specified**. This instructs Excel to re-evaluate each cell's data type without splitting content — dates stored as text become date values, numbers stored as text become numeric, and genuine text strings are preserved as-is. No user input is required.
 
 ## Requirements
 
 - Microsoft Excel (any version supporting VBA)
 - Macro execution must be enabled
+- Do not run on sheets containing PivotTables — `TextToColumns` will raise an error if the data range overlaps a PivotTable. Switch to a non-PivotTable sheet before running.
 
 ## Installation
 
@@ -34,12 +38,12 @@ Call this macro to launch the interactive menu.
 
 ## SAP Mode Details
 
-SAP mode (option 4) supports two built-in marker strings used to crop leading metadata rows and columns that SAP exports typically include:
+SAP mode (Option 3) supports two built-in marker strings used to crop leading metadata rows and columns that SAP exports typically include:
 
 - `Selection No.`
 - `Date`
 
-You can choose which marker to use at runtime, or skip marker trimming entirely.
+You can choose which marker to use at runtime, or skip marker trimming entirely. Additional prompts control deduplication, blank column handling (with or without header-row awareness), and optional conversion to an Excel table.
 
 ## Safety Notes
 
