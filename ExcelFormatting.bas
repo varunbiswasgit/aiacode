@@ -26,7 +26,7 @@ Public Sub RunUnifiedDataFormatter_v3()
 
     If Not TryGetLongInput( _
         "Choose an option:" & vbCrLf & vbCrLf & _
-        "1 = Simple formatting (all worksheets)" & vbCrLf & _
+        "1 = Simple formatting (active sheet only)" & vbCrLf & _
         "2 = Advanced formatting (active sheet only)" & vbCrLf & _
         "3 = Advanced formatting + optional split (active sheet only)" & vbCrLf & _
         "4 = SAP output processing (active sheet only)", _
@@ -35,10 +35,10 @@ Public Sub RunUnifiedDataFormatter_v3()
     Select Case mainChoice
         Case 1
             BeginAppState
-            On Error GoTo ErrHandlerAllSheets
-            ProcessWorkbookSimple
+            On Error GoTo ErrHandlerActiveSheet
+            ProcessSheetCore ws, opt
             EndAppState
-            MsgBox "Workbook processing completed.", vbInformation, "Done"
+            MsgBox "Simple formatting completed.", vbInformation, "Done"
             Exit Sub
 
         Case 2
@@ -72,11 +72,6 @@ Public Sub RunUnifiedDataFormatter_v3()
             Exit Sub
     End Select
 
-ErrHandlerAllSheets:
-    EndAppState
-    MsgBox "Error: " & Err.Description, vbExclamation, "Macro Stopped"
-    Exit Sub
-
 ErrHandlerActiveSheet:
     EndAppState
     MsgBox "Error: " & Err.Description, vbExclamation, "Macro Stopped"
@@ -105,17 +100,6 @@ Private Function GetSAPRunOptions(ByRef opt As TRunOptions) As Boolean
     GetSAPRunOptions = True
 
 End Function
-
-Private Sub ProcessWorkbookSimple()
-
-    Dim ws As Worksheet
-    Dim opt As TRunOptions
-
-    For Each ws In ThisWorkbook.Worksheets
-        ProcessSheetCore ws, opt
-    Next ws
-
-End Sub
 
 Private Sub ProcessSheetCore(ByVal ws As Worksheet, ByRef opt As TRunOptions)
 
