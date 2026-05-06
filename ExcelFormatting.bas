@@ -6,7 +6,6 @@ Private Const SAP_SELECTION_MARKER As String = "Selection No."
 Private Const DEFAULT_TABLE_STYLE As String = "TableStyleMedium2"
 
 Private Type TRunOptions
-    DoSplit As Boolean
     UseSAPMode As Boolean
     DoDedupe As Boolean
     DoTable As Boolean
@@ -28,8 +27,7 @@ Public Sub RunUnifiedDataFormatter_v3()
         "Choose an option:" & vbCrLf & vbCrLf & _
         "1 = Simple formatting (active sheet only)" & vbCrLf & _
         "2 = Advanced formatting (active sheet only)" & vbCrLf & _
-        "3 = Advanced formatting + optional split (active sheet only)" & vbCrLf & _
-        "4 = SAP output processing (active sheet only)", _
+        "3 = SAP output processing (active sheet only)", _
         "Unified Data Formatter", mainChoice) Then Exit Sub
 
     Select Case mainChoice
@@ -50,15 +48,6 @@ Public Sub RunUnifiedDataFormatter_v3()
             Exit Sub
 
         Case 3
-            If Not TryGetYesNoCancel("Do you want to split a column before formatting?", "Optional Column Split", opt.DoSplit) Then Exit Sub
-            BeginAppState
-            On Error GoTo ErrHandlerActiveSheet
-            ProcessSheetCore ws, opt
-            EndAppState
-            MsgBox "Advanced formatting completed.", vbInformation, "Done"
-            Exit Sub
-
-        Case 4
             If Not GetSAPRunOptions(opt) Then Exit Sub
             BeginAppState
             On Error GoTo ErrHandlerActiveSheet
@@ -68,7 +57,7 @@ Public Sub RunUnifiedDataFormatter_v3()
             Exit Sub
 
         Case Else
-            MsgBox "Please enter 1, 2, 3, or 4.", vbExclamation, "Invalid Choice"
+            MsgBox "Please enter 1, 2, or 3.", vbExclamation, "Invalid Choice"
             Exit Sub
     End Select
 
@@ -89,7 +78,6 @@ Private Function GetSAPRunOptions(ByRef opt As TRunOptions) As Boolean
     If Not TryGetSAPMarkerChoice(opt.MarkerText) Then Exit Function
     If Not TryGetYesNoCancel("Does the final dataset have a header row?", "Header Row", opt.HasHeaderRow) Then Exit Function
     If Not TryGetYesNoCancel("Remove duplicate rows?", "Duplicate Removal", opt.DoDedupe) Then Exit Function
-    If Not TryGetYesNoCancel("Split a column before final formatting?", "Optional Column Split", opt.DoSplit) Then Exit Function
     If Not TryGetYesNoCancel( _
         "Delete blank columns ignoring row 1 as a header row?" & vbCrLf & vbCrLf & _
         "Yes = Ignore row 1 when checking blank columns" & vbCrLf & _
@@ -125,12 +113,6 @@ Private Sub ProcessSheetCore(ByVal ws As Worksheet, ByRef opt As TRunOptions)
 
     If opt.DoDedupe Then
         RemoveDuplicateRows ws, opt.HasHeaderRow
-        lastRow = GetLastUsedRow(ws)
-        lastCol = GetLastUsedColumn(ws)
-    End If
-
-    If opt.DoSplit Then
-        SplitColumnInteractive ws, lastRow
         lastRow = GetLastUsedRow(ws)
         lastCol = GetLastUsedColumn(ws)
     End If
@@ -316,65 +298,6 @@ Private Sub ApplyStandardFormatting(ByVal ws As Worksheet, ByVal lastRow As Long
 
 End Sub
 
-Private Sub SplitColumnInteractive(ByVal ws As Worksheet, ByVal lastRow As Long)
-
-    Dim splitCol As Long
-    Dim delimiterChoice As Long
-    Dim otherDelimiter As String
-    Dim targetCol As Range
-    Dim useTab As Boolean, useSemicolon As Boolean, useComma As Boolean, useSpace As Boolean, useOther As Boolean
-
-    If Not TryGetLongInput("Enter the column number to split (example: 3 for column C).", "Column to Split", splitCol) Then Exit Sub
-    If splitCol < 1 Or splitCol > 16384 Then
-        MsgBox "Invalid column number.", vbExclamation, "Invalid Input"
-        Exit Sub
-    End If
-
-    If Not TryGetLongInput( _
-        "Choose delimiter:" & vbCrLf & vbCrLf & _
-        "1 = Tab" & vbCrLf & _
-        "2 = Semicolon" & vbCrLf & _
-        "3 = Comma" & vbCrLf & _
-        "4 = Space" & vbCrLf & _
-        "5 = Other character", _
-        "Split Delimiter", delimiterChoice) Then Exit Sub
-
-    ResetDelimiterFlags useTab, useSemicolon, useComma, useSpace, useOther
-
-    Select Case delimiterChoice
-        Case 1: useTab = True
-        Case 2: useSemicolon = True
-        Case 3: useComma = True
-        Case 4: useSpace = True
-        Case 5
-            If Not TryGetTextInput("Enter the single character delimiter.", "Other Delimiter", otherDelimiter) Then Exit Sub
-            If Len(otherDelimiter) = 0 Then
-                MsgBox "Delimiter cannot be blank.", vbExclamation, "Invalid Input"
-                Exit Sub
-            End If
-            useOther = True
-            otherDelimiter = Left$(otherDelimiter, 1)
-        Case Else
-            MsgBox "Invalid delimiter choice.", vbExclamation, "Invalid Input"
-            Exit Sub
-    End Select
-
-    Set targetCol = ws.Range(ws.Cells(1, splitCol), ws.Cells(lastRow, splitCol))
-    targetCol.TextToColumns _
-        Destination:=targetCol.Cells(1, 1), _
-        DataType:=xlDelimited, _
-        TextQualifier:=xlDoubleQuote, _
-        ConsecutiveDelimiter:=False, _
-        Tab:=useTab, _
-        Semicolon:=useSemicolon, _
-        Comma:=useComma, _
-        Space:=useSpace, _
-        Other:=useOther, _
-        OtherChar:=IIf(useOther, otherDelimiter, False), _
-        TrailingMinusNumbers:=True
-
-End Sub
-
 Private Sub ConvertUsedRangeToTable(ByVal ws As Worksheet, ByVal hasHeaderRow As Boolean)
 
     Dim dataRange As Range
@@ -524,16 +447,6 @@ Private Function NzToString(ByVal v As Variant) As String
     End If
 
 End Function
-
-Private Sub ResetDelimiterFlags(ByRef useTab As Boolean, ByRef useSemicolon As Boolean, ByRef useComma As Boolean, ByRef useSpace As Boolean, ByRef useOther As Boolean)
-
-    useTab = False
-    useSemicolon = False
-    useComma = False
-    useSpace = False
-    useOther = False
-
-End Sub
 
 Private Sub BeginAppState()
 
