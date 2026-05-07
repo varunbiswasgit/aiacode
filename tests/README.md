@@ -4,12 +4,11 @@ This folder contains all test scripts and their corresponding Testing Readme fil
 
 ## Structure
 
-| Script under test | Test file | Testing Readme |
-|---|---|---|
-| `scripts/ExcelFormatting.bas` | *(manual only — see readme)* | `ExcelFormatting.bas Testing Readme.md` |
-| `scripts/SplitExcelByManager.bas` | *(manual only — see readme)* | `SplitExcelByManager.bas Testing Readme.md` |
-| `scripts/split_excel_by_manager.py` | `test_split_excel_by_manager.py` | `test_split_excel_by_manager.py Testing Readme.md` |
-| `scripts/Clean_data_whatsapp.ps1` | `Clean_data_whatsapp.Tests.ps1` | `Clean_data_whatsapp.ps1 Testing Readme.md` |
+Each script in `scripts/` has a dedicated Testing Readme in this folder. The Testing Readme is the primary reference for that script's test cases — it lists every manual test case, the expected outcome, and the pass criteria. Where an automated test file also exists (Python or PowerShell), it lives alongside the Testing Readme in this folder and is named after the script it tests.
+
+The Testing Readme for a script should always be read together with two other files: the script file itself in `scripts/`, and the script's main README in the `README/` folder. The main README explains what the script does and how to install it; the Testing Readme explains how to verify it works correctly. The script file is the source of truth for behaviour — if a test case and the code appear to conflict, the code takes precedence.
+
+Naming is consistent across all three files for each script. A script named `ExcelFormatting.bas` will have a main README at `README/ExcelFormatting.bas README.md` and a Testing Readme at `tests/ExcelFormatting.bas Testing Readme.md`. This one-to-one-to-one relationship makes it straightforward to locate all documentation for any given script.
 
 ## Naming Convention
 
