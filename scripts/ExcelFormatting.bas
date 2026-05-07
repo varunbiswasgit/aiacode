@@ -4,8 +4,9 @@ Private Const MAX_COL_WIDTH As Double = 55
 Private Const DEFAULT_TABLE_STYLE As String = "TableStyleMedium2"
 
 Private Type TRunOptions
-    UseKeywordMode As Boolean
-    MarkerText As String
+    OptionLevel   As Long     ' 1 = Simple, 2 = Advanced, 3 = Keyword/Cell crop
+    UseKeywordMode As Boolean ' True = keyword anchor; False = user selects range
+    MarkerText    As String   ' Used when UseKeywordMode = True
 End Type
 
 ' ============================================================
@@ -23,10 +24,12 @@ Public Sub RunUnifiedDataFormatter_v3()
 
     If Not TryGetLongInput( _
         "Choose an option:" & vbCrLf & vbCrLf & _
-        "1 = Simple formatting (active sheet only)" & vbCrLf & _
-        "2 = Advanced formatting (active sheet only)" & vbCrLf & _
-        "3 = Keyword crop and format (active sheet only)", _
+        "1 = Simple formatting  (cap/autofit columns, remove duplicates, autofit rows)" & vbCrLf & _
+        "2 = Advanced formatting  (Option 1 + text-to-columns, delete blank columns, convert to table)" & vbCrLf & _
+        "3 = Crop and format  (Option 2 + crop data range by keyword or cell selection)", _
         "Unified Data Formatter", mainChoice) Then Exit Sub
+
+    opt.OptionLevel = mainChoice
 
     Select Case mainChoice
         Case 1
@@ -34,8 +37,8 @@ Public Sub RunUnifiedDataFormatter_v3()
         Case 2
             RunOption ws, opt, "Advanced formatting completed."
         Case 3
-            If Not GetKeywordOptions(opt) Then Exit Sub
-            RunOption ws, opt, "Keyword crop and format completed."
+            If Not GetCropOptions(opt) Then Exit Sub
+            RunOption ws, opt, "Crop and format completed."
         Case Else
             MsgBox "Please enter 1, 2, or 3.", vbExclamation, "Invalid Choice"
     End Select
@@ -65,11 +68,28 @@ End Sub
 ' OPTION 3 INPUT
 ' ============================================================
 
-Private Function GetKeywordOptions(ByRef opt As TRunOptions) As Boolean
+Private Function GetCropOptions(ByRef opt As TRunOptions) As Boolean
 
-    If Not TryGetMarkerKeyword(opt.MarkerText) Then Exit Function
-    opt.UseKeywordMode = True
-    GetKeywordOptions = True
+    Dim cropChoice As Long
+
+    If Not TryGetLongInput( _
+        "Choose crop method:" & vbCrLf & vbCrLf & _
+        "1 = Keyword anchor (enter the exact text of the first header cell)" & vbCrLf & _
+        "2 = Cell selection (select the top-left header cell when prompted)", _
+        "Crop Method", cropChoice) Then Exit Function
+
+    Select Case cropChoice
+        Case 1
+            If Not TryGetMarkerKeyword(opt.MarkerText) Then Exit Function
+            opt.UseKeywordMode = True
+        Case 2
+            opt.UseKeywordMode = False
+        Case Else
+            MsgBox "Please enter 1 or 2.", vbExclamation, "Invalid Choice"
+            Exit Function
+    End Select
+
+    GetCropOptions = True
 
 End Function
 
@@ -85,8 +105,13 @@ Private Sub ProcessSheetCore(ByVal ws As Worksheet, ByRef opt As TRunOptions)
     If ws Is Nothing Then Exit Sub
     If IsSheetEmpty(ws) Then Exit Sub
 
-    If opt.UseKeywordMode And Len(opt.MarkerText) > 0 Then
-        CropSheetToTableRange ws, opt.MarkerText
+    ' --- Option 3: crop first ---
+    If opt.OptionLevel = 3 Then
+        If opt.UseKeywordMode Then
+            CropByKeyword ws, opt.MarkerText
+        Else
+            CropByCellSelection ws
+        End If
         If IsSheetEmpty(ws) Then Exit Sub
     End If
 
@@ -94,35 +119,50 @@ Private Sub ProcessSheetCore(ByVal ws As Worksheet, ByRef opt As TRunOptions)
     lastCol = GetLastUsedColumn(ws)
     If lastRow = 0 Or lastCol = 0 Then Exit Sub
 
+    ' --- All options: clean text ---
     CleanTextInRange ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol))
-    NormalizeColumns ws, lastRow, lastCol
+
+    ' --- Options 2 and 3: text-to-columns (auto type, no delimiters) ---
+    If opt.OptionLevel >= 2 Then
+        NormalizeColumns ws, lastRow, lastCol
+    End If
+
+    ' --- All options: delete blank rows ---
     DeleteBlankRows ws
-    DeleteBlankColumns ws, False
+
+    ' --- Options 2 and 3: delete blank columns ---
+    If opt.OptionLevel >= 2 Then
+        DeleteBlankColumns ws, False
+    End If
 
     lastRow = GetLastUsedRow(ws)
     lastCol = GetLastUsedColumn(ws)
     If lastRow = 0 Or lastCol = 0 Then Exit Sub
 
-    ApplyStandardFormatting ws, lastRow, lastCol
+    ' --- All options: cap columns at MAX_COL_WIDTH, then autofit columns ---
+    CapAndAutofitColumns ws, lastRow, lastCol
+
+    ' --- All options: remove duplicate rows ---
+    RemoveDuplicateRows ws, True
+
+    ' --- All options: autofit row heights ---
+    ws.Range(ws.Cells(1, 1), ws.Cells(GetLastUsedRow(ws), GetLastUsedColumn(ws))) _
+        .EntireRow.AutoFit
+
+    ' --- Options 2 and 3: convert to table ---
+    If opt.OptionLevel >= 2 Then
+        ConvertUsedRangeToTable ws, True
+    End If
 
 End Sub
 
 ' ============================================================
-' OPTION 3: CROP TO TABLE RANGE
+' OPTION 3: CROP BY KEYWORD
 ' ============================================================
 
-Private Sub CropSheetToTableRange(ByVal ws As Worksheet, ByVal markerText As String)
+Private Sub CropByKeyword(ByVal ws As Worksheet, ByVal markerText As String)
 
     Dim anchorCell As Range
-    Dim headerRow As Long
-    Dim anchorCol As Long
-    Dim lastCol As Long
-    Dim lastRow As Long
-    Dim c As Long
-    Dim r As Long
-    Dim maxDataCol As Long
-    Dim maxDataRow As Long
-    Dim syntheticCounter As Long
 
     Set anchorCell = ws.UsedRange.Find( _
         What:=markerText, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
@@ -134,6 +174,51 @@ Private Sub CropSheetToTableRange(ByVal ws As Worksheet, ByVal markerText As Str
         End If
         Exit Sub
     End If
+
+    CropToAnchor ws, anchorCell
+
+End Sub
+
+' ============================================================
+' OPTION 3: CROP BY CELL SELECTION
+' ============================================================
+
+Private Sub CropByCellSelection(ByVal ws As Worksheet)
+
+    Dim anchorCell As Range
+    Dim selectedRange As Range
+
+    On Error Resume Next
+    Set selectedRange = Application.InputBox( _
+        Prompt:="Select the top-left header cell of the table, then click OK." & vbCrLf & _
+                "Cancel = abort", _
+        Title:="Select Table Anchor Cell", Type:=8)
+    On Error GoTo 0
+
+    If selectedRange Is Nothing Then
+        Err.Raise vbObjectError + 1101, , "No anchor cell selected."
+    End If
+
+    Set anchorCell = selectedRange.Cells(1, 1)
+    CropToAnchor ws, anchorCell
+
+End Sub
+
+' ============================================================
+' SHARED CROP LOGIC
+' ============================================================
+
+Private Sub CropToAnchor(ByVal ws As Worksheet, ByVal anchorCell As Range)
+
+    Dim headerRow As Long
+    Dim anchorCol As Long
+    Dim lastCol As Long
+    Dim lastRow As Long
+    Dim c As Long
+    Dim r As Long
+    Dim maxDataCol As Long
+    Dim maxDataRow As Long
+    Dim syntheticCounter As Long
 
     headerRow  = anchorCell.Row
     anchorCol  = anchorCell.Column
@@ -238,7 +323,7 @@ Private Sub DeleteBlankColumns(ByVal ws As Worksheet, ByVal ignoreHeaderRow As B
 
 End Sub
 
-Private Sub ApplyStandardFormatting(ByVal ws As Worksheet, ByVal lastRow As Long, ByVal lastCol As Long)
+Private Sub CapAndAutofitColumns(ByVal ws As Worksheet, ByVal lastRow As Long, ByVal lastCol As Long)
 
     Dim c As Long
     Dim formatRange As Range
@@ -246,7 +331,6 @@ Private Sub ApplyStandardFormatting(ByVal ws As Worksheet, ByVal lastRow As Long
     If lastRow = 0 Or lastCol = 0 Then Exit Sub
 
     Set formatRange = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol))
-    formatRange.EntireColumn.AutoFit
 
     For c = 1 To lastCol
         If ws.Columns(c).ColumnWidth > MAX_COL_WIDTH Then ws.Columns(c).ColumnWidth = MAX_COL_WIDTH
@@ -254,7 +338,11 @@ Private Sub ApplyStandardFormatting(ByVal ws As Worksheet, ByVal lastRow As Long
 
     formatRange.WrapText = True
     formatRange.VerticalAlignment = xlVAlignCenter
-    formatRange.EntireRow.AutoFit
+    formatRange.EntireColumn.AutoFit
+
+    For c = 1 To lastCol
+        If ws.Columns(c).ColumnWidth > MAX_COL_WIDTH Then ws.Columns(c).ColumnWidth = MAX_COL_WIDTH
+    Next c
 
 End Sub
 
