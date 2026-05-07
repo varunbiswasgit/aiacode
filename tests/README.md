@@ -20,14 +20,145 @@ Every Testing Readme follows the pattern:
 ## Running Automated Tests
 
 ### Python (pytest)
+
+#### One-time setup
+
+**1. Install Python**
+
+Download and install Python 3.9 or later from [python.org/downloads](https://www.python.org/downloads/). During installation on Windows, tick **Add Python to PATH** before clicking Install Now. Verify the installation by opening a terminal and running:
+
+```bash
+python --version
+```
+
+**2. Confirm pip is available**
+
+`pip` is Python’s package installer and is bundled with Python 3.4+. Confirm it is present:
+
+```bash
+pip --version
+```
+
+If pip is missing, reinstall Python or run `python -m ensurepip --upgrade`.
+
+**3. Create a virtual environment (recommended)**
+
+A virtual environment isolates this project’s dependencies from other Python projects on the same machine.
+
+```bash
+# From the repository root
+python -m venv .venv
+```
+
+Activate it before installing packages or running tests:
+
+```bash
+# Windows
+.venv\Scripts\activate
+
+# macOS / Linux
+source .venv/bin/activate
+```
+
+Your terminal prompt will show `(.venv)` when the environment is active. Run `deactivate` to exit it.
+
+**4. Install dependencies**
+
+Install pytest and all packages the scripts under test require:
+
+```bash
+pip install pytest openpyxl pandas
+```
+
+If a `requirements.txt` file exists in the repository root, install from that instead:
+
+```bash
+pip install -r requirements.txt
+```
+
+#### Running the tests
+
+Run all Python tests from the repository root with verbose output:
+
 ```bash
 pytest tests/test_split_excel_by_manager.py -v
 ```
 
+To run all test files discovered in the `tests/` folder at once:
+
+```bash
+pytest tests/ -v
+```
+
+> Always activate the virtual environment before running pytest. If `pytest` is not found, use `python -m pytest` instead.
+
+---
+
 ### PowerShell (Pester)
+
+#### One-time setup
+
+**1. Confirm PowerShell version**
+
+Pester 5 requires PowerShell 5.1 or later. Check the version:
+
+```powershell
+$PSVersionTable.PSVersion
+```
+
+PowerShell 5.1 ships with Windows 10 and later. PowerShell 7+ can be downloaded from [github.com/PowerShell/PowerShell/releases](https://github.com/PowerShell/PowerShell/releases) and runs side-by-side with 5.1.
+
+**2. Set execution policy**
+
+PowerShell blocks unsigned scripts by default. Allow locally written scripts to run:
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+```
+
+`RemoteSigned` permits local scripts and only requires a signature for scripts downloaded from the internet. This change applies to the current user only and does not affect system policy.
+
+**3. Install Pester**
+
+Pester is not included with Windows by default (an outdated version 3 stub may be present). Install the current version from the PowerShell Gallery:
+
+```powershell
+Install-Module -Name Pester -Force -SkipPublisherCheck
+```
+
+`-Force` overwrites any pre-installed stub. `-SkipPublisherCheck` is needed because the publisher certificate may differ between the bundled and gallery versions. Verify the installed version:
+
+```powershell
+Get-Module -Name Pester -ListAvailable | Select-Object Name, Version
+```
+
+The version should be 5.x or later.
+
+**4. Import Pester before first use (optional)**
+
+Pester is auto-imported when you call `Invoke-Pester`, but you can import it explicitly to confirm the correct version is loaded:
+
+```powershell
+Import-Module Pester -MinimumVersion 5.0
+```
+
+#### Running the tests
+
+Run the PowerShell test file with detailed output from the repository root:
+
 ```powershell
 Invoke-Pester .\tests\Clean_data_whatsapp.Tests.ps1 -Output Detailed
 ```
+
+To run all Pester test files discovered in the `tests/` folder:
+
+```powershell
+Invoke-Pester .\tests\ -Output Detailed
+```
+
+> If you see a version conflict warning, run `Remove-Module Pester` first and then re-import with the minimum version flag above.
+
+---
 
 ### VBA / Word Macros
 
