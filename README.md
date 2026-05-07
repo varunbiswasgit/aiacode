@@ -1,69 +1,94 @@
-# AI Assisted Microsoft Macro, Bash, PowerShell, and Python Scripts
+# aiacode — AI-Assisted Automation Scripts
 
-## Overview
-This repository contains a collection of PowerShell, MS Macros, Bash, and Python scripts developed using AI tools. The scripts have been tested and worked to the best of my knowledge at the time of posting.
-
-## Scripts Index
-1. **Clean_data_Whatsapp.ps1**: A PowerShell script for cleaning and processing text files, such as removing extra quotes, validating paths, and extracting data matching specific patterns.
-2. **WordResizeBorderImagesCleanlines.bas**: A VBA script that resizes images, adds a border, and cleans the document in Microsoft Word.
-3. **SplitExcelByManager.bas**: A VBA macro that splits an Excel workbook into separate sheets or files, organized by manager name.
-4. **split_excel_by_manager.py**: A Python script that replicates the split-by-manager logic from the VBA macro, offering a cross-platform alternative using pandas or openpyxl.
-5. **ExcelFormatting.bas**: A unified VBA macro for Excel data formatting and cleanup, with four interactive modes covering simple formatting, advanced formatting, optional column splitting, and SAP output processing.
-6. **NormalizeTable.bas**: A lightweight, single-pass Word VBA macro (`NormalizeTables_Light`) that standardizes all tables in the active document — normalizing widths to 100%, clearing row/column constraints, and applying Arial 10pt formatting. Designed as a fast daily-driver; use `StandardizeTables_TwoPass_AllStories` for documents with embedded images or nested tables.
+A curated collection of VBA macros, PowerShell, and Python scripts developed with AI assistance. All scripts are tested and documented; individual README files and test coverage are provided for each.
 
 ---
 
-## Features
-- Modular scripts with clear functionality.
-- Easy-to-use prompts and customizable logic.
-- Well-documented examples and use cases (WIP).
+## Repository Structure
+
+```
+aiacode/
+├── scripts/          # All production scripts
+├── README/           # Per-script README files
+├── tests/            # Test scripts and Testing Readme files
+├── CONTRIBUTING.md
+├── LICENSE
+└── README.md         # This file
+```
+
+---
+
+## Scripts
+
+| Script | Type | Description |
+|--------|------|-------------|
+| [`Clean_data_whatsapp.ps1`](scripts/Clean_data_whatsapp.ps1) | PowerShell | Cleans and processes exported WhatsApp chat text files — removes formatting artifacts, validates paths, and extracts structured data. |
+| [`ExcelFormatting.bas`](scripts/ExcelFormatting.bas) | VBA (Excel) | Unified Excel formatting and cleanup macro with four interactive modes: simple formatting, advanced formatting, optional column splitting, and generic table extraction (formerly SAP-specific). |
+| [`SplitExcelByManager.bas`](scripts/SplitExcelByManager.bas) | VBA (Excel) | Splits an Excel workbook into separate files, one per unique manager name, with sanitized filenames and configurable column targeting. |
+| [`split_excel_by_manager.py`](scripts/split_excel_by_manager.py) | Python | Cross-platform equivalent of `SplitExcelByManager.bas` using pandas and openpyxl. Produces identical output filenames. |
+| [`NormalizeTable.bas`](scripts/NormalizeTable.bas) | VBA (Word) | Normalizes all tables in the active Word document — sets width to 100%, clears row/cell constraints, and applies Arial 10pt. Two subroutines: `NormalizeTables_Light` (body only) and `StandardizeTables_TwoPass_AllStories` (all stories including headers, footers, and text boxes). |
+| [`WordResizeBorderImagesCleanlines.bas`](scripts/WordResizeBorderImagesCleanlines.bas) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border (RGB or hex color), and cleans blank paragraphs including ghost bullet lines and consecutive blank lines. |
 
 ---
 
 ## Getting Started
-### 1. Clone the repository:
-   ```
-   git clone https://github.com/varunbiswasgit/aiacode.git
-   ```
-### 2. Navigate to the specific script directory:
-   ```
-   cd aiacode
-   ```
-### 3. Follow instructions in each script's individual README file.
 
----
+### 1. Clone the repository
 
-## Script-Specific README Files
-Each script has a dedicated README file named `<filename.extension README.md>`, e.g., `Clean_data_whatsapp.ps1 README.md`. These files contain usage instructions, configuration options, known limitations, and task lists for tracking planned improvements.
-
-### Task List Syntax
-To add a task list in a script README, use:
-```
-- [ ] Task description
-- [x] Completed task description
+```bash
+git clone https://github.com/varunbiswasgit/aiacode.git
+cd aiacode
 ```
 
-Task lists can also link directly to GitHub Issues or PRs:
-```
-- [ ] [#4 Optimize regular expressions](https://github.com/varunbiswasgit/aiacode/issues/4)
-```
+### 2. Find the script you need
+
+All scripts are in the [`scripts/`](scripts/) folder.
+
+### 3. Read the script-specific README
+
+Each script has a dedicated README in the [`README/`](README/) folder, named `<script filename> README.md`. It covers purpose, prerequisites, usage instructions, configuration options, and known limitations.
+
+| Script | README |
+|--------|--------|
+| `Clean_data_whatsapp.ps1` | [README/Clean_data_whatsapp.ps1 README.md](README/Clean_data_whatsapp.ps1%20README.md) |
+| `ExcelFormatting.bas` | [README/ExcelFormatting.bas README.md](README/ExcelFormatting.bas%20README.md) |
+| `SplitExcelByManager.bas` | [README/SplitExcelByManager.bas README.md](README/SplitExcelByManager.bas%20README.md) |
+| `split_excel_by_manager.py` | [README/split_excel_by_manager.py.README.md](README/split_excel_by_manager.py.README.md) |
+| `NormalizeTable.bas` | [README/NormalizeTable.bas README.md](README/NormalizeTable.bas%20README.md) |
+| `WordResizeBorderImagesCleanlines.bas` | [README/WordResizeBorderImagesCleanlines.bas README.md](README/WordResizeBorderImagesCleanlines.bas%20README.md) |
 
 ---
 
 ## Running Tests
-See [tests/README.md](tests/README.md) for instructions on running the test suite.
+
+Test scripts and manual test case documentation are in the [`tests/`](tests/) folder. Each script has a corresponding Testing Readme named `<script filename> Testing Readme.md`.
+
+| Script | Testing Readme |
+|--------|----------------|
+| `Clean_data_whatsapp.ps1` | [tests/Clean_data_whatsapp.ps1 Testing Readme.md](tests/Clean_data_whatsapp.ps1%20Testing%20Readme.md) |
+| `ExcelFormatting.bas` | [tests/ExcelFormatting.bas Testing Readme.md](tests/ExcelFormatting.bas%20Testing%20Readme.md) |
+| `SplitExcelByManager.bas` | [tests/SplitExcelByManager.bas Testing Readme.md](tests/SplitExcelByManager.bas%20Testing%20Readme.md) |
+| `split_excel_by_manager.py` | [tests/split_excel_by_manager.py Testing Readme.md](tests/split_excel_by_manager.py%20Testing%20Readme.md) |
+| `NormalizeTable.bas` | [tests/NormalizeTable.bas Testing Readme.md](tests/NormalizeTable.bas%20Testing%20Readme.md) |
+| `WordResizeBorderImagesCleanlines.bas` | [tests/WordResizeBorderImagesCleanlines.bas Testing Readme.md](tests/WordResizeBorderImagesCleanlines.bas%20Testing%20Readme.md) |
+
+For automated Python tests, run from the repository root:
+
+```bash
+pip install pandas openpyxl pytest
+pytest tests/test_split_excel_by_manager.py -v
+```
+
+See [tests/README.md](tests/README.md) for the full test index.
 
 ---
 
 ## Contributing
-Contributions are welcome! Please read our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request.
 
 ---
 
 ## License
+
 This project is licensed under the [GNU General Public License v3.0](LICENSE).
-
----
-
-## Notes
-- If you encounter warnings or errors during script execution, check input file formatting or verify tool installations.
