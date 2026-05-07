@@ -46,7 +46,8 @@ All scripts are in the [`scripts/`](scripts/) folder.
 
 ### 3. Read the script-specific README
 
-Each script has a dedicated README in the [`README/`](README/) folder, named `<script filename> README.md`. It covers purpose, prerequisites, usage instructions, configuration options, and known limitations.
+All per-script READMEs are in the [`README/`](README/) folder, named `<script filename> README.md`.
+
 ---
 
 ## Running Tests
