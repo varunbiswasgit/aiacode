@@ -1,16 +1,10 @@
 Option Explicit
 
 Private Const MAX_COL_WIDTH As Double = 55
-Private Const SAP_DATE_MARKER As String = "Date"
-Private Const SAP_SELECTION_MARKER As String = "Selection No."
 Private Const DEFAULT_TABLE_STYLE As String = "TableStyleMedium2"
 
 Private Type TRunOptions
-    UseSAPMode As Boolean
-    DoDedupe As Boolean
-    DoTable As Boolean
-    DeleteBlankColsIgnoringHeader As Boolean
-    HasHeaderRow As Boolean
+    UseKeywordMode As Boolean
     MarkerText As String
 End Type
 
@@ -27,7 +21,7 @@ Public Sub RunUnifiedDataFormatter_v3()
         "Choose an option:" & vbCrLf & vbCrLf & _
         "1 = Simple formatting (active sheet only)" & vbCrLf & _
         "2 = Advanced formatting (active sheet only)" & vbCrLf & _
-        "3 = SAP output processing (active sheet only)", _
+        "3 = Keyword crop and format (active sheet only)", _
         "Unified Data Formatter", mainChoice) Then Exit Sub
 
     Select Case mainChoice
@@ -48,12 +42,12 @@ Public Sub RunUnifiedDataFormatter_v3()
             Exit Sub
 
         Case 3
-            If Not GetSAPRunOptions(opt) Then Exit Sub
+            If Not GetKeywordOptions(opt) Then Exit Sub
             BeginAppState
             On Error GoTo ErrHandlerActiveSheet
             ProcessSheetCore ws, opt
             EndAppState
-            MsgBox "SAP processing completed.", vbInformation, "Done"
+            MsgBox "Keyword crop and format completed.", vbInformation, "Done"
             Exit Sub
 
         Case Else
@@ -67,25 +61,11 @@ ErrHandlerActiveSheet:
 
 End Sub
 
-Private Function GetSAPRunOptions(ByRef opt As TRunOptions) As Boolean
+Private Function GetKeywordOptions(ByRef opt As TRunOptions) As Boolean
 
-    If Not TryGetYesNoCancel("Run SAP output mode on the active sheet?", "SAP Mode", opt.UseSAPMode) Then Exit Function
-    If Not opt.UseSAPMode Then
-        GetSAPRunOptions = True
-        Exit Function
-    End If
-
-    If Not TryGetSAPMarkerChoice(opt.MarkerText) Then Exit Function
-    If Not TryGetYesNoCancel("Does the final dataset have a header row?", "Header Row", opt.HasHeaderRow) Then Exit Function
-    If Not TryGetYesNoCancel("Remove duplicate rows?", "Duplicate Removal", opt.DoDedupe) Then Exit Function
-    If Not TryGetYesNoCancel( _
-        "Delete blank columns ignoring row 1 as a header row?" & vbCrLf & vbCrLf & _
-        "Yes = Ignore row 1 when checking blank columns" & vbCrLf & _
-        "No = Check the entire column", _
-        "Blank Column Rule", opt.DeleteBlankColsIgnoringHeader) Then Exit Function
-    If Not TryGetYesNoCancel("Convert the final result to an Excel table?", "Convert To Table", opt.DoTable) Then Exit Function
-
-    GetSAPRunOptions = True
+    If Not TryGetMarkerKeyword(opt.MarkerText) Then Exit Function
+    opt.UseKeywordMode = True
+    GetKeywordOptions = True
 
 End Function
 
@@ -98,8 +78,8 @@ Private Sub ProcessSheetCore(ByVal ws As Worksheet, ByRef opt As TRunOptions)
     If ws Is Nothing Then Exit Sub
     If IsSheetEmpty(ws) Then Exit Sub
 
-    If opt.UseSAPMode And Len(opt.MarkerText) > 0 Then
-        CropSheetBeforeMarker ws, opt.MarkerText
+    If opt.UseKeywordMode And Len(opt.MarkerText) > 0 Then
+        CropSheetToTableRange ws, opt.MarkerText
         If IsSheetEmpty(ws) Then Exit Sub
     End If
 
@@ -109,44 +89,101 @@ Private Sub ProcessSheetCore(ByVal ws As Worksheet, ByRef opt As TRunOptions)
 
     Set dataRange = ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol))
     CleanTextInRange dataRange
-    NormalizeColumns ws, lastRow, lastCol
 
-    If opt.DoDedupe Then
-        RemoveDuplicateRows ws, opt.HasHeaderRow
-        lastRow = GetLastUsedRow(ws)
-        lastCol = GetLastUsedColumn(ws)
+    If opt.UseKeywordMode Then
+        SplitWideColumns ws, lastRow, lastCol
+    Else
+        NormalizeColumns ws, lastRow, lastCol
     End If
 
     DeleteBlankRows ws
-    DeleteBlankColumns ws, opt.DeleteBlankColsIgnoringHeader
+    DeleteBlankColumns ws, False
 
     lastRow = GetLastUsedRow(ws)
     lastCol = GetLastUsedColumn(ws)
     If lastRow = 0 Or lastCol = 0 Then Exit Sub
 
     ApplyStandardFormatting ws, lastRow, lastCol
-    If opt.DoTable Then ConvertUsedRangeToTable ws, opt.HasHeaderRow
 
 End Sub
 
-Private Sub CropSheetBeforeMarker(ByVal ws As Worksheet, ByVal markerText As String)
+Private Sub CropSheetToTableRange(ByVal ws As Worksheet, ByVal markerText As String)
 
-    Dim targetCell As Range
-    Dim deleteToCol As Long
-    Dim deleteToRow As Long
+    Dim anchorCell As Range
+    Dim headerRow As Long
+    Dim anchorCol As Long
+    Dim lastCol As Long
+    Dim lastRow As Long
+    Dim c As Long
+    Dim r As Long
+    Dim maxDataCol As Long
+    Dim maxDataRow As Long
+    Dim syntheticCounter As Long
 
-    Set targetCell = ws.UsedRange.Find(What:=markerText, LookIn:=xlValues, LookAt:=xlWhole)
-    If targetCell Is Nothing Then
-        If MsgBox("'" & markerText & "' not found. Continue without marker trimming?", vbYesNo + vbQuestion, "Marker Not Found") = vbNo Then
-            Err.Raise vbObjectError + 1100, , "Required marker not found: " & markerText
+    Set anchorCell = ws.UsedRange.Find(What:=markerText, LookIn:=xlValues, LookAt:=xlWhole, MatchCase:=False)
+    If anchorCell Is Nothing Then
+        If MsgBox("'" & markerText & "' not found. Continue without cropping?", vbYesNo + vbQuestion, "Keyword Not Found") = vbNo Then
+            Err.Raise vbObjectError + 1100, , "Required keyword not found: " & markerText
         End If
         Exit Sub
     End If
 
-    deleteToRow = targetCell.Row - 1
-    deleteToCol = targetCell.Column - 1
-    If deleteToCol >= 1 Then ws.Range(ws.Columns(1), ws.Columns(deleteToCol)).Delete
-    If deleteToRow >= 1 Then ws.Range(ws.Rows(1), ws.Rows(deleteToRow)).Delete
+    headerRow = anchorCell.Row
+    anchorCol = anchorCell.Column
+    lastCol = GetLastUsedColumn(ws)
+    lastRow = GetLastUsedRow(ws)
+    maxDataCol = anchorCol
+    maxDataRow = headerRow
+
+    For c = anchorCol To lastCol
+        For r = headerRow To lastRow
+            If LenB(CStr(ws.Cells(r, c).Value2)) > 0 Then
+                If c > maxDataCol Then maxDataCol = c
+                If r > maxDataRow Then maxDataRow = r
+            End If
+        Next r
+    Next c
+
+    syntheticCounter = 1
+    For c = anchorCol To maxDataCol
+        If LenB(CStr(ws.Cells(headerRow, c).Value2)) = 0 Then
+            ws.Cells(headerRow, c).Value = "Column" & syntheticCounter
+            syntheticCounter = syntheticCounter + 1
+        End If
+    Next c
+
+    If maxDataRow < lastRow Then
+        ws.Range(ws.Cells(maxDataRow + 1, 1), ws.Cells(lastRow, lastCol)).Clear
+    End If
+    If maxDataCol < lastCol Then
+        ws.Range(ws.Cells(1, maxDataCol + 1), ws.Cells(lastRow, lastCol)).Clear
+    End If
+
+    If anchorCol > 1 Then ws.Range(ws.Columns(1), ws.Columns(anchorCol - 1)).Delete
+    If headerRow > 1 Then ws.Range(ws.Rows(1), ws.Rows(headerRow - 1)).Delete
+
+End Sub
+
+Private Sub SplitWideColumns(ByVal ws As Worksheet, ByVal lastRow As Long, ByVal lastCol As Long)
+
+    Dim colIndex As Long
+
+    If lastRow = 0 Or lastCol = 0 Then Exit Sub
+
+    For colIndex = lastCol To 1 Step -1
+        ws.Range(ws.Cells(1, colIndex), ws.Cells(lastRow, colIndex)).TextToColumns _
+            Destination:=ws.Cells(1, colIndex), _
+            DataType:=xlDelimited, _
+            TextQualifier:=xlDoubleQuote, _
+            ConsecutiveDelimiter:=False, _
+            Tab:=False, _
+            Semicolon:=True, _
+            Comma:=True, _
+            Space:=False, _
+            Other:=True, _
+            OtherChar:="|", _
+            TrailingMinusNumbers:=True
+    Next colIndex
 
 End Sub
 
@@ -327,14 +364,20 @@ Private Function TryGetLongInput(ByVal promptText As String, ByVal titleText As 
 
 End Function
 
-Private Function TryGetTextInput(ByVal promptText As String, ByVal titleText As String, ByRef resultValue As String) As Boolean
+Private Function TryGetMarkerKeyword(ByRef markerText As String) As Boolean
 
     Dim v As Variant
 
-    v = Application.InputBox(Prompt:=promptText, Title:=titleText, Type:=2)
+    v = Application.InputBox( _
+        Prompt:="Enter the exact text of the first header cell of the table." & vbCrLf & _
+                "The match is case-insensitive but must match the whole cell value." & vbCrLf & vbCrLf & _
+                "Cancel = abort", _
+        Title:="Table Anchor Keyword", _
+        Type:=2)
+
     If VarType(v) = vbBoolean Then Exit Function
-    resultValue = CStr(v)
-    TryGetTextInput = True
+    markerText = Trim$(CStr(v))
+    TryGetMarkerKeyword = True
 
 End Function
 
@@ -346,28 +389,6 @@ Private Function TryGetYesNoCancel(ByVal promptText As String, ByVal titleText A
     If response = vbCancel Then Exit Function
     resultValue = (response = vbYes)
     TryGetYesNoCancel = True
-
-End Function
-
-Private Function TryGetSAPMarkerChoice(ByRef markerText As String) As Boolean
-
-    Dim response As VbMsgBoxResult
-
-    response = MsgBox( _
-        "Which SAP marker should be used for trimming the leading rows/columns?" & vbCrLf & vbCrLf & _
-        "Yes = 'Selection No.'" & vbCrLf & _
-        "No = 'Date'" & vbCrLf & _
-        "Cancel = Skip SAP marker trimming", _
-        vbYesNoCancel + vbQuestion, _
-        "SAP Marker")
-
-    Select Case response
-        Case vbYes:    markerText = SAP_SELECTION_MARKER
-        Case vbNo:     markerText = SAP_DATE_MARKER
-        Case vbCancel: markerText = vbNullString
-    End Select
-
-    TryGetSAPMarkerChoice = True
 
 End Function
 
