@@ -47,30 +47,11 @@ All scripts are in the [`scripts/`](scripts/) folder.
 ### 3. Read the script-specific README
 
 Each script has a dedicated README in the [`README/`](README/) folder, named `<script filename> README.md`. It covers purpose, prerequisites, usage instructions, configuration options, and known limitations.
-
-| Script | README |
-|--------|--------|
-| `Clean_data_whatsapp.ps1` | [README/Clean_data_whatsapp.ps1 README.md](README/Clean_data_whatsapp.ps1%20README.md) |
-| `ExcelFormatting.bas` | [README/ExcelFormatting.bas README.md](README/ExcelFormatting.bas%20README.md) |
-| `SplitExcelByManager.bas` | [README/SplitExcelByManager.bas README.md](README/SplitExcelByManager.bas%20README.md) |
-| `split_excel_by_manager.py` | [README/split_excel_by_manager.py.README.md](README/split_excel_by_manager.py.README.md) |
-| `NormalizeTable.bas` | [README/NormalizeTable.bas README.md](README/NormalizeTable.bas%20README.md) |
-| `WordResizeBorderImagesCleanlines.bas` | [README/WordResizeBorderImagesCleanlines.bas README.md](README/WordResizeBorderImagesCleanlines.bas%20README.md) |
-
 ---
 
 ## Running Tests
 
 Test scripts and manual test case documentation are in the [`tests/`](tests/) folder. Each script has a corresponding Testing Readme named `<script filename> Testing Readme.md`.
-
-| Script | Testing Readme |
-|--------|----------------|
-| `Clean_data_whatsapp.ps1` | [tests/Clean_data_whatsapp.ps1 Testing Readme.md](tests/Clean_data_whatsapp.ps1%20Testing%20Readme.md) |
-| `ExcelFormatting.bas` | [tests/ExcelFormatting.bas Testing Readme.md](tests/ExcelFormatting.bas%20Testing%20Readme.md) |
-| `SplitExcelByManager.bas` | [tests/SplitExcelByManager.bas Testing Readme.md](tests/SplitExcelByManager.bas%20Testing%20Readme.md) |
-| `split_excel_by_manager.py` | [tests/split_excel_by_manager.py Testing Readme.md](tests/split_excel_by_manager.py%20Testing%20Readme.md) |
-| `NormalizeTable.bas` | [tests/NormalizeTable.bas Testing Readme.md](tests/NormalizeTable.bas%20Testing%20Readme.md) |
-| `WordResizeBorderImagesCleanlines.bas` | [tests/WordResizeBorderImagesCleanlines.bas Testing Readme.md](tests/WordResizeBorderImagesCleanlines.bas%20Testing%20Readme.md) |
 
 For automated Python tests, run from the repository root:
 
