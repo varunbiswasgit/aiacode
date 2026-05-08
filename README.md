@@ -26,7 +26,7 @@ aiacode/
 | [`ExcelFormatting.bas`](scripts/ExcelFormatting.bas) | VBA (Excel) | Unified Excel formatting and cleanup macro with four interactive modes: simple formatting, advanced formatting, optional column splitting, and generic table extraction (formerly SAP-specific). |
 | [`SplitExcelByManager.bas`](scripts/SplitExcelByManager.bas) | VBA (Excel) | Splits an Excel workbook into separate files, one per unique manager name, with sanitized filenames and configurable column targeting. |
 | [`split_excel_by_manager.py`](scripts/split_excel_by_manager.py) | Python | Cross-platform equivalent of `SplitExcelByManager.bas` using pandas and openpyxl. Produces identical output filenames. |
-| [`NormalizeTable.bas`](scripts/NormalizeTable.bas) | VBA (Word) | Normalizes all tables in the active Word document — sets width to 100%, clears row/cell constraints, and applies Arial 10pt. Two subroutines: `NormalizeTables_Light` (body only) and `StandardizeTables_TwoPass_AllStories` (all stories including headers, footers, and text boxes). |
+| [`WordNormalizeTable.bas`](scripts/WordNormalizeTable.bas) | VBA (Word) | Normalizes all tables in the active Word document — sets width to 100%, clears row/cell constraints, and applies Arial 10pt. Two subroutines: `NormalizeTables_Light` (body only) and `StandardizeTables_TwoPass_AllStories` (all stories including headers, footers, and text boxes). |
 | [`WordResizeBorderImagesCleanlines.bas`](scripts/WordResizeBorderImagesCleanlines.bas) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border (RGB or hex color), and cleans blank paragraphs including ghost bullet lines and consecutive blank lines. |
 
 ---
