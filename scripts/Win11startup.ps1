@@ -1,8 +1,9 @@
 # Curated startup launcher with self-healing shortcut repair
 # - Win32 apps  : launched via shortcut with depth-3 repair and user-prompt fallback
-# - Appx apps   : AUMID resolved at runtime (Get-StartApps -> Get-AppxPackage -> manifest)
-#                 hardcoded KnownAumid used only as primary candidate, not sole source of truth
-# - Sticky Notes: launched via ONENOTE.EXE /memoryWindow start (shortcut-based Win32)
+#                 optional Arguments field overrides shortcut arguments at launch
+# - Appx apps   : AUMID resolved at runtime (Get-StartApps -> KnownAumid verification -> AppxPackage manifest)
+#                 KnownAumid used only as primary candidate, not sole source of truth
+# - Sticky Notes: Win32, ONENOTE.EXE with Arguments = "/memoryWindow start"
 
 $startMenu = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -12,6 +13,8 @@ $PostLaunchPauseSeconds = 2
 
 # LaunchType controls the launch strategy per entry:
 #   'Win32' - shortcut-based with self-healing repair and user-prompt fallback
+#             optional 'Arguments' field is passed to Start-Process -ArgumentList
+#             if absent, app is launched with no extra arguments
 #   'Appx'  - AUMID resolved dynamically at runtime; KnownAumid is the primary candidate
 #
 # Appx fields:
@@ -26,11 +29,11 @@ $apps = @(
     @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";            ExpectedExe = "OneDrive.exe" },
     @{ Name = "ShareFile";      LaunchType = "Win32"; ShortcutPath = "$startMenu\04 ShareFile.lnk";      ProcessName = "ShareFile";           ExpectedExe = "ShareFile.exe" },
     @{ Name = "Greenshot";      LaunchType = "Win32"; ShortcutPath = "$startMenu\05 Greenshot.lnk";      ProcessName = "Greenshot";           ExpectedExe = "Greenshot.exe" },
-    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Sticky Notes.lnk";   ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
+    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Sticky Notes.lnk";   ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE";  Arguments = "/memoryWindow start" },
     @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\07 OneNote.lnk";        ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
     @{ Name = "SAP GUI";        LaunchType = "Win32"; ShortcutPath = "$startMenu\08 SAP GUI.lnk";        ProcessName = "saplogon";            ExpectedExe = "saplogon.exe" },
     @{ Name = "Notepad++";      LaunchType = "Win32"; ShortcutPath = "$startMenu\09 notepad++.lnk";      ProcessName = "notepad++";           ExpectedExe = "notepad++.exe" },
-    @{ Name = "Phone Link";     LaunchType = "Appx";  KnownAumid = "Microsoft.YourPhone_8wekyb3d8bbwe!App"; AppxName = "YourPhone";   StartAppName = "Phone Link";     ProcessName = "PhoneExperienceHost" },
+    @{ Name = "Phone Link";     LaunchType = "Appx";  KnownAumid = "Microsoft.YourPhone_8wekyb3d8bbwe!App"; AppxName = "YourPhone"; StartAppName = "Phone Link"; ProcessName = "PhoneExperienceHost" },
     @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$startMenu\11 Microsoft Edge.lnk"; ProcessName = "msedge";              ExpectedExe = "msedge.exe" },
     @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$startMenu\12 Google Chrome.lnk";  ProcessName = "chrome";              ExpectedExe = "chrome.exe" }
 )
@@ -44,9 +47,7 @@ function Resolve-Aumid {
     param($App)
 
     # Step 1: Get-StartApps by display name (most reliable - always reflects installed state)
-    $startApp = Get-StartApps | Where-Object {
-        $_.Name -like "*$($App.StartAppName)*"
-    } | Select-Object -First 1
+    $startApp = Get-StartApps | Where-Object { $_.Name -like "*$($App.StartAppName)*" } | Select-Object -First 1
     if ($startApp) {
         Write-Host "$($App.Name): AUMID resolved via Get-StartApps: $($startApp.AppID)"
         return $startApp.AppID
@@ -64,9 +65,7 @@ function Resolve-Aumid {
     }
 
     # Step 3: Discover via AppxPackage name search and read the manifest for AppId
-    $pkg = Get-AppxPackage | Where-Object {
-        $_.Name -like "*$($App.AppxName)*"
-    } | Select-Object -First 1
+    $pkg = Get-AppxPackage | Where-Object { $_.Name -like "*$($App.AppxName)*" } | Select-Object -First 1
     if ($pkg) {
         try {
             $appIds = (Get-AppxPackageManifest $pkg).Package.Applications.Application.Id
@@ -81,7 +80,6 @@ function Resolve-Aumid {
         }
     }
 
-    # Step 4: All discovery failed
     Write-Warning "$($App.Name): AUMID could not be resolved automatically."
     return $null
 }
@@ -254,8 +252,14 @@ function Start-Win32App {
             return $false
         }
 
-        Write-Host "$($App.Name): launching $launchPath"
-        Start-Process -FilePath $launchPath -ErrorAction Stop
+        # Use explicit Arguments field if present; otherwise launch with no extra arguments
+        if (-not [string]::IsNullOrWhiteSpace($App.Arguments)) {
+            Write-Host "$($App.Name): launching $launchPath $($App.Arguments)"
+            Start-Process -FilePath $launchPath -ArgumentList $App.Arguments -ErrorAction Stop
+        } else {
+            Write-Host "$($App.Name): launching $launchPath"
+            Start-Process -FilePath $launchPath -ErrorAction Stop
+        }
 
         if (Wait-ForProcessStart -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
             Write-Host "$($App.Name): '$($App.ProcessName)' is now running.`n"

@@ -10,7 +10,7 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 
 - Curated app list — only your chosen startup applications; no scanning of the Startup folder or Start Menu.
 - Two launch strategies controlled per entry by `LaunchType`:
-  - `Win32` — shortcut-based with depth-3 self-healing repair and validated user-prompt fallback.
+  - `Win32` — shortcut-based with depth-3 self-healing repair and validated user-prompt fallback. Optional `Arguments` field passed explicitly to `Start-Process -ArgumentList`.
   - `Appx` — AUMID resolved at runtime in three stages; `KnownAumid` is the primary candidate only, not a hardcoded dependency.
 - Skips any app whose process is already running.
 - Win32: reads and validates each shortcut target before launch; repairs and persists the shortcut if the target has moved.
@@ -25,24 +25,25 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 
 ### Win32 entry fields
 
-| Field | Description |
-|-------|-------------|
-| `Name` | Display name used in log output |
-| `LaunchType` | `"Win32"` |
-| `ShortcutPath` | Full path to the `.lnk` shortcut file |
-| `ProcessName` | Process name used to check if already running and to confirm launch (no `.exe`) |
-| `ExpectedExe` | Exact executable filename used during shortcut repair and user-prompt validation |
+| Field | Required | Description |
+|-------|----------|-------------|
+| `Name` | Yes | Display name used in log output |
+| `LaunchType` | Yes | `"Win32"` |
+| `ShortcutPath` | Yes | Full path to the `.lnk` shortcut file |
+| `ProcessName` | Yes | Process name used to check if already running and to confirm launch (no `.exe`) |
+| `ExpectedExe` | Yes | Exact executable filename used during shortcut repair and user-prompt validation |
+| `Arguments` | No | Command-line arguments passed to `Start-Process -ArgumentList`. Omit if no arguments needed. |
 
 ### Appx entry fields
 
-| Field | Description |
-|-------|-------------|
-| `Name` | Display name used in log output |
-| `LaunchType` | `"Appx"` |
-| `KnownAumid` | Last-known AUMID (`PackageFamilyName!AppId`); verified against installed packages at runtime — not assumed to be permanently valid |
-| `AppxName` | Partial package name used in `Get-AppxPackage` discovery when `KnownAumid` is stale |
-| `StartAppName` | Display name pattern used in `Get-StartApps` discovery (first resolution step) |
-| `ProcessName` | Process name used to confirm launch and detect if already running (no `.exe`) |
+| Field | Required | Description |
+|-------|----------|-------------|
+| `Name` | Yes | Display name used in log output |
+| `LaunchType` | Yes | `"Appx"` |
+| `KnownAumid` | Yes | Last-known AUMID (`PackageFamilyName!AppId`); verified against installed packages at runtime — not assumed permanently valid |
+| `AppxName` | Yes | Partial package name used in `Get-AppxPackage` discovery when `KnownAumid` is stale |
+| `StartAppName` | Yes | Display name pattern used in `Get-StartApps` discovery (first resolution step) |
+| `ProcessName` | Yes | Process name used to confirm launch and detect if already running (no `.exe`) |
 
 ### Default entries
 
@@ -53,13 +54,15 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 | 03 | OneDrive | Win32 | |
 | 04 | ShareFile | Win32 | |
 | 05 | Greenshot | Win32 | |
-| 06 | Sticky Notes | Win32 | Launched via `ONENOTE.EXE`; `ProcessName` is `ONENOTE` |
-| 07 | OneNote | Win32 | Shares `ONENOTE` process name with entry 06; if ONENOTE is running, entry 06 is skipped |
+| 06 | Sticky Notes | Win32 | `Arguments = "/memoryWindow start"`; `ExpectedExe` and `ProcessName` are `ONENOTE.EXE`/`ONENOTE` |
+| 07 | OneNote | Win32 | Shares `ONENOTE` process name with entry 06; if ONENOTE is running, entry 07 is skipped |
 | 08 | SAP GUI | Win32 | |
 | 09 | Notepad++ | Win32 | |
 | 10 | Phone Link | Appx | `KnownAumid`: `Microsoft.YourPhone_8wekyb3d8bbwe!App`; resolved dynamically at runtime |
 | 11 | Microsoft Edge | Win32 | |
 | 12 | Google Chrome | Win32 | |
+
+> **Sticky Notes / OneNote process conflict:** Both entries share the `ONENOTE` process name. Entry 06 (Sticky Notes) launches `ONENOTE.EXE /memoryWindow start`. Entry 07 (OneNote) launches `ONENOTE.EXE` with no arguments. Because process detection is name-based, if Sticky Notes (entry 06) has already started ONENOTE by the time entry 07 is processed, OneNote will be skipped with "already running". This is expected and acceptable — both run in the same ONENOTE process.
 
 ---
 
@@ -86,20 +89,18 @@ For any `Appx` entry, the script resolves the AUMID in three steps at runtime:
 If all three steps fail, the app is skipped and added to the failure list.
 ```
 
-This means a Store update that changes the package version or publisher but keeps the app name will still resolve correctly via step 1 or step 3, without any script changes.
-
 ---
 
 ## Win32 Shortcut Repair Logic
 
 ```
 1. Read .lnk target path
-2. Target exists?  -> Launch normally
+2. Target exists?  -> Launch normally (with Arguments if present)
 3. Target missing  -> Climb parent folders until an existing folder is found
 4. Search that folder downward (max 3 levels) for ExpectedExe
-5. Found?          -> Update shortcut, launch
+5. Found?          -> Update shortcut, launch (with Arguments if present)
 6. Not found?      -> Prompt user for exact executable path
-7. Valid input?    -> Update shortcut, launch
+7. Valid input?    -> Update shortcut, launch (with Arguments if present)
 8. Skipped?        -> Log failure, continue to next app
 ```
 
@@ -161,3 +162,4 @@ To run automatically at login, add a shortcut pointing to this script in the Win
 | v3 | Removed UWP; replaced broad search with self-healing shortcut repair (depth 3); validated user-prompt fallback |
 | v4 | Added `LaunchType` per entry; Phone Link launched via packaged-app shell identity; `Start-Win32App` and `Start-AppxApp` split into separate functions |
 | v5 | Appx AUMID resolved dynamically at runtime (Get-StartApps -> KnownAumid verification -> AppxPackage manifest); `KnownAumid`, `AppxName`, `StartAppName` replace static `AppCommand` |
+| v6 | Added optional `Arguments` field to Win32 entries; Sticky Notes now launched with `/memoryWindow start` via `Start-Process -ArgumentList`; log output includes arguments when present |
