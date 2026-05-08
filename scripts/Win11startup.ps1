@@ -1,10 +1,8 @@
 # Curated startup launcher with self-healing shortcut repair
-# - No UWP logic
-# - Checks each shortcut target
-# - If target is missing, climbs to nearest existing parent folder
-# - Searches downward up to a fixed depth of 3 for the expected EXE
-# - If still not found, prompts user for the exact EXE path
-# - Updates the shortcut and launches the app
+# - Win32 apps: launched via shortcut with depth-3 repair and user-prompt fallback
+# - Phone Link: launched via packaged-app shell identity (Start-Process explorer.exe)
+# - Sticky Notes: launched via ONENOTE.EXE /memoryWindow start (shortcut-based)
+# - No UWP/AppUserModelId logic for Win32 apps
 
 $startMenu = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth = 3
@@ -12,19 +10,22 @@ $InitialDelaySeconds = 10
 $LaunchTimeoutSeconds = 30
 $PostLaunchPauseSeconds = 2
 
+# LaunchType field controls launch strategy:
+#   'Win32' (default) - shortcut-based with self-healing repair
+#   'Appx'            - packaged app launched via explorer.exe shell:appsFolder\...
 $apps = @(
-    @{ Name = "Outlook";        ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";             ExpectedExe = "OUTLOOK.EXE" },
-    @{ Name = "Teams";          ShortcutPath = "$startMenu\02 Teams.lnk";          ProcessName = "ms-teams";            ExpectedExe = "ms-teams.exe" },
-    @{ Name = "OneDrive";       ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";            ExpectedExe = "OneDrive.exe" },
-    @{ Name = "ShareFile";      ShortcutPath = "$startMenu\04 ShareFile.lnk";      ProcessName = "ShareFile";           ExpectedExe = "ShareFile.exe" },
-    @{ Name = "Greenshot";      ShortcutPath = "$startMenu\05 Greenshot.lnk";      ProcessName = "Greenshot";           ExpectedExe = "Greenshot.exe" },
-    @{ Name = "Sticky Notes";   ShortcutPath = "$startMenu\06 Sticky Notes.lnk";   ProcessName = "Sticky-Note";         ExpectedExe = "StikyNot.exe" },
-    @{ Name = "OneNote";        ShortcutPath = "$startMenu\07 OneNote.lnk";        ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
-    @{ Name = "SAP GUI";        ShortcutPath = "$startMenu\08 SAP GUI.lnk";        ProcessName = "saplogon";            ExpectedExe = "saplogon.exe" },
-    @{ Name = "Notepad++";      ShortcutPath = "$startMenu\09 notepad++.lnk";      ProcessName = "notepad++";           ExpectedExe = "notepad++.exe" },
-    @{ Name = "Phone Link";     ShortcutPath = "$startMenu\10 Phone Link.lnk";     ProcessName = "PhoneExperienceHost"; ExpectedExe = "PhoneExperienceHost.exe" },
-    @{ Name = "Microsoft Edge"; ShortcutPath = "$startMenu\11 Microsoft Edge.lnk"; ProcessName = "msedge";              ExpectedExe = "msedge.exe" },
-    @{ Name = "Google Chrome";  ShortcutPath = "$startMenu\12 Google Chrome.lnk";  ProcessName = "chrome";              ExpectedExe = "chrome.exe" }
+    @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";             ExpectedExe = "OUTLOOK.EXE" },
+    @{ Name = "Teams";          LaunchType = "Win32"; ShortcutPath = "$startMenu\02 Teams.lnk";          ProcessName = "ms-teams";            ExpectedExe = "ms-teams.exe" },
+    @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";            ExpectedExe = "OneDrive.exe" },
+    @{ Name = "ShareFile";      LaunchType = "Win32"; ShortcutPath = "$startMenu\04 ShareFile.lnk";      ProcessName = "ShareFile";           ExpectedExe = "ShareFile.exe" },
+    @{ Name = "Greenshot";      LaunchType = "Win32"; ShortcutPath = "$startMenu\05 Greenshot.lnk";      ProcessName = "Greenshot";           ExpectedExe = "Greenshot.exe" },
+    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Sticky Notes.lnk";   ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
+    @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\07 OneNote.lnk";        ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
+    @{ Name = "SAP GUI";        LaunchType = "Win32"; ShortcutPath = "$startMenu\08 SAP GUI.lnk";        ProcessName = "saplogon";            ExpectedExe = "saplogon.exe" },
+    @{ Name = "Notepad++";      LaunchType = "Win32"; ShortcutPath = "$startMenu\09 notepad++.lnk";      ProcessName = "notepad++";           ExpectedExe = "notepad++.exe" },
+    @{ Name = "Phone Link";     LaunchType = "Appx";  AppCommand   = "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App"; ProcessName = "PhoneExperienceHost" },
+    @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$startMenu\11 Microsoft Edge.lnk"; ProcessName = "msedge";              ExpectedExe = "msedge.exe" },
+    @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$startMenu\12 Google Chrome.lnk";  ProcessName = "chrome";              ExpectedExe = "chrome.exe" }
 )
 
 $WshShell = New-Object -ComObject WScript.Shell
@@ -142,7 +143,33 @@ function Wait-ForProcessStart {
     return $false
 }
 
-function Start-AppAndRepairShortcut {
+function Start-AppxApp {
+    param($App)
+
+    if (Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue) {
+        Write-Host "$($App.Name): '$($App.ProcessName)' already running. Skipping.`n"
+        return $true
+    }
+
+    try {
+        Write-Host "$($App.Name): launching via shell app identity ($($App.AppCommand))"
+        Start-Process explorer.exe $App.AppCommand -ErrorAction Stop
+
+        if (Wait-ForProcessStart -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
+            Write-Host "$($App.Name): '$($App.ProcessName)' is now running.`n"
+            Start-Sleep -Seconds $PostLaunchPauseSeconds
+            return $true
+        } else {
+            Write-Warning "$($App.Name): '$($App.ProcessName)' did not appear within $LaunchTimeoutSeconds seconds.`n"
+            return $false
+        }
+    } catch {
+        Write-Warning "$($App.Name): launch failed. $_`n"
+        return $false
+    }
+}
+
+function Start-Win32App {
     param($App)
 
     if (Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue) {
@@ -184,7 +211,11 @@ Start-Sleep -Seconds $InitialDelaySeconds
 
 $failedApps = @()
 foreach ($app in $apps) {
-    $ok = Start-AppAndRepairShortcut -App $app
+    $ok = if ($app.LaunchType -eq "Appx") {
+        Start-AppxApp -App $app
+    } else {
+        Start-Win32App -App $app
+    }
     if (-not $ok) { $failedApps += $app }
 }
 
