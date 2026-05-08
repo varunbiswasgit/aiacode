@@ -17,6 +17,20 @@ Every Testing Readme follows the pattern:
 <script filename> Testing Readme.md
 ```
 
+## Test Index
+
+| Script | Testing Readme | Automated Test File | Type |
+|--------|---------------|---------------------|------|
+| `Clean_data_whatsapp.ps1` | [Testing Readme](Clean_data_whatsapp.ps1%20Testing%20Readme.md) | `Clean_data_whatsapp.Tests.ps1` | Pester |
+| `ExcelFormatting.bas` | [Testing Readme](ExcelFormatting.bas%20Testing%20Readme.md) | — | Manual |
+| `SplitExcelByManager.bas` | [Testing Readme](SplitExcelByManager.bas%20Testing%20Readme.md) | — | Manual |
+| `split_excel_by_manager.py` | [Testing Readme](split_excel_by_manager.py%20Testing%20Readme.md) | `test_split_excel_by_manager.py` | pytest |
+| `WordNormalizeTable.bas` | [Testing Readme](WordNormalizeTable.bas%20Testing%20Readme.md) | — | Manual |
+| `WordResizeBorderImagesCleanlines.bas` | [Testing Readme](WordResizeBorderImagesCleanlines.bas%20Testing%20Readme.md) | — | Manual |
+| `Win11startup.ps1` | [Testing Readme](Win11startup.ps1%20Testing%20Readme.md) | — | Manual |
+
+---
+
 ## Running Automated Tests
 
 ### Python (pytest)
@@ -33,7 +47,7 @@ python --version
 
 **2. Confirm pip is available**
 
-`pip` is Python’s package installer and is bundled with Python 3.4+. Confirm it is present:
+`pip` is Python's package installer and is bundled with Python 3.4+. Confirm it is present:
 
 ```bash
 pip --version
@@ -43,7 +57,7 @@ If pip is missing, reinstall Python or run `python -m ensurepip --upgrade`.
 
 **3. Create a virtual environment (recommended)**
 
-A virtual environment isolates this project’s dependencies from other Python projects on the same machine.
+A virtual environment isolates this project's dependencies from other Python projects on the same machine.
 
 ```bash
 # From the repository root

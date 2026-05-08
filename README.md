@@ -28,6 +28,7 @@ aiacode/
 | [`split_excel_by_manager.py`](scripts/split_excel_by_manager.py) | Python | Cross-platform equivalent of `SplitExcelByManager.bas` using pandas and openpyxl. Produces identical output filenames. |
 | [`WordNormalizeTable.bas`](scripts/WordNormalizeTable.bas) | VBA (Word) | Normalizes all tables in the active Word document — sets width to 100%, clears row/cell constraints, and applies Arial 10pt. Two subroutines: `NormalizeTables_Light` (body only) and `StandardizeTables_TwoPass_AllStories` (all stories including headers, footers, and text boxes). |
 | [`WordResizeBorderImagesCleanlines.bas`](scripts/WordResizeBorderImagesCleanlines.bas) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border (RGB or hex color), and cleans blank paragraphs including ghost bullet lines and consecutive blank lines. |
+| [`Win11startup.ps1`](scripts/Win11startup.ps1) | PowerShell | Self-healing Windows 11 startup launcher. Sequentially starts a curated list of applications, repairs broken shortcut targets by climbing parent folders and searching up to 3 levels deep for the expected executable, and prompts for manual path input if automated repair fails. No UWP logic; Win32 only. |
 
 ---
 
