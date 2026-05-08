@@ -1,6 +1,6 @@
 # Win11startup.ps1 — Testing Readme
 
-This document covers manual test cases for `Win11startup.ps1`. There is no automated Pester test file for this script because its core behavior involves process detection, shortcut COM objects, and user prompts, which require a live Windows environment. All tests below are manual.
+This document covers manual test cases for `Win11startup.ps1`. There is no automated Pester test file for this script because its core behavior involves process detection, shortcut COM objects, and AUMID resolution that requires a live Windows environment. All tests below are manual.
 
 For environment setup (execution policy, PowerShell version), see [tests/README.md](README.md).
 
@@ -10,8 +10,9 @@ For environment setup (execution policy, PowerShell version), see [tests/README.
 
 - Windows 10 or Windows 11
 - PowerShell 5.1 or later
-- All Win32 shortcut files present in `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\` with the numbered naming convention (`01 Outlook.lnk`, etc.)
-- Phone Link installed and registered (required for `shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App` to resolve)
+- `Get-AppxPackage` and `Get-StartApps` available (standard on Windows 10/11)
+- All Win32 shortcut files present in `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\` with the numbered naming convention
+- Phone Link installed (for TC-09 through TC-12)
 
 ---
 
@@ -30,88 +31,111 @@ For environment setup (execution policy, PowerShell version), see [tests/README.
 
 **Setup:** Launch one app (e.g., Notepad++) manually before running the script.  
 **Action:** Run the script.  
-**Expected:** Console shows `[Name]: '[ProcessName]' already running. Skipping.` No second instance is launched.  
-**Pass criteria:** Only one instance of the process appears in Task Manager.
+**Expected:** Console shows `[Name]: '[ProcessName]' already running. Skipping.` No second instance launched.  
+**Pass criteria:** Only one instance of the process in Task Manager.
 
 ---
 
 ### TC-03 — Win32: shortcut target missing, exe found within depth 3
 
-**Setup:** Open a shortcut's properties and change the target to a non-existent path (e.g., append `_old` to the folder name). Ensure the actual exe exists within 3 folder levels of the nearest real parent.  
+**Setup:** Change a shortcut's target to a non-existent path. Actual exe exists within 3 folder levels of the nearest real parent.  
 **Action:** Run the script.  
-**Expected:** Console shows `shortcut target missing or invalid`, then `searching for <ExpectedExe>`, then `found replacement at <path>. Updating shortcut.` App launches.  
-**Pass criteria:** Shortcut target is updated to the found path. App process is running.
+**Expected:** `shortcut target missing or invalid` warning, then `searching for <ExpectedExe>`, then `found replacement at <path>. Updating shortcut.` App launches.  
+**Pass criteria:** Shortcut target updated. App running.
 
 ---
 
 ### TC-04 — Win32: shortcut target missing, exe not found within depth 3, user provides valid path
 
-**Setup:** Change shortcut target to a path where no parent folder exists on the drive, or where the exe is more than 3 levels below the nearest real parent.  
-**Action:** Run the script. When prompted, type the full correct path to the exe.  
-**Expected:** Console prompts `Enter the full path for [Name] ([ExpectedExe]), or press Enter to skip`. After valid input, shortcut is updated and app launches.  
-**Pass criteria:** Shortcut target updated. App process running.
+**Setup:** Shortcut target broken and exe not reachable within 3 levels.  
+**Action:** When prompted, enter the full correct path to the exe.  
+**Expected:** Shortcut updated. App launches.  
+**Pass criteria:** Shortcut updated. App running.
 
 ---
 
-### TC-05 — Win32 prompt: invalid path entered, then valid path entered
+### TC-05 — Win32 prompt: invalid paths entered before correct one
 
 **Setup:** Same as TC-04.  
-**Action:** At the prompt, first enter a path that does not exist, then enter a path to the correct file but with the wrong file name, then enter the correct path.  
-**Expected:**
-- First input: `WARNING: Path does not exist or is not a file: ...`
-- Second input: `WARNING: File name must be exactly [ExpectedExe]`
-- Third input: shortcut updated, app launches.
-
-**Pass criteria:** Prompt repeats on bad input. Accepts only a path that exists, is a file, and has the correct file name.
+**Action:** Enter a non-existent path, then a path with the wrong filename, then the correct path.  
+**Expected:** Appropriate warning on each bad input. Accepts only a valid matching path.  
+**Pass criteria:** Prompt repeats on bad input. Succeeds on correct input.
 
 ---
 
 ### TC-06 — Win32 prompt: user presses Enter to skip
 
 **Setup:** Same as TC-04.  
-**Action:** At the prompt, press Enter without typing a path.  
-**Expected:** Console shows `[Name]: no valid executable path. Skipping.` App appears in the final failure list.  
-**Pass criteria:** Script continues to the next app without crashing. Failed app listed at end.
+**Action:** Press Enter at the prompt.  
+**Expected:** `[Name]: no valid executable path. Skipping.` App in failure list.  
+**Pass criteria:** Script continues. Failed app listed at end.
 
 ---
 
 ### TC-07 — Win32: shortcut .lnk file itself does not exist
 
-**Setup:** Rename or delete one shortcut file from the Start Menu folder.  
+**Setup:** Delete or rename one shortcut file.  
 **Action:** Run the script.  
-**Expected:** Console shows `WARNING: [Name]: shortcut file not found: <path>`. App appears in the final failure list.  
-**Pass criteria:** Script does not crash. Remaining apps continue to launch normally.
+**Expected:** `WARNING: [Name]: shortcut file not found: <path>`. App in failure list.  
+**Pass criteria:** Script continues. Remaining apps launch.
 
 ---
 
 ### TC-08 — Win32: process does not appear within 30 seconds
 
-**Setup:** Point a shortcut target to a valid executable that does not produce a detectable process within 30 seconds.  
+**Setup:** Point a shortcut to a valid exe that does not produce a detectable process within 30 seconds.  
 **Action:** Run the script.  
-**Expected:** After 30 seconds, console shows `WARNING: [Name]: '[ProcessName]' did not appear within 30 seconds.` App added to failure list.  
-**Pass criteria:** Script does not hang beyond 30 seconds per app. Failure logged correctly.
+**Expected:** After 30 seconds: `WARNING: [Name]: '[ProcessName]' did not appear within 30 seconds.`  
+**Pass criteria:** Script does not hang beyond 30 seconds per app. Failure logged.
 
 ---
 
-### TC-09 — Phone Link: Appx launch via shell identity
+### TC-09 — Appx: AUMID resolved via Get-StartApps (step 1)
 
-**Setup:** Phone Link installed. `PhoneExperienceHost` process not running.  
+**Setup:** Phone Link installed and visible in Start. `PhoneExperienceHost` not running.  
 **Action:** Run the script.  
-**Expected:** Console shows `Phone Link: launching via shell app identity (shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App)` followed by `Phone Link: 'PhoneExperienceHost' is now running.` Phone Link UI appears on screen.  
-**Pass criteria:** `PhoneExperienceHost` process visible in Task Manager. Phone Link window is visible on the desktop.
+**Expected:** Console shows `AUMID resolved via Get-StartApps: <aumid>` then `launching via shell:appsFolder\<aumid>` then `'PhoneExperienceHost' is now running.`  
+**Pass criteria:** Phone Link window visible. `PhoneExperienceHost` in Task Manager. AUMID in log matches `Get-StartApps | Where-Object { $_.Name -like '*Phone Link*' }` output.
 
 ---
 
-### TC-10 — Phone Link: already running
+### TC-10 — Appx: AUMID resolved via KnownAumid verification (step 2)
+
+**Setup:** Phone Link installed but NOT visible in `Get-StartApps` (rare; can simulate by temporarily removing the Start pin). `KnownAumid` package family IS present in `Get-AppxPackage`.  
+**Action:** Run the script.  
+**Expected:** Step 1 skipped. Console shows `KnownAumid verified as installed: <aumid>`. App launches.  
+**Pass criteria:** `PhoneExperienceHost` running. AUMID matches `KnownAumid` value.
+
+---
+
+### TC-11 — Appx: AUMID resolved via AppxPackage manifest (step 3)
+
+**Setup:** Simulate a stale `KnownAumid` by temporarily changing it in the script to a fake package family name. `Get-StartApps` does not return Phone Link.  
+**Action:** Run the script.  
+**Expected:** Steps 1 and 2 fail with warnings. Console shows `AUMID discovered via AppxPackage manifest: <aumid>`. App launches with the discovered AUMID.  
+**Pass criteria:** `PhoneExperienceHost` running. Manifest-discovered AUMID used.
+
+---
+
+### TC-12 — Appx: all AUMID resolution steps fail
+
+**Setup:** Simulate a fully unknown app by setting `KnownAumid`, `AppxName`, and `StartAppName` to values that match nothing installed.  
+**Action:** Run the script.  
+**Expected:** All three steps fail with warnings. Console shows `no AUMID found. Skipping.` App added to failure list.  
+**Pass criteria:** Script continues. App in final failure summary.
+
+---
+
+### TC-13 — Appx: already running
 
 **Setup:** Phone Link already open before running the script.  
 **Action:** Run the script.  
-**Expected:** Console shows `Phone Link: 'PhoneExperienceHost' already running. Skipping.`  
-**Pass criteria:** No second instance launched. Single PhoneExperienceHost process in Task Manager.
+**Expected:** Console shows `Phone Link: 'PhoneExperienceHost' already running. Skipping.` AUMID resolution is not attempted.  
+**Pass criteria:** No second instance. Single `PhoneExperienceHost` in Task Manager.
 
 ---
 
-### TC-11 — Full sequence: all apps launch successfully
+### TC-14 — Full sequence: all apps launch successfully
 
 **Setup:** All Win32 shortcut targets valid, Phone Link installed, no apps pre-running.  
 **Action:** Run the script.  
@@ -120,12 +144,12 @@ For environment setup (execution policy, PowerShell version), see [tests/README.
 
 ---
 
-### TC-12 — Win32: repaired shortcut persists on second run
+### TC-15 — Win32: repaired shortcut persists on second run
 
-**Setup:** Trigger TC-03 or TC-04 to repair a shortcut. After the script completes, close the launched app.  
-**Action:** Run the script a second time without changing anything.  
-**Expected:** On the second run, the repaired shortcut target is used directly (TC-01 path). No repair logic is triggered.  
-**Pass criteria:** No `shortcut target missing` warning on the second run for the previously repaired app.
+**Setup:** Trigger TC-03 or TC-04 to repair a shortcut. After completion, close the launched app.  
+**Action:** Run the script a second time without changes.  
+**Expected:** Repaired shortcut target used directly (TC-01 path). No repair triggered.  
+**Pass criteria:** No `shortcut target missing` warning for the previously repaired app.
 
 ---
 
@@ -133,15 +157,18 @@ For environment setup (execution policy, PowerShell version), see [tests/README.
 
 | TC | Scenario | Pass If |
 |----|----------|---------|
-| TC-01 | Valid Win32 shortcut, app not running | App launches within 30 s |
+| TC-01 | Valid Win32 shortcut, not running | App launches within 30 s |
 | TC-02 | App already running | Skipped; no second instance |
-| TC-03 | Broken Win32 target, exe found in depth 3 | Shortcut updated; app launches |
-| TC-04 | Broken Win32 target, user provides valid path | Shortcut updated; app launches |
-| TC-05 | User enters bad paths before correct one | Prompt repeats correctly |
+| TC-03 | Broken Win32 target, exe in depth 3 | Shortcut updated; app launches |
+| TC-04 | Broken Win32 target, user provides path | Shortcut updated; app launches |
+| TC-05 | Invalid then valid paths at prompt | Prompt repeats; accepts correct input |
 | TC-06 | User skips prompt | App in failure list; script continues |
 | TC-07 | `.lnk` file missing | Warning logged; script continues |
 | TC-08 | Win32 process timeout | Warning after 30 s; script continues |
-| TC-09 | Phone Link Appx launch | UI visible; PhoneExperienceHost running |
-| TC-10 | Phone Link already running | Skipped; no second instance |
-| TC-11 | Full sequence | All apps running; success message |
-| TC-12 | Repaired shortcut reused | No repair triggered on second run |
+| TC-09 | Appx AUMID via Get-StartApps | Correct AUMID logged; app launches |
+| TC-10 | Appx AUMID via KnownAumid verification | KnownAumid confirmed; app launches |
+| TC-11 | Appx AUMID via manifest | Manifest AUMID used; app launches |
+| TC-12 | All AUMID steps fail | Warning logged; app in failure list |
+| TC-13 | Appx already running | Skipped; no AUMID resolution attempted |
+| TC-14 | Full sequence | All apps running; success message |
+| TC-15 | Repaired shortcut reused | No repair on second run |

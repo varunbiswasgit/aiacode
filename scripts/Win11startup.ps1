@@ -1,18 +1,25 @@
 # Curated startup launcher with self-healing shortcut repair
-# - Win32 apps: launched via shortcut with depth-3 repair and user-prompt fallback
-# - Phone Link: launched via packaged-app shell identity (Start-Process explorer.exe)
-# - Sticky Notes: launched via ONENOTE.EXE /memoryWindow start (shortcut-based)
-# - No UWP/AppUserModelId logic for Win32 apps
+# - Win32 apps  : launched via shortcut with depth-3 repair and user-prompt fallback
+# - Appx apps   : AUMID resolved at runtime (Get-StartApps -> Get-AppxPackage -> manifest)
+#                 hardcoded KnownAumid used only as primary candidate, not sole source of truth
+# - Sticky Notes: launched via ONENOTE.EXE /memoryWindow start (shortcut-based Win32)
 
 $startMenu = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
-$MaxRepairDepth = 3
-$InitialDelaySeconds = 10
-$LaunchTimeoutSeconds = 30
+$MaxRepairDepth         = 3
+$InitialDelaySeconds    = 10
+$LaunchTimeoutSeconds   = 30
 $PostLaunchPauseSeconds = 2
 
-# LaunchType field controls launch strategy:
-#   'Win32' (default) - shortcut-based with self-healing repair
-#   'Appx'            - packaged app launched via explorer.exe shell:appsFolder\...
+# LaunchType controls the launch strategy per entry:
+#   'Win32' - shortcut-based with self-healing repair and user-prompt fallback
+#   'Appx'  - AUMID resolved dynamically at runtime; KnownAumid is the primary candidate
+#
+# Appx fields:
+#   KnownAumid   - last-known AUMID (PackageFamilyName!AppId); verified at runtime, not assumed static
+#   AppxName     - partial package name used to discover AUMID if KnownAumid is stale
+#   StartAppName - display name pattern used in Get-StartApps discovery
+#   ProcessName  - process name used to detect if already running and confirm launch
+
 $apps = @(
     @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";             ExpectedExe = "OUTLOOK.EXE" },
     @{ Name = "Teams";          LaunchType = "Win32"; ShortcutPath = "$startMenu\02 Teams.lnk";          ProcessName = "ms-teams";            ExpectedExe = "ms-teams.exe" },
@@ -23,18 +30,68 @@ $apps = @(
     @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\07 OneNote.lnk";        ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
     @{ Name = "SAP GUI";        LaunchType = "Win32"; ShortcutPath = "$startMenu\08 SAP GUI.lnk";        ProcessName = "saplogon";            ExpectedExe = "saplogon.exe" },
     @{ Name = "Notepad++";      LaunchType = "Win32"; ShortcutPath = "$startMenu\09 notepad++.lnk";      ProcessName = "notepad++";           ExpectedExe = "notepad++.exe" },
-    @{ Name = "Phone Link";     LaunchType = "Appx";  AppCommand   = "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App"; ProcessName = "PhoneExperienceHost" },
+    @{ Name = "Phone Link";     LaunchType = "Appx";  KnownAumid = "Microsoft.YourPhone_8wekyb3d8bbwe!App"; AppxName = "YourPhone";   StartAppName = "Phone Link";     ProcessName = "PhoneExperienceHost" },
     @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$startMenu\11 Microsoft Edge.lnk"; ProcessName = "msedge";              ExpectedExe = "msedge.exe" },
     @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$startMenu\12 Google Chrome.lnk";  ProcessName = "chrome";              ExpectedExe = "chrome.exe" }
 )
 
 $WshShell = New-Object -ComObject WScript.Shell
 
+# ---------------------------------------------------------------------------
+# AUMID resolution: Get-StartApps -> KnownAumid verification -> AppxPackage manifest
+# ---------------------------------------------------------------------------
+function Resolve-Aumid {
+    param($App)
+
+    # Step 1: Get-StartApps by display name (most reliable - always reflects installed state)
+    $startApp = Get-StartApps | Where-Object {
+        $_.Name -like "*$($App.StartAppName)*"
+    } | Select-Object -First 1
+    if ($startApp) {
+        Write-Host "$($App.Name): AUMID resolved via Get-StartApps: $($startApp.AppID)"
+        return $startApp.AppID
+    }
+
+    # Step 2: Verify KnownAumid is still installed before trusting it
+    if (-not [string]::IsNullOrWhiteSpace($App.KnownAumid)) {
+        $knownPfn = ($App.KnownAumid -split '!')[0]
+        $installed = Get-AppxPackage | Where-Object { $_.PackageFamilyName -eq $knownPfn } | Select-Object -First 1
+        if ($installed) {
+            Write-Host "$($App.Name): KnownAumid verified as installed: $($App.KnownAumid)"
+            return $App.KnownAumid
+        }
+        Write-Warning "$($App.Name): KnownAumid package family '$knownPfn' not found on this system."
+    }
+
+    # Step 3: Discover via AppxPackage name search and read the manifest for AppId
+    $pkg = Get-AppxPackage | Where-Object {
+        $_.Name -like "*$($App.AppxName)*"
+    } | Select-Object -First 1
+    if ($pkg) {
+        try {
+            $appIds = (Get-AppxPackageManifest $pkg).Package.Applications.Application.Id
+            $appId  = if ($appIds -contains 'App') { 'App' } else { $appIds | Select-Object -First 1 }
+            if ($appId) {
+                $aumid = "$($pkg.PackageFamilyName)!$appId"
+                Write-Host "$($App.Name): AUMID discovered via AppxPackage manifest: $aumid"
+                return $aumid
+            }
+        } catch {
+            Write-Warning "$($App.Name): could not read AppxPackage manifest. $_"
+        }
+    }
+
+    # Step 4: All discovery failed
+    Write-Warning "$($App.Name): AUMID could not be resolved automatically."
+    return $null
+}
+
+# ---------------------------------------------------------------------------
+# Win32 helpers
+# ---------------------------------------------------------------------------
 function Get-ShortcutObject {
     param([string]$ShortcutPath)
-    if (-not (Test-Path -LiteralPath $ShortcutPath)) {
-        throw "Shortcut not found: $ShortcutPath"
-    }
+    if (-not (Test-Path -LiteralPath $ShortcutPath)) { throw "Shortcut not found: $ShortcutPath" }
     return $WshShell.CreateShortcut($ShortcutPath)
 }
 
@@ -55,9 +112,7 @@ function Get-RelativeDepth {
     param([string]$BasePath, [string]$CandidatePath)
     $baseFull      = [System.IO.Path]::GetFullPath($BasePath)
     $candidateFull = [System.IO.Path]::GetFullPath($CandidatePath)
-    if (-not $candidateFull.StartsWith($baseFull, [System.StringComparison]::OrdinalIgnoreCase)) {
-        return [int]::MaxValue
-    }
+    if (-not $candidateFull.StartsWith($baseFull, [System.StringComparison]::OrdinalIgnoreCase)) { return [int]::MaxValue }
     $relative = $candidateFull.Substring($baseFull.Length).TrimStart('\\')
     if ([string]::IsNullOrWhiteSpace($relative)) { return 0 }
     return ($relative -split '[\\//]').Count
@@ -66,10 +121,10 @@ function Get-RelativeDepth {
 function Find-ExeWithinDepth {
     param([string]$RootFolder, [string]$ExpectedExe, [int]$MaxDepth = 3)
     if (-not (Test-Path -LiteralPath $RootFolder -PathType Container)) { return $null }
-    $matches = Get-ChildItem -LiteralPath $RootFolder -Filter $ExpectedExe -File -Recurse -ErrorAction SilentlyContinue |
+    $results = Get-ChildItem -LiteralPath $RootFolder -Filter $ExpectedExe -File -Recurse -ErrorAction SilentlyContinue |
         Where-Object { (Get-RelativeDepth -BasePath $RootFolder -CandidatePath $_.FullName) -le $MaxDepth } |
         Sort-Object FullName
-    return $matches | Select-Object -First 1
+    return $results | Select-Object -First 1
 }
 
 function Update-ShortcutTarget {
@@ -87,12 +142,10 @@ function Prompt-ForExactExePath {
         if ([string]::IsNullOrWhiteSpace($inputPath)) { return $null }
         $trimmed = $inputPath.Trim('"').Trim()
         if (-not (Test-Path -LiteralPath $trimmed -PathType Leaf)) {
-            Write-Warning "Path does not exist or is not a file: $trimmed"
-            continue
+            Write-Warning "Path does not exist or is not a file: $trimmed"; continue
         }
         if ([System.IO.Path]::GetFileName($trimmed) -ine $ExpectedExe) {
-            Write-Warning "File name must be exactly $ExpectedExe"
-            continue
+            Write-Warning "File name must be exactly $ExpectedExe"; continue
         }
         return $trimmed
     }
@@ -132,6 +185,9 @@ function Resolve-LaunchPath {
     return $null
 }
 
+# ---------------------------------------------------------------------------
+# Process wait helper
+# ---------------------------------------------------------------------------
 function Wait-ForProcessStart {
     param([string]$ProcessName, [int]$TimeoutSeconds = 30)
     $elapsed = 0
@@ -143,6 +199,9 @@ function Wait-ForProcessStart {
     return $false
 }
 
+# ---------------------------------------------------------------------------
+# Launch functions
+# ---------------------------------------------------------------------------
 function Start-AppxApp {
     param($App)
 
@@ -151,9 +210,15 @@ function Start-AppxApp {
         return $true
     }
 
+    $aumid = Resolve-Aumid -App $App
+    if (-not $aumid) {
+        Write-Warning "$($App.Name): no AUMID found. Skipping.`n"
+        return $false
+    }
+
     try {
-        Write-Host "$($App.Name): launching via shell app identity ($($App.AppCommand))"
-        Start-Process explorer.exe $App.AppCommand -ErrorAction Stop
+        Write-Host "$($App.Name): launching via shell:appsFolder\$aumid"
+        Start-Process explorer.exe "shell:appsFolder\$aumid" -ErrorAction Stop
 
         if (Wait-ForProcessStart -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
             Write-Host "$($App.Name): '$($App.ProcessName)' is now running.`n"
@@ -206,6 +271,9 @@ function Start-Win32App {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 Write-Host "Waiting $InitialDelaySeconds seconds for system to stabilize..."
 Start-Sleep -Seconds $InitialDelaySeconds
 

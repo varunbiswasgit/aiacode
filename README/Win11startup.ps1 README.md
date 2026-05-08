@@ -2,9 +2,7 @@
 
 ## Purpose
 
-A curated Windows 11 startup launcher that sequentially starts a fixed list of personal applications. It uses a self-healing shortcut repair mechanism for Win32 apps and a packaged-app shell identity launch for apps that do not expose a reliable Win32 executable path (Phone Link).
-
-If a Win32 shortcut target is missing, the script climbs upward through the folder hierarchy to the nearest existing parent folder, then searches downward up to three levels for the expected executable. If the search still fails, the user is prompted to supply the exact path. In both recovery cases, the shortcut is updated before launch so the repair persists.
+A curated Windows 11 startup launcher that sequentially starts a fixed list of personal applications. It uses a self-healing shortcut repair mechanism for Win32 apps, and dynamic AUMID resolution at runtime for Appx (Store/packaged) apps so that the script is not dependent on any single hardcoded identity string remaining valid across OS or app updates.
 
 ---
 
@@ -13,41 +11,38 @@ If a Win32 shortcut target is missing, the script climbs upward through the fold
 - Curated app list — only your chosen startup applications; no scanning of the Startup folder or Start Menu.
 - Two launch strategies controlled per entry by `LaunchType`:
   - `Win32` — shortcut-based with depth-3 self-healing repair and validated user-prompt fallback.
-  - `Appx` — packaged app launched via `explorer.exe shell:appsFolder\...` identity.
+  - `Appx` — AUMID resolved at runtime in three stages; `KnownAumid` is the primary candidate only, not a hardcoded dependency.
 - Skips any app whose process is already running.
-- Reads and validates each Win32 shortcut target before attempting launch.
-- Climbs parent folders to recover from broken Win32 shortcut targets.
-- Bounded search — depth fixed at 3 to avoid slow machine-wide crawls.
-- Prompts user for exact executable path when automated repair fails; validates the path before accepting.
-- Rewrites the shortcut target and working directory after any repair.
-- Logs each outcome: running (skip), launched, repaired-and-launched, or failed.
+- Win32: reads and validates each shortcut target before launch; repairs and persists the shortcut if the target has moved.
+- Appx: discovers the current AUMID dynamically; does not assume the package identity is stable across updates.
+- Bounded Win32 search — depth fixed at 3 to avoid slow machine-wide crawls.
+- Prompts user for exact executable path when Win32 automated repair fails; validates path before accepting.
+- Logs each outcome: running (skip), launched, repaired/discovered-and-launched, or failed.
 
 ---
 
 ## App List
 
-### Win32 entries
-
-Each Win32 entry requires four fields:
+### Win32 entry fields
 
 | Field | Description |
 |-------|-------------|
 | `Name` | Display name used in log output |
 | `LaunchType` | `"Win32"` |
 | `ShortcutPath` | Full path to the `.lnk` shortcut file |
-| `ProcessName` | Process name used to check if already running (no `.exe`) |
+| `ProcessName` | Process name used to check if already running and to confirm launch (no `.exe`) |
 | `ExpectedExe` | Exact executable filename used during shortcut repair and user-prompt validation |
 
-### Appx entries
-
-Each Appx entry requires three fields:
+### Appx entry fields
 
 | Field | Description |
 |-------|-------------|
 | `Name` | Display name used in log output |
 | `LaunchType` | `"Appx"` |
-| `AppCommand` | Shell app folder identity, e.g. `shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App` |
-| `ProcessName` | Process name used to confirm launch (no `.exe`) |
+| `KnownAumid` | Last-known AUMID (`PackageFamilyName!AppId`); verified against installed packages at runtime — not assumed to be permanently valid |
+| `AppxName` | Partial package name used in `Get-AppxPackage` discovery when `KnownAumid` is stale |
+| `StartAppName` | Display name pattern used in `Get-StartApps` discovery (first resolution step) |
+| `ProcessName` | Process name used to confirm launch and detect if already running (no `.exe`) |
 
 ### Default entries
 
@@ -58,21 +53,59 @@ Each Appx entry requires three fields:
 | 03 | OneDrive | Win32 | |
 | 04 | ShareFile | Win32 | |
 | 05 | Greenshot | Win32 | |
-| 06 | Sticky Notes | Win32 | Launched via `ONENOTE.EXE /memoryWindow start`; ProcessName is `ONENOTE` |
-| 07 | OneNote | Win32 | Launched via `ONENOTE.EXE`; shares `ONENOTE` process name with Sticky Notes |
+| 06 | Sticky Notes | Win32 | Launched via `ONENOTE.EXE`; `ProcessName` is `ONENOTE` |
+| 07 | OneNote | Win32 | Shares `ONENOTE` process name with entry 06; if ONENOTE is running, entry 06 is skipped |
 | 08 | SAP GUI | Win32 | |
 | 09 | Notepad++ | Win32 | |
-| 10 | Phone Link | Appx | Launched via `shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App` |
+| 10 | Phone Link | Appx | `KnownAumid`: `Microsoft.YourPhone_8wekyb3d8bbwe!App`; resolved dynamically at runtime |
 | 11 | Microsoft Edge | Win32 | |
 | 12 | Google Chrome | Win32 | |
 
-> **Sticky Notes note:** Both Sticky Notes (entry 06) and OneNote (entry 07) share the `ONENOTE` process name because Sticky Notes is launched via `ONENOTE.EXE /memoryWindow start`. If ONENOTE is already running when entry 06 is processed, entry 06 will be skipped. The shortcut for entry 06 should have `ONENOTE.EXE` as target and `/memoryWindow start` as arguments.
+---
+
+## Appx AUMID Resolution
+
+For any `Appx` entry, the script resolves the AUMID in three steps at runtime:
+
+```
+1. Get-StartApps filtered by StartAppName
+   -> Reflects current installed state; most reliable source.
+   -> Returns AppID directly if found.
+
+2. Verify KnownAumid is still installed
+   -> Extracts PackageFamilyName from KnownAumid and queries Get-AppxPackage.
+   -> Uses KnownAumid only if the package family is confirmed present.
+   -> Warns and skips to step 3 if the family is not found.
+
+3. Get-AppxPackage filtered by AppxName + manifest read
+   -> Finds the installed package by partial name.
+   -> Reads AppId from the package manifest.
+   -> Constructs AUMID as PackageFamilyName!AppId.
+   -> Prefers 'App' as AppId when present; falls back to first declared AppId.
+
+If all three steps fail, the app is skipped and added to the failure list.
+```
+
+This means a Store update that changes the package version or publisher but keeps the app name will still resolve correctly via step 1 or step 3, without any script changes.
+
+---
+
+## Win32 Shortcut Repair Logic
+
+```
+1. Read .lnk target path
+2. Target exists?  -> Launch normally
+3. Target missing  -> Climb parent folders until an existing folder is found
+4. Search that folder downward (max 3 levels) for ExpectedExe
+5. Found?          -> Update shortcut, launch
+6. Not found?      -> Prompt user for exact executable path
+7. Valid input?    -> Update shortcut, launch
+8. Skipped?        -> Log failure, continue to next app
+```
 
 ---
 
 ## Configuration
-
-All tunable values are at the top of the script:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -81,21 +114,6 @@ All tunable values are at the top of the script:
 | `$InitialDelaySeconds` | `10` | Wait time after login before starting the sequence |
 | `$LaunchTimeoutSeconds` | `30` | Maximum seconds to wait for a process to appear after launch |
 | `$PostLaunchPauseSeconds` | `2` | Pause between apps after a successful launch |
-
----
-
-## Win32 Shortcut Repair Logic
-
-```
-1. Read .lnk target path
-2. Target exists?  → Launch normally
-3. Target missing → Climb parent folders until an existing folder is found
-4. Search that folder downward (max 3 levels) for ExpectedExe
-5. Found?          → Update shortcut, launch
-6. Not found?      → Prompt user for exact executable path
-7. Valid input?    → Update shortcut, launch
-8. Skipped?        → Log failure, continue to next app
-```
 
 ---
 
@@ -118,7 +136,7 @@ The prompt repeats until a valid path is entered or the user presses Enter to sk
   ```powershell
   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
   ```
-- Win32 apps in `$apps` must expose a Win32 executable. Appx apps are launched by shell identity and do not need an exe path.
+- `Get-AppxPackage` and `Get-StartApps` available (standard in Windows 10/11 PowerShell)
 
 ---
 
@@ -140,5 +158,6 @@ To run automatically at login, add a shortcut pointing to this script in the Win
 |---------|--------|
 | v1 | Direct shortcut launch; 30-second process wait |
 | v2 | Added UWP fallback map, Start Menu search, broad exe search, retry prompt |
-| v3 | Removed UWP; replaced broad search with self-healing shortcut repair (depth 3); added validated user-prompt fallback |
-| v4 | Added `LaunchType` field per app; Phone Link now launched via packaged-app shell identity; `Start-Win32App` and `Start-AppxApp` split into separate functions |
+| v3 | Removed UWP; replaced broad search with self-healing shortcut repair (depth 3); validated user-prompt fallback |
+| v4 | Added `LaunchType` per entry; Phone Link launched via packaged-app shell identity; `Start-Win32App` and `Start-AppxApp` split into separate functions |
+| v5 | Appx AUMID resolved dynamically at runtime (Get-StartApps -> KnownAumid verification -> AppxPackage manifest); `KnownAumid`, `AppxName`, `StartAppName` replace static `AppCommand` |
