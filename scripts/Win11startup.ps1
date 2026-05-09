@@ -1,9 +1,11 @@
 # Curated startup launcher with self-healing shortcut repair
-# - Win32 apps  : launched via shortcut with depth-3 repair and user-prompt fallback
-#                 optional Arguments field overrides shortcut arguments at launch
+# - Win32 apps  : shortcut invoked via WshShell.Run when target is valid (preserves baked-in arguments)
+#                 self-healing repair + user-prompt fallback used only when shortcut target is broken
+#                 repaired shortcuts are then invoked via WshShell.Run as well
 # - Appx apps   : AUMID resolved at runtime (Get-StartApps -> KnownAumid verification -> AppxPackage manifest)
 #                 KnownAumid used only as primary candidate, not sole source of truth
-# - Sticky Notes: Win32, ONENOTE.EXE with Arguments = "/memoryWindow start"
+# - Sticky Notes: Win32 shortcut with /memoryWindow start baked into the .lnk Target field
+#                 WshShell.Run fires the shortcut as-is; no separate Arguments field needed
 
 $startMenu = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -12,9 +14,9 @@ $LaunchTimeoutSeconds   = 30
 $PostLaunchPauseSeconds = 2
 
 # LaunchType controls the launch strategy per entry:
-#   'Win32' - shortcut-based with self-healing repair and user-prompt fallback
-#             optional 'Arguments' field is passed to Start-Process -ArgumentList
-#             if absent, app is launched with no extra arguments
+#   'Win32' - shortcut invoked via WshShell.Run (target + arguments preserved from .lnk)
+#             self-healing repair and user-prompt fallback activate only when shortcut target is broken
+#             repaired shortcuts are also invoked via WshShell.Run
 #   'Appx'  - AUMID resolved dynamically at runtime; KnownAumid is the primary candidate
 #
 # Appx fields:
@@ -29,7 +31,7 @@ $apps = @(
     @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";            ExpectedExe = "OneDrive.exe" },
     @{ Name = "ShareFile";      LaunchType = "Win32"; ShortcutPath = "$startMenu\04 ShareFile.lnk";      ProcessName = "ShareFile";           ExpectedExe = "ShareFile.exe" },
     @{ Name = "Greenshot";      LaunchType = "Win32"; ShortcutPath = "$startMenu\05 Greenshot.lnk";      ProcessName = "Greenshot";           ExpectedExe = "Greenshot.exe" },
-    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Sticky Notes.lnk";   ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE";  Arguments = "/memoryWindow start" },
+    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Sticky Notes.lnk";   ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
     @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\07 OneNote.lnk";        ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
     @{ Name = "SAP GUI";        LaunchType = "Win32"; ShortcutPath = "$startMenu\08 SAP GUI.lnk";        ProcessName = "saplogon";            ExpectedExe = "saplogon.exe" },
     @{ Name = "Notepad++";      LaunchType = "Win32"; ShortcutPath = "$startMenu\09 notepad++.lnk";      ProcessName = "notepad++";           ExpectedExe = "notepad++.exe" },
@@ -149,14 +151,12 @@ function Prompt-ForExactExePath {
     }
 }
 
-function Resolve-LaunchPath {
+function Repair-ShortcutTarget {
+    # Called only when shortcut target is broken.
+    # Returns the repaired exe path, or $null if repair fails.
     param($App)
     $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
     $targetPath = $shortcut.TargetPath
-
-    if (-not [string]::IsNullOrWhiteSpace($targetPath) -and (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
-        return $targetPath
-    }
 
     Write-Warning "$($App.Name): shortcut target missing or invalid: $targetPath"
 
@@ -246,20 +246,23 @@ function Start-Win32App {
     }
 
     try {
-        $launchPath = Resolve-LaunchPath -App $App
-        if (-not $launchPath) {
-            Write-Warning "$($App.Name): no valid executable path. Skipping.`n"
-            return $false
+        # Validate shortcut target; repair if broken
+        $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
+        $targetPath = $shortcut.TargetPath
+
+        if ([string]::IsNullOrWhiteSpace($targetPath) -or -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+            $repairedPath = Repair-ShortcutTarget -App $App
+            if (-not $repairedPath) {
+                Write-Warning "$($App.Name): shortcut could not be repaired. Skipping.`n"
+                return $false
+            }
+            # Re-read shortcut after repair so WshShell.Run uses the updated .lnk
+            Write-Host "$($App.Name): shortcut repaired. Proceeding with launch."
         }
 
-        # Use explicit Arguments field if present; otherwise launch with no extra arguments
-        if (-not [string]::IsNullOrWhiteSpace($App.Arguments)) {
-            Write-Host "$($App.Name): launching $launchPath $($App.Arguments)"
-            Start-Process -FilePath $launchPath -ArgumentList $App.Arguments -ErrorAction Stop
-        } else {
-            Write-Host "$($App.Name): launching $launchPath"
-            Start-Process -FilePath $launchPath -ErrorAction Stop
-        }
+        # Always invoke the .lnk via WshShell.Run so baked-in arguments are preserved
+        Write-Host "$($App.Name): launching via shortcut: $($App.ShortcutPath)"
+        $WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
 
         if (Wait-ForProcessStart -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
             Write-Host "$($App.Name): '$($App.ProcessName)' is now running.`n"

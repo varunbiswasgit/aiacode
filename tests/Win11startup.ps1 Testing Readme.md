@@ -12,28 +12,28 @@ For environment setup (execution policy, PowerShell version), see [tests/README.
 - PowerShell 5.1 or later
 - `Get-AppxPackage` and `Get-StartApps` available (standard on Windows 10/11)
 - All Win32 shortcut files present in `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\` with the numbered naming convention
-- Phone Link installed (for TC-09 through TC-12)
-- Entry 06 shortcut (`06 Sticky Notes.lnk`) target pointing to `ONENOTE.EXE`
+- Entry 06 shortcut (`06 Sticky Notes.lnk`) Target field set to `"...\ONENOTE.EXE" /memoryWindow start`
+- Phone Link installed (for TC-10 through TC-13)
 
 ---
 
 ## Test Cases
 
-### TC-01 — Normal Win32 launch: shortcut target valid, no Arguments, process not running
+### TC-01 — Normal Win32 launch: shortcut target valid, no baked-in arguments, process not running
 
-**Setup:** Shortcut target path exists. App has no `Arguments` field. App is not running.  
+**Setup:** Shortcut target path exists. App has no extra arguments in the Target field. App is not running.  
 **Action:** Run the script.  
-**Expected:** Console shows `[Name]: launching <path>` (no arguments in log) and `[Name]: '[ProcessName]' is now running.`  
+**Expected:** Console shows `[Name]: launching via shortcut: <path>.lnk` and `[Name]: '[ProcessName]' is now running.`  
 **Pass criteria:** App process visible in Task Manager within 30 seconds.
 
 ---
 
-### TC-02 — Win32 launch with Arguments field (Sticky Notes)
+### TC-02 — Sticky Notes: baked-in arguments honoured via WshShell.Run
 
-**Setup:** Entry 06 (Sticky Notes) shortcut target points to a valid `ONENOTE.EXE`. `ONENOTE` process not running.  
+**Setup:** Entry 06 shortcut Target field contains `"...\ONENOTE.EXE" /memoryWindow start`. `ONENOTE` process not running.  
 **Action:** Run the script.  
-**Expected:** Console shows `Sticky Notes: launching <path> /memoryWindow start` and `Sticky Notes: 'ONENOTE' is now running.` A sticky note window (not the full OneNote UI) opens.  
-**Pass criteria:** Sticky note window visible on desktop. `ONENOTE` process running. OneNote full UI is NOT open.
+**Expected:** Console shows `Sticky Notes: launching via shortcut: ...\06 Sticky Notes.lnk` and `Sticky Notes: 'ONENOTE' is now running.` A sticky note window (not the full OneNote UI) opens.  
+**Pass criteria:** Sticky note window visible on desktop. `ONENOTE` process running. Full OneNote UI is NOT open.
 
 ---
 
@@ -51,24 +51,24 @@ For environment setup (execution policy, PowerShell version), see [tests/README.
 **Setup:** Neither `ONENOTE` process running before the script. Both entries 06 and 07 present.  
 **Action:** Run the script.  
 **Expected:** Entry 06 (Sticky Notes) launches and `ONENOTE` starts. Entry 07 (OneNote) finds `ONENOTE` already running and logs `OneNote: 'ONENOTE' already running. Skipping.`  
-**Pass criteria:** Only one `ONENOTE` process. Sticky note window visible. OneNote full UI not opened separately.
+**Pass criteria:** Only one `ONENOTE` process. Sticky note window visible. Full OneNote UI not opened separately.
 
 ---
 
-### TC-05 — Win32: shortcut target missing, exe found within depth 3
+### TC-05 — Win32: shortcut target broken, exe found within depth 3
 
-**Setup:** Change a shortcut's target to a non-existent path. Actual exe exists within 3 folder levels of the nearest real parent.  
+**Setup:** Change a shortcut's TargetPath to a non-existent path. Actual exe exists within 3 folder levels of the nearest real parent.  
 **Action:** Run the script.  
-**Expected:** `shortcut target missing or invalid` warning, then `searching for <ExpectedExe>`, then `found replacement at <path>. Updating shortcut.` App launches (with `Arguments` if present).  
+**Expected:** `shortcut target missing or invalid` warning, then `searching for <ExpectedExe>`, then `found replacement at <path>. Updating shortcut.` Then `shortcut repaired. Proceeding with launch.` App launches via the updated `.lnk`.  
 **Pass criteria:** Shortcut target updated. App running.
 
 ---
 
-### TC-06 — Win32: shortcut target missing, exe not found within depth 3, user provides valid path
+### TC-06 — Win32: shortcut target broken, exe not found within depth 3, user provides valid path
 
 **Setup:** Shortcut target broken and exe not reachable within 3 levels.  
 **Action:** When prompted, enter the full correct path to the exe.  
-**Expected:** Shortcut updated. App launches (with `Arguments` if present).  
+**Expected:** Shortcut updated. `shortcut repaired. Proceeding with launch.` App launches via the updated `.lnk`.  
 **Pass criteria:** Shortcut updated. App running.
 
 ---
@@ -86,7 +86,7 @@ For environment setup (execution policy, PowerShell version), see [tests/README.
 
 **Setup:** Same as TC-06.  
 **Action:** Press Enter at the prompt.  
-**Expected:** `[Name]: no valid executable path. Skipping.` App in failure list.  
+**Expected:** `[Name]: shortcut could not be repaired. Skipping.` App in failure list.  
 **Pass criteria:** Script continues. Failed app listed at end.
 
 ---
@@ -158,7 +158,7 @@ For environment setup (execution policy, PowerShell version), see [tests/README.
 
 **Setup:** All Win32 shortcut targets valid, Phone Link installed, no apps pre-running.  
 **Action:** Run the script.  
-**Expected:** Each app launches sequentially. Sticky Notes opens a sticky note window (not full OneNote). Console ends with `Startup sequence completed successfully.`  
+**Expected:** Each app launches sequentially. Sticky Notes opens a sticky note window. Console ends with `Startup sequence completed successfully.`  
 **Pass criteria:** All processes visible in Task Manager. No warnings or failure list.
 
 ---
@@ -176,12 +176,12 @@ For environment setup (execution policy, PowerShell version), see [tests/README.
 
 | TC | Scenario | Pass If |
 |----|----------|---------|
-| TC-01 | Valid Win32, no Arguments, not running | App launches within 30 s |
-| TC-02 | Sticky Notes with Arguments | Sticky note window opens; `/memoryWindow start` in log |
+| TC-01 | Valid Win32, no baked-in arguments, not running | App launches within 30 s |
+| TC-02 | Sticky Notes via WshShell.Run | Sticky note window opens; `/memoryWindow start` honoured from .lnk |
 | TC-03 | App already running | Skipped; no second instance |
 | TC-04 | Sticky Notes then OneNote process order | OneNote skipped; one ONENOTE process |
-| TC-05 | Broken Win32 target, exe in depth 3 | Shortcut updated; app launches with Arguments if present |
-| TC-06 | Broken Win32 target, user provides path | Shortcut updated; app launches with Arguments if present |
+| TC-05 | Broken Win32 target, exe in depth 3 | Shortcut updated; app launches via repaired .lnk |
+| TC-06 | Broken Win32 target, user provides path | Shortcut updated; app launches via repaired .lnk |
 | TC-07 | Invalid then valid paths at prompt | Prompt repeats; accepts correct input |
 | TC-08 | User skips prompt | App in failure list; script continues |
 | TC-09 | `.lnk` file missing | Warning logged; script continues |

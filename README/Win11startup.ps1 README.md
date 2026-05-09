@@ -2,7 +2,7 @@
 
 ## Purpose
 
-A curated Windows 11 startup launcher that sequentially starts a fixed list of personal applications. It uses a self-healing shortcut repair mechanism for Win32 apps, and dynamic AUMID resolution at runtime for Appx (Store/packaged) apps so that the script is not dependent on any single hardcoded identity string remaining valid across OS or app updates.
+A curated Windows 11 startup launcher that sequentially starts a fixed list of personal applications. It uses a `WshShell.Run`-based launch strategy for Win32 apps so that baked-in shortcut arguments are always honoured, with self-healing shortcut repair as a fallback. Appx (Store/packaged) apps are launched via AUMID resolved dynamically at runtime.
 
 ---
 
@@ -10,10 +10,10 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 
 - Curated app list — only your chosen startup applications; no scanning of the Startup folder or Start Menu.
 - Two launch strategies controlled per entry by `LaunchType`:
-  - `Win32` — shortcut-based with depth-3 self-healing repair and validated user-prompt fallback. Optional `Arguments` field passed explicitly to `Start-Process -ArgumentList`.
+  - `Win32` — shortcut invoked via `WshShell.Run` so that any arguments baked into the `.lnk` Target field are preserved exactly as Windows would launch them. Self-healing repair and user-prompt fallback activate only when the shortcut target is broken; the repaired shortcut is then also invoked via `WshShell.Run`.
   - `Appx` — AUMID resolved at runtime in three stages; `KnownAumid` is the primary candidate only, not a hardcoded dependency.
 - Skips any app whose process is already running.
-- Win32: reads and validates each shortcut target before launch; repairs and persists the shortcut if the target has moved.
+- Win32: validates each shortcut target before launch; repairs and persists the shortcut if the target has moved, then invokes the updated shortcut.
 - Appx: discovers the current AUMID dynamically; does not assume the package identity is stable across updates.
 - Bounded Win32 search — depth fixed at 3 to avoid slow machine-wide crawls.
 - Prompts user for exact executable path when Win32 automated repair fails; validates path before accepting.
@@ -32,7 +32,8 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 | `ShortcutPath` | Yes | Full path to the `.lnk` shortcut file |
 | `ProcessName` | Yes | Process name used to check if already running and to confirm launch (no `.exe`) |
 | `ExpectedExe` | Yes | Exact executable filename used during shortcut repair and user-prompt validation |
-| `Arguments` | No | Command-line arguments passed to `Start-Process -ArgumentList`. Omit if no arguments needed. |
+
+> No `Arguments` field exists. Any arguments needed at launch (e.g. `/memoryWindow start` for Sticky Notes) must be baked into the shortcut's Target field. The script invokes the `.lnk` via `WshShell.Run`, which passes them automatically.
 
 ### Appx entry fields
 
@@ -54,15 +55,35 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 | 03 | OneDrive | Win32 | |
 | 04 | ShareFile | Win32 | |
 | 05 | Greenshot | Win32 | |
-| 06 | Sticky Notes | Win32 | `Arguments = "/memoryWindow start"`; `ExpectedExe` and `ProcessName` are `ONENOTE.EXE`/`ONENOTE` |
-| 07 | OneNote | Win32 | Shares `ONENOTE` process name with entry 06; if ONENOTE is running, entry 07 is skipped |
+| 06 | Sticky Notes | Win32 | Shortcut Target includes `/memoryWindow start`; `ExpectedExe` and `ProcessName` are `ONENOTE.EXE`/`ONENOTE` |
+| 07 | OneNote | Win32 | Shares `ONENOTE` process name with entry 06; skipped if ONENOTE is already running |
 | 08 | SAP GUI | Win32 | |
 | 09 | Notepad++ | Win32 | |
 | 10 | Phone Link | Appx | `KnownAumid`: `Microsoft.YourPhone_8wekyb3d8bbwe!App`; resolved dynamically at runtime |
 | 11 | Microsoft Edge | Win32 | |
 | 12 | Google Chrome | Win32 | |
 
-> **Sticky Notes / OneNote process conflict:** Both entries share the `ONENOTE` process name. Entry 06 (Sticky Notes) launches `ONENOTE.EXE /memoryWindow start`. Entry 07 (OneNote) launches `ONENOTE.EXE` with no arguments. Because process detection is name-based, if Sticky Notes (entry 06) has already started ONENOTE by the time entry 07 is processed, OneNote will be skipped with "already running". This is expected and acceptable — both run in the same ONENOTE process.
+> **Sticky Notes / OneNote process conflict:** Both entries share the `ONENOTE` process name. Entry 06 (Sticky Notes) fires the shortcut which carries `/memoryWindow start`. Entry 07 (OneNote) fires its own shortcut with no extra arguments. Because process detection is name-based, if Sticky Notes has already started ONENOTE by the time entry 07 is processed, OneNote is skipped with "already running". This is expected — both run in the same ONENOTE process.
+
+---
+
+## Win32 Launch Strategy
+
+```
+1. Check if process is already running  -> skip if yes
+2. Verify .lnk file exists              -> log failure if missing
+3. Read shortcut TargetPath
+4. Target valid?  -> invoke .lnk via WshShell.Run (baked-in arguments preserved)
+5. Target broken? -> Repair-ShortcutTarget:
+     a. Climb parent folders to find nearest existing folder
+     b. Search downward max 3 levels for ExpectedExe
+     c. Found? -> update shortcut, invoke repaired .lnk via WshShell.Run
+     d. Not found? -> prompt user for exact exe path
+     e. Valid input? -> update shortcut, invoke repaired .lnk via WshShell.Run
+     f. Skipped? -> log failure, continue
+6. Wait up to 30 s for ProcessName to appear
+7. Log success or timeout failure
+```
 
 ---
 
@@ -73,35 +94,17 @@ For any `Appx` entry, the script resolves the AUMID in three steps at runtime:
 ```
 1. Get-StartApps filtered by StartAppName
    -> Reflects current installed state; most reliable source.
-   -> Returns AppID directly if found.
 
 2. Verify KnownAumid is still installed
    -> Extracts PackageFamilyName from KnownAumid and queries Get-AppxPackage.
    -> Uses KnownAumid only if the package family is confirmed present.
-   -> Warns and skips to step 3 if the family is not found.
 
 3. Get-AppxPackage filtered by AppxName + manifest read
    -> Finds the installed package by partial name.
    -> Reads AppId from the package manifest.
    -> Constructs AUMID as PackageFamilyName!AppId.
-   -> Prefers 'App' as AppId when present; falls back to first declared AppId.
 
 If all three steps fail, the app is skipped and added to the failure list.
-```
-
----
-
-## Win32 Shortcut Repair Logic
-
-```
-1. Read .lnk target path
-2. Target exists?  -> Launch normally (with Arguments if present)
-3. Target missing  -> Climb parent folders until an existing folder is found
-4. Search that folder downward (max 3 levels) for ExpectedExe
-5. Found?          -> Update shortcut, launch (with Arguments if present)
-6. Not found?      -> Prompt user for exact executable path
-7. Valid input?    -> Update shortcut, launch (with Arguments if present)
-8. Skipped?        -> Log failure, continue to next app
 ```
 
 ---
@@ -118,9 +121,9 @@ If all three steps fail, the app is skipped and added to the failure list.
 
 ---
 
-## User Prompt Validation (Win32 only)
+## User Prompt Validation (Win32 repair only)
 
-When prompting for a manual path, the script rejects input if:
+When prompting for a manual path during repair, the script rejects input if:
 - The path does not exist.
 - The path points to a folder rather than a file.
 - The file name does not match `ExpectedExe` exactly (case-insensitive).
@@ -162,4 +165,5 @@ To run automatically at login, add a shortcut pointing to this script in the Win
 | v3 | Removed UWP; replaced broad search with self-healing shortcut repair (depth 3); validated user-prompt fallback |
 | v4 | Added `LaunchType` per entry; Phone Link launched via packaged-app shell identity; `Start-Win32App` and `Start-AppxApp` split into separate functions |
 | v5 | Appx AUMID resolved dynamically at runtime (Get-StartApps -> KnownAumid verification -> AppxPackage manifest); `KnownAumid`, `AppxName`, `StartAppName` replace static `AppCommand` |
-| v6 | Added optional `Arguments` field to Win32 entries; Sticky Notes now launched with `/memoryWindow start` via `Start-Process -ArgumentList`; log output includes arguments when present |
+| v6 | Added optional `Arguments` field to Win32 entries; Sticky Notes launched with `/memoryWindow start` via `Start-Process -ArgumentList` |
+| v7 | Removed `Arguments` field; Win32 apps now invoked via `WshShell.Run` on the `.lnk` file so baked-in shortcut arguments are preserved automatically; `Resolve-LaunchPath` renamed to `Repair-ShortcutTarget` to reflect its sole purpose |
