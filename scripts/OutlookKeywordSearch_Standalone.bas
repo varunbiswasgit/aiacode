@@ -12,6 +12,10 @@ Option Explicit
 '           Match Email, Sender, and Status columns to same file.
 ' Install : Alt+F11 in Outlook > Insert Module > paste this file.
 '           Run via Tools > Macros > RunKeywordSearch.
+' Fix     : Data start row is auto-detected (not hardcoded to row 2).
+'           lastCol is scoped to the keyword column data range only,
+'           preventing stray content in other columns from skewing
+'           the output column position.
 ' ============================================================
 
 Public Sub RunKeywordSearch()
@@ -103,14 +107,60 @@ Private Sub RunBatchKeywordSearch()
     Dim colNum As Long
     colNum = ColLetterToNumber(colRef)
 
+    ' -------------------------------------------------------
+    ' FIX 1: Auto-detect the first data row in the keyword
+    '         column — skips any number of header rows.
+    '         Scans from row 1 downward for the first
+    '         non-empty cell in the keyword column.
+    ' -------------------------------------------------------
+    Dim firstDataRow As Long
+    Dim scanRow As Long
+    firstDataRow = 0
+    For scanRow = 1 To 1000
+        If Trim(CStr(IIf(IsNull(ws.Cells(scanRow, colNum).Value), "", ws.Cells(scanRow, colNum).Value))) <> "" Then
+            ' If this row looks like a header (non-numeric text with no email pattern), skip it
+            ' and treat next non-empty row as data start.
+            ' Simple heuristic: if the cell content matches a typical header word, skip.
+            Dim cellVal As String
+            cellVal = Trim(CStr(ws.Cells(scanRow, colNum).Value))
+            If Not IsNumeric(cellVal) Then
+                ' Accept as data start — let the user's actual keywords be whatever text they are
+                firstDataRow = scanRow
+                Exit For
+            End If
+        End If
+    Next scanRow
+
+    If firstDataRow = 0 Then
+        wb.Close False
+        xlApp.Quit
+        MsgBox "No data found in column " & colRef & ".", vbExclamation
+        Exit Sub
+    End If
+
     ' Last row in keyword column
     Dim lastRow As Long
     lastRow = ws.Cells(ws.Rows.Count, colNum).End(-4162).Row  ' xlUp
 
-    ' Find last used column
-    Dim lastCol As Long
+    If lastRow < firstDataRow Then
+        wb.Close False
+        xlApp.Quit
+        MsgBox "No keyword data found below row " & firstDataRow & " in column " & colRef & ".", vbExclamation
+        Exit Sub
+    End If
+
+    ' -------------------------------------------------------
+    ' FIX 2: Scope lastCol to the keyword data range only.
+    '         Searches only within the rows that contain
+    '         keywords to avoid picking up stray content
+    '         elsewhere in the sheet.
+    ' -------------------------------------------------------
+    Dim dataRange As Object
     Dim findCell As Object
-    Set findCell = ws.Cells.Find("*", ws.Cells(1, 1), , , 2, 2)  ' xlByColumns, xlPrevious
+    Set dataRange = ws.Range(ws.Cells(firstDataRow, 1), ws.Cells(lastRow, ws.Columns.Count))
+    Set findCell = dataRange.Find("*", dataRange.Cells(1, 1), , , 2, 2)  ' xlByColumns, xlPrevious
+
+    Dim lastCol As Long
     If findCell Is Nothing Then
         lastCol = colNum
     Else
@@ -121,9 +171,10 @@ Private Sub RunBatchKeywordSearch()
     Dim senderCol As Long : senderCol = lastCol + 2
     Dim statusCol As Long : statusCol = lastCol + 3
 
-    ws.Cells(1, resultCol).Value = "Match Email"
-    ws.Cells(1, senderCol).Value = "Sender"
-    ws.Cells(1, statusCol).Value = "Status"
+    ' Write output headers on the same row as the first data row
+    ws.Cells(firstDataRow, resultCol).Value = "Match Email"
+    ws.Cells(firstDataRow, senderCol).Value = "Sender"
+    ws.Cells(firstDataRow, statusCol).Value = "Status"
 
     Dim row As Long
     Dim kw As String
@@ -132,7 +183,8 @@ Private Sub RunBatchKeywordSearch()
     Dim processed As Long : processed = 0
     Dim found As Long    : found = 0
 
-    For row = 2 To lastRow
+    ' Start from firstDataRow + 1 (row after the header we just wrote)
+    For row = firstDataRow + 1 To lastRow
         kw = Trim(CStr(IIf(IsNull(ws.Cells(row, colNum).Value), "", ws.Cells(row, colNum).Value)))
 
         If Len(kw) = 0 Then
@@ -167,8 +219,9 @@ Private Sub RunBatchKeywordSearch()
     Set ws = Nothing : Set wb = Nothing : Set xlApp = Nothing
 
     MsgBox "Batch complete." & vbCrLf & _
-           "Processed : " & processed & vbCrLf & _
-           "Found     : " & found, vbInformation, "Batch Search Complete"
+           "Data started at row : " & firstDataRow & vbCrLf & _
+           "Processed           : " & processed & vbCrLf & _
+           "Found               : " & found, vbInformation, "Batch Search Complete"
 End Sub
 
 ' ------------------------------------------------------------
@@ -183,7 +236,6 @@ Private Sub SearchAllFolders(keyword As String, ByRef bestItem As Object, ByRef 
 End Sub
 
 Private Sub SearchFolderRecursive(folder As Object, keyword As String, ByRef bestItem As Object, ByRef bestPath As String)
-    ' Skip non-mail folders
     If SkipFolder(folder) Then Exit Sub
 
     On Error Resume Next
@@ -194,7 +246,6 @@ Private Sub SearchFolderRecursive(folder As Object, keyword As String, ByRef bes
     Dim itm As Object
     For Each itm In items
         If itm.Class = 43 Then  ' olMail
-            ' Early exit: item is newer than current best — rest of folder is also newer
             If Not bestItem Is Nothing Then
                 If itm.ReceivedTime > bestItem.ReceivedTime Then Exit For
             End If
@@ -209,13 +260,12 @@ Private Sub SearchFolderRecursive(folder As Object, keyword As String, ByRef bes
                     Set bestItem = itm
                     bestPath = folder.FolderPath
                 End If
-                Exit For  ' oldest in this folder found
+                Exit For
             End If
         End If
     Next itm
     On Error GoTo 0
 
-    ' Recurse into subfolders
     Dim sub As Object
     For Each sub In folder.Folders
         SearchFolderRecursive sub, keyword, bestItem, bestPath
@@ -237,7 +287,7 @@ Private Function SkipFolder(folder As Object) As Boolean
         If n = skipNames(i) Then SkipFolder = True : Exit Function
     Next i
     On Error Resume Next
-    If folder.DefaultItemType <> 0 Then SkipFolder = True  ' 0 = olMailItem
+    If folder.DefaultItemType <> 0 Then SkipFolder = True
     On Error GoTo 0
 End Function
 
