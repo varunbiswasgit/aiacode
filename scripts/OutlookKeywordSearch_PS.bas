@@ -10,25 +10,47 @@ Option Explicit
 '           running as a separate PowerShell process.
 '           Outlook UI remains fully responsive during search.
 ' Requires: OutlookKeywordSearch_PS.ps1 saved locally.
-'           Update PS_SCRIPT_PATH below to match your path.
+'           The macro will prompt for the script path at runtime.
 ' ============================================================
 
-Private Const PS_SCRIPT_PATH As String = "C:\Users\Varun\scripts\OutlookKeywordSearch_PS.ps1"
+' Default path shown in the InputBox as a starting suggestion.
+' Change this to match your usual script location.
+Private Const PS_SCRIPT_DEFAULT As String = "C:\Users\Varun\scripts\OutlookKeywordSearch_PS.ps1"
 
 Public Sub RunKeywordSearch()
-    Dim modeChoice As String
-    Dim keyword    As String
-    Dim filePath   As String
-    Dim colRef     As String
-    Dim psCmd      As String
+    Dim psScriptPath As String
+    Dim modeChoice   As String
+    Dim keyword      As String
+    Dim filePath     As String
+    Dim colRef       As String
+    Dim psCmd        As String
 
-    If Dir(PS_SCRIPT_PATH) = "" Then
-        MsgBox "PowerShell script not found:" & vbCrLf & PS_SCRIPT_PATH & vbCrLf & vbCrLf & _
-               "Update PS_SCRIPT_PATH in the VBA module and try again.", _
+    ' -------------------------------------------------------
+    ' Step 1: Ask the user for the PowerShell script location.
+    '         Pre-fill the InputBox with the default path so
+    '         the user can simply press OK if it matches.
+    ' -------------------------------------------------------
+    psScriptPath = Trim(InputBox( _
+        "Enter the full path to the PowerShell script:" & vbCrLf & _
+        "(Edit or accept the default below)", _
+        "PowerShell Script Path", _
+        PS_SCRIPT_DEFAULT))
+
+    If Len(psScriptPath) = 0 Then
+        MsgBox "No script path entered. Operation cancelled.", vbExclamation
+        Exit Sub
+    End If
+
+    If Dir(psScriptPath) = "" Then
+        MsgBox "PowerShell script not found:" & vbCrLf & psScriptPath & vbCrLf & vbCrLf & _
+               "Please check the path and try again.", _
                vbCritical, "Script Not Found"
         Exit Sub
     End If
 
+    ' -------------------------------------------------------
+    ' Step 2: Choose search mode.
+    ' -------------------------------------------------------
     modeChoice = Trim(InputBox( _
         "Choose mode:" & vbCrLf & _
         "S = Single keyword search" & vbCrLf & _
@@ -46,7 +68,7 @@ Public Sub RunKeywordSearch()
                 Exit Sub
             End If
             keyword = Replace(keyword, """", "'")
-            psCmd = "powershell.exe -ExecutionPolicy Bypass -File """ & PS_SCRIPT_PATH & _
+            psCmd = "powershell.exe -ExecutionPolicy Bypass -File """ & psScriptPath & _
                     """ -Mode S -Keyword """ & keyword & """"
 
         Case "B"
@@ -64,7 +86,7 @@ Public Sub RunKeywordSearch()
                 MsgBox "No column entered.", vbExclamation
                 Exit Sub
             End If
-            psCmd = "powershell.exe -ExecutionPolicy Bypass -File """ & PS_SCRIPT_PATH & _
+            psCmd = "powershell.exe -ExecutionPolicy Bypass -File """ & psScriptPath & _
                     """ -Mode B -FilePath """ & filePath & """ -Column """ & colRef & """"
 
         Case Else
