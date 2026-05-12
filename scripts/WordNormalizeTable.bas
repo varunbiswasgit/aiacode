@@ -19,14 +19,14 @@ Sub NormalizeTables_Light()
     For Each tbl In doc.Tables
         ' --- Table-level: full width, no fixed size lock ---
         With tbl
-            .PreferredWidthType = wdPreferPercent
+            .PreferredWidthType = WdPreferredWidthType.wdPreferPercent
             .PreferredWidth = 100
             .AllowAutoFit = True
         End With
 
         ' --- Row-level: clear height constraints ---
         For Each row In tbl.Rows
-            row.HeightRule = wdRowHeightAuto
+            row.HeightRule = WdRowHeightRule.wdRowHeightAuto
             row.Height = 0
             row.AllowBreakAcrossPages = True
         Next row
@@ -34,7 +34,7 @@ Sub NormalizeTables_Light()
         ' --- Cell-level: clear width constraints, apply Arial 10 ---
         For Each cel In tbl.Range.Cells
             cel.Width = 0
-            cel.PreferredWidthType = wdPreferAuto
+            cel.PreferredWidthType = WdPreferredWidthType.wdPreferAuto
 
             For Each para In cel.Range.Paragraphs
                 With para.Range.Font
