@@ -5,15 +5,12 @@ Option Explicit
 ' Outlook Keyword Search — PowerShell-Assisted VBA Launcher
 ' Author  : Varun Biswas
 ' Repo    : varunbiswasgit/aiacode
-' Purpose : Thin VBA launcher that collects user inputs and
-'           delegates all search work to OutlookKeywordSearch_PS.ps1
-'           running as a separate PowerShell process.
-'           Outlook UI remains fully responsive during search.
-' Requires: OutlookKeywordSearch_PS.ps1 saved locally.
-'           The macro will prompt for the script path at runtime.
 ' Change log:
 '   2026-05-12  Retry loops added to all file/path prompts.
 '               Macro exits only when user presses Cancel.
+'   2026-05-12  VBA confirmation dialog now shows PowerShell
+'               PID and process name so user can verify in
+'               Task Manager that the job is running.
 ' ============================================================
 
 Private Const PS_SCRIPT_DEFAULT As String = "C:\Users\Varun\scripts\OutlookKeywordSearch_PS.ps1"
@@ -26,6 +23,7 @@ Public Sub RunKeywordSearch()
     Dim colRef       As String
     Dim psCmd        As String
     Dim userInput    As String
+    Dim pid          As Long
 
     ' -------------------------------------------------------
     ' Step 1: PS script path — retry until valid or Cancelled.
@@ -37,7 +35,6 @@ Public Sub RunKeywordSearch()
             "PowerShell Script Path", _
             PS_SCRIPT_DEFAULT)
 
-        ' Empty string = Cancel pressed
         If userInput = "" Then
             MsgBox "Operation cancelled.", vbInformation
             Exit Sub
@@ -46,7 +43,7 @@ Public Sub RunKeywordSearch()
         psScriptPath = Trim(userInput)
 
         If Dir(psScriptPath) <> "" Then
-            Exit Do   ' valid path — continue
+            Exit Do
         Else
             MsgBox "PowerShell script not found:" & vbCrLf & psScriptPath & vbCrLf & vbCrLf & _
                    "Please check the path and try again, or press Cancel to exit.", _
@@ -108,7 +105,6 @@ Public Sub RunKeywordSearch()
     ' -------------------------------------------------------
     ElseIf modeChoice = "B" Then
 
-        ' --- Excel file path retry loop ---
         Do
             userInput = InputBox( _
                 "Enter full Excel file path (e.g. C:\Users\You\keywords.xlsx):", _
@@ -122,7 +118,7 @@ Public Sub RunKeywordSearch()
             filePath = Trim(userInput)
 
             If Dir(filePath) <> "" Then
-                Exit Do   ' valid file — continue
+                Exit Do
             Else
                 MsgBox "File not found:" & vbCrLf & filePath & vbCrLf & vbCrLf & _
                        "Please check the path and try again, or press Cancel to exit.", _
@@ -130,7 +126,6 @@ Public Sub RunKeywordSearch()
             End If
         Loop
 
-        ' --- Column letter retry loop ---
         Do
             userInput = InputBox( _
                 "Enter column letter containing keywords (e.g. A):", _
@@ -143,7 +138,6 @@ Public Sub RunKeywordSearch()
 
             colRef = UCase(Trim(userInput))
 
-            ' Validate: must be 1-2 alpha characters only (A-Z or AA-XFD)
             If colRef Like "[A-Z]" Or colRef Like "[A-Z][A-Z]" Then
                 Exit Do
             Else
@@ -157,13 +151,26 @@ Public Sub RunKeywordSearch()
     End If
 
     ' -------------------------------------------------------
-    ' Step 4: Launch PS in background and confirm to user.
+    ' Step 4: Launch PS and capture PID.
+    '         Shell() returns the PID of the launched process.
+    '         Show it in the confirmation dialog so the user
+    '         can verify the job in Task Manager.
     ' -------------------------------------------------------
-    Shell psCmd, vbHide
+    pid = Shell(psCmd, vbHide)
+
+    If pid = 0 Then
+        MsgBox "ERROR: PowerShell process could not be started." & vbCrLf & vbCrLf & _
+               "Command attempted:" & vbCrLf & psCmd, _
+               vbCritical, "Launch Failed"
+        Exit Sub
+    End If
 
     MsgBox "Search started in background." & vbCrLf & vbCrLf & _
+           "Process : powershell.exe" & vbCrLf & _
+           "PID     : " & pid & vbCrLf & vbCrLf & _
+           "You can verify this in Task Manager > Details tab > PID " & pid & "." & vbCrLf & vbCrLf & _
            "Outlook remains fully usable while the search runs." & vbCrLf & _
-           "You will receive a Windows notification when the search completes." & vbCrLf & _
+           "A Windows notification will appear when the job completes." & vbCrLf & _
            "For batch mode, results are written to your Excel file automatically.", _
            vbInformation, "Background Search Running"
 End Sub

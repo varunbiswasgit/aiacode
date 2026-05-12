@@ -7,11 +7,11 @@
     keywords from an Excel file (batch mode). Runs out-of-process so Outlook
     remains fully responsive during the search.
 
-    Fixes applied:
-      - Data start row is auto-detected by scanning the keyword column for the
-        first non-empty cell, so headers on any row work correctly.
-      - lastCol detection is scoped to the keyword data range only, preventing
-        stray content in columns C, D, etc. from skewing output column placement.
+    Change log:
+      2026-05-12  Show-Toast updated to use the PowerShell AUMID which is
+                  always registered on Windows 10/11, ensuring toasts fire
+                  reliably without requiring a custom Start Menu app entry.
+                  Completion toast now includes PID, mode, and job summary.
 
 .PARAMETER Mode
     S = Single keyword search
@@ -42,6 +42,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+$CurrentPID = $PID
+$StartTime  = Get-Date
+
 $SKIP_FOLDER_NAMES = @(
     'calendar','contacts','tasks','notes',
     'junk email','deleted items','rss feeds',
@@ -49,24 +52,37 @@ $SKIP_FOLDER_NAMES = @(
     'local failures','server failures','recoverable items'
 )
 
+# ------------------------------------------------------------------
+# Show-Toast
+# Uses the PowerShell AUMID which is always registered on Windows
+# 10/11 — avoids silent failures caused by unregistered app IDs.
+# ------------------------------------------------------------------
 function Show-Toast {
-    param([string]$Title, [string]$Message)
+    param(
+        [string]$Title,
+        [string]$Message
+    )
     try {
-        [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType=WindowsRuntime] | Out-Null
+        [Windows.UI.Notifications.ToastNotificationManager,
+         Windows.UI.Notifications, ContentType=WindowsRuntime] | Out-Null
+
+        $aumid    = '{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\WindowsPowerShell\v1.0\powershell.exe'
         $template = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent(
-            [Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+                        [Windows.UI.Notifications.ToastTemplateType]::ToastText02)
         $template.SelectSingleNode('//text[@id=1]').InnerText = $Title
         $template.SelectSingleNode('//text[@id=2]').InnerText = $Message
-        $toast = [Windows.UI.Notifications.ToastNotification]::new($template)
-        [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('Outlook Keyword Search').Show($toast)
-    } catch {}
+        $toast    = [Windows.UI.Notifications.ToastNotification]::new($template)
+        [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($aumid).Show($toast)
+    } catch {
+        Write-Log "Toast failed: $_"
+    }
 }
 
 $LogPath = Join-Path ([Environment]::GetFolderPath('MyDocuments')) 'OutlookKeywordSearch.log'
 
 function Write-Log {
     param([string]$Text)
-    Add-Content -Path $LogPath -Value ("[{0}] {1}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Text)
+    Add-Content -Path $LogPath -Value ("[{0}] [PID {1}] {2}" -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $CurrentPID, $Text)
 }
 
 function ConvertTo-ColumnNumber {
@@ -140,46 +156,49 @@ function Search-AllFolders {
     return @{ Item = $bestItem.Value; Path = $bestPath.Value }
 }
 
-Write-Log "=== Search started | Mode=$Mode ==="
+Write-Log "=== Search started | Mode=$Mode | PID=$CurrentPID ==="
+
 try {
     $outlook = New-Object -ComObject Outlook.Application
 } catch {
     Write-Log "FATAL: Cannot connect to Outlook COM: $_"
-    Show-Toast 'Outlook Keyword Search' 'ERROR: Could not connect to Outlook. Is Outlook running?'
+    Show-Toast 'Outlook Keyword Search — ERROR' "PID $CurrentPID: Could not connect to Outlook. Is Outlook running?"
     exit 1
 }
 
 if ($Mode -eq 'S') {
     if (-not $Keyword) {
         Write-Log 'ERROR: No keyword supplied for single mode.'
-        Show-Toast 'Outlook Keyword Search' 'ERROR: No keyword provided.'
+        Show-Toast 'Outlook Keyword Search — ERROR' "PID $CurrentPID: No keyword provided."
         exit 1
     }
     Write-Log "Single mode | Keyword: $Keyword"
     $result = Search-AllFolders -Keyword $Keyword
+    $elapsed = [math]::Round(((Get-Date) - $StartTime).TotalSeconds, 1)
+
     if ($null -eq $result.Item) {
-        $msg = "No email found for keyword: $Keyword"
+        $msg = "No email found for: $Keyword"
         Write-Log $msg
-        Show-Toast 'Outlook Keyword Search — Not Found' $msg
+        Show-Toast 'Outlook Keyword Search — Not Found' "PID $CurrentPID | ${elapsed}s | $msg"
     } else {
-        $itm    = $result.Item
-        $rcvd   = $itm.ReceivedTime.ToString('yyyy-MM-dd HH:mm:ss')
-        $msg    = "$rcvd | $($itm.Subject) | $(Get-SenderText $itm) | $($result.Path)"
-        Write-Log "FOUND: $msg"
-        Show-Toast "Keyword Found: $Keyword" $msg
+        $itm  = $result.Item
+        $rcvd = $itm.ReceivedTime.ToString('yyyy-MM-dd HH:mm:ss')
+        $msg  = "$rcvd | $($itm.Subject) | $(Get-SenderText $itm)"
+        Write-Log "FOUND: $msg | $($result.Path)"
+        Show-Toast "Keyword Found: $Keyword" "PID $CurrentPID | ${elapsed}s | $msg"
     }
 }
 
 if ($Mode -eq 'B') {
     if (-not (Test-Path $FilePath)) {
         Write-Log "ERROR: File not found: $FilePath"
-        Show-Toast 'Outlook Keyword Search' "ERROR: File not found: $FilePath"
+        Show-Toast 'Outlook Keyword Search — ERROR' "PID $CurrentPID: File not found: $FilePath"
         exit 1
     }
     $colNum = ConvertTo-ColumnNumber $Column
     if ($colNum -le 0) {
         Write-Log "ERROR: Invalid column reference: $Column"
-        Show-Toast 'Outlook Keyword Search' "ERROR: Invalid column: $Column"
+        Show-Toast 'Outlook Keyword Search — ERROR' "PID $CurrentPID: Invalid column: $Column"
         exit 1
     }
 
@@ -189,12 +208,6 @@ if ($Mode -eq 'B') {
     $wb = $xlApp.Workbooks.Open($FilePath)
     $ws = $wb.Worksheets.Item(1)
 
-    # ----------------------------------------------------------
-    # FIX 1: Auto-detect first data row in the keyword column.
-    #         Scan from row 1 downward; treat the first non-empty
-    #         cell as the header row for output labels, and start
-    #         processing keywords from the row after it.
-    # ----------------------------------------------------------
     $firstDataRow = 0
     for ($scanRow = 1; $scanRow -le 1000; $scanRow++) {
         $cellVal = $ws.Cells.Item($scanRow, $colNum).Value2
@@ -208,7 +221,7 @@ if ($Mode -eq 'B') {
         $wb.Close($false)
         $xlApp.Quit()
         Write-Log "ERROR: No data found in column $Column"
-        Show-Toast 'Outlook Keyword Search' "ERROR: No data found in column $Column"
+        Show-Toast 'Outlook Keyword Search — ERROR' "PID $CurrentPID: No data found in column $Column"
         exit 1
     }
 
@@ -218,16 +231,10 @@ if ($Mode -eq 'B') {
         $wb.Close($false)
         $xlApp.Quit()
         Write-Log "ERROR: No keyword rows found below row $firstDataRow"
-        Show-Toast 'Outlook Keyword Search' "ERROR: No keywords found below row $firstDataRow"
+        Show-Toast 'Outlook Keyword Search — ERROR' "PID $CurrentPID: No keywords found below row $firstDataRow"
         exit 1
     }
 
-    # ----------------------------------------------------------
-    # FIX 2: Scope lastCol search to the keyword data rows only.
-    #         This prevents headers or data in other unrelated
-    #         columns (e.g. C, D) from inflating lastCol and
-    #         causing output columns to land in the wrong place.
-    # ----------------------------------------------------------
     $dataRange = $ws.Range(
         $ws.Cells.Item($firstDataRow, 1),
         $ws.Cells.Item($lastRow, $ws.Columns.Count)
@@ -236,22 +243,20 @@ if ($Mode -eq 'B') {
         '*',
         $dataRange.Cells.Item(1, 1),
         [Type]::Missing, [Type]::Missing,
-        2,   # xlByColumns
-        2    # xlPrevious
+        2,
+        2
     )
-    $lastCol = if ($findCell) { $findCell.Column } else { $colNum }
-
+    $lastCol   = if ($findCell) { $findCell.Column } else { $colNum }
     $resultCol = $lastCol + 1
     $senderCol = $lastCol + 2
     $statusCol = $lastCol + 3
 
-    # Write output headers aligned to the first data row
     $ws.Cells.Item($firstDataRow, $resultCol).Value2 = 'Match Email'
     $ws.Cells.Item($firstDataRow, $senderCol).Value2 = 'Sender'
     $ws.Cells.Item($firstDataRow, $statusCol).Value2 = 'Status'
 
     $processed = 0
-    $found = 0
+    $found     = 0
 
     for ($row = $firstDataRow + 1; $row -le $lastRow; $row++) {
         $kw = $ws.Cells.Item($row, $colNum).Value2
@@ -284,9 +289,10 @@ if ($Mode -eq 'B') {
     $xlApp.Quit()
     [System.Runtime.Interopservices.Marshal]::ReleaseComObject($xlApp) | Out-Null
 
-    $summary = "Batch complete. First data row: $firstDataRow | Processed: $processed | Found: $found"
+    $elapsed = [math]::Round(((Get-Date) - $StartTime).TotalSeconds, 1)
+    $summary = "Batch complete | PID $CurrentPID | ${elapsed}s | Processed: $processed | Found: $found | First data row: $firstDataRow"
     Write-Log $summary
-    Show-Toast 'Outlook Keyword Search — Batch Complete' "Processed: $processed | Found: $found"
+    Show-Toast 'Outlook Keyword Search — Batch Complete' "PID $CurrentPID | ${elapsed}s | Processed: $processed | Found: $found"
 }
 
 Write-Log '=== Search ended ==='
