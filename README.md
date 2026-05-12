@@ -66,13 +66,14 @@ aiacode/
 | Script | Type | Description |
 |--------|------|-------------|
 | [`Clean_data_whatsapp.ps1`](scripts/Clean_data_whatsapp.ps1) | PowerShell | Cleans and processes exported WhatsApp chat text files — removes formatting artifacts, validates paths, and extracts structured data. |
-| [`ExcelFormatting.bas`](scripts/ExcelFormatting.bas) | VBA (Excel) | Unified Excel formatting and cleanup macro with four interactive modes: simple formatting, advanced formatting, optional column splitting, and generic table extraction (formerly SAP-specific). |
-| [`OutlookKeywordSearch.bas`](scripts/OutlookKeywordSearch.bas) | VBA (Outlook) + PowerShell | Two-file solution (v2). VBA launcher collects inputs and fires [`OutlookKeywordSearch.ps1`](scripts/OutlookKeywordSearch.ps1) as a background process — Outlook stays fully responsive. PS engine searches all mail folders with optimizations: non-mail folder skip, early exit per folder, OS yield between batch keywords. Single mode delivers results via Windows toast + log. Batch mode appends Match Email, Sender, and Status columns to the Excel file. |
+| [`ExcelFormatting.bas`](scripts/ExcelFormatting.bas) | VBA (Excel) | Unified Excel formatting and cleanup macro with four interactive modes: simple formatting, advanced formatting, optional column splitting, and generic table extraction. |
+| [`OutlookKeywordSearch_Standalone.bas`](scripts/OutlookKeywordSearch_Standalone.bas) | VBA (Outlook) | Pure VBA, no PowerShell required. Single and batch keyword search. Results shown in MsgBox (single) or appended to Excel (batch). Non-mail folder skip, early exit per folder, DoEvents between batch rows. |
+| [`OutlookKeywordSearch_PS.bas`](scripts/OutlookKeywordSearch_PS.bas) + [`OutlookKeywordSearch_PS.ps1`](scripts/OutlookKeywordSearch_PS.ps1) | VBA (Outlook) + PowerShell | PS-assisted pair. VBA launcher fires PS engine as background process — Outlook stays fully responsive. Results via Windows toast + log (single) or Excel append (batch). Non-mail folder skip, early exit, OS yield. |
 | [`SplitExcelByManager.bas`](scripts/SplitExcelByManager.bas) | VBA (Excel) | Splits an Excel workbook into separate files, one per unique manager name, with sanitized filenames and configurable column targeting. |
 | [`split_excel_by_manager.py`](scripts/split_excel_by_manager.py) | Python | Cross-platform equivalent of `SplitExcelByManager.bas` using pandas and openpyxl. Produces identical output filenames. |
-| [`WordNormalizeTable.bas`](scripts/WordNormalizeTable.bas) | VBA (Word) | Normalises all tables in the active Word document to match standard Table Properties: 100% width, left alignment, auto row height, cell width unchecked, and vertical alignment centred. Skips the Columns collection to safely handle merged cells. |
-| [`WordResizeBorderImagesCleanlines.bas`](scripts/WordResizeBorderImagesCleanlines.bas) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border (RGB or hex color), and cleans blank paragraphs including ghost bullet lines and consecutive blank lines. |
-| [`Win11startup.ps1`](scripts/Win11startup.ps1) | PowerShell | Self-healing Windows 11 startup launcher. Sequentially starts a curated list of applications using Win32 shortcut-based repair (depth 3, user-prompt fallback) or dynamic Appx AUMID resolution (Get-StartApps → KnownAumid verification → AppxPackage manifest). |
+| [`WordNormalizeTable.bas`](scripts/WordNormalizeTable.bas) | VBA (Word) | Normalizes all tables in the active Word document — sets width to 100%, clears row/cell constraints, and applies Arial 10pt. |
+| [`WordResizeBorderImagesCleanlines.bas`](scripts/WordResizeBorderImagesCleanlines.bas) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border, and cleans blank paragraphs. |
+| [`Win11startup.ps1`](scripts/Win11startup.ps1) | PowerShell | Self-healing Windows 11 startup launcher with Win32 shortcut-based repair and dynamic Appx AUMID resolution. |
 
 ---
 
@@ -97,9 +98,9 @@ All per-script READMEs are in the [`README/`](README/) folder, named `<script fi
 
 ## Running Tests
 
-Test scripts and manual test case documentation are in the [`tests/`](tests/) folder. Each script has a corresponding Testing Readme named `<script filename> Testing Readme.md`.
+Test scripts and manual test case documentation are in the [`tests/`](tests/) folder.
 
-For automated Python tests, run from the repository root:
+For automated Python tests:
 
 ```bash
 pip install pandas openpyxl pytest
