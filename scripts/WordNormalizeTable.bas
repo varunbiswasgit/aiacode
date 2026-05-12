@@ -1,4 +1,4 @@
-Attribute VB_Name = "WordNormalizeTable"
+'Attribute VB_Name = "WordNormalizeTable"
 Option Explicit
 
 ' ============================
