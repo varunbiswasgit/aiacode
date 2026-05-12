@@ -23,6 +23,7 @@ Every Testing Readme follows the pattern:
 |--------|---------------|---------------------|------|
 | `Clean_data_whatsapp.ps1` | [Testing Readme](Clean_data_whatsapp.ps1%20Testing%20Readme.md) | `Clean_data_whatsapp.Tests.ps1` | Pester |
 | `ExcelFormatting.bas` | [Testing Readme](ExcelFormatting.bas%20Testing%20Readme.md) | — | Manual |
+| `OutlookKeywordSearch.bas` | [Testing Readme](OutlookKeywordSearch.bas%20Testing%20Readme.md) | — | Manual |
 | `SplitExcelByManager.bas` | [Testing Readme](SplitExcelByManager.bas%20Testing%20Readme.md) | — | Manual |
 | `split_excel_by_manager.py` | [Testing Readme](split_excel_by_manager.py%20Testing%20Readme.md) | `test_split_excel_by_manager.py` | pytest |
 | `WordNormalizeTable.bas` | [Testing Readme](WordNormalizeTable.bas%20Testing%20Readme.md) | — | Manual |
