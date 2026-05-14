@@ -71,7 +71,8 @@ Each tool lives in its own self-contained folder. A folder holds the source scri
 | [`outlook-keyword-search`](outlook-keyword-search/) | VBA + PowerShell | Single and batch keyword search across Outlook folders. Available in a standalone VBA version and a PS-assisted version where Outlook stays fully responsive. |
 | [`split-excel-by-manager`](split-excel-by-manager/) | VBA + Python | Splits an Excel workbook into separate files, one per unique manager name. Available as a VBA macro and a cross-platform Python script producing identical output. |
 | [`win11-startup`](win11-startup/) | PowerShell | Self-healing Windows 11 startup launcher with Win32 shortcut-based repair and dynamic Appx AUMID resolution. |
-| [`word-tools`](word-tools/) | VBA (Word) | Table normalization (width, constraints, font) and inline image resizing with configurable border and blank-paragraph cleanup. |
+| [`word-normalize-table`](word-normalize-table/) | VBA (Word) | Normalises all tables in the active document — sets width to 100%, clears row/cell constraints, centres cell content vertically. |
+| [`word-resize-border-images`](word-resize-border-images/) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border, and cleans blank paragraphs including Unicode invisible characters. |
 
 ---
 

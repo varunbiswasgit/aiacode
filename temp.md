@@ -1,13 +1,5 @@
 # Repo Reorganization — Remaining Tasks
 
-## word-tools/ — Create folder
-- [ ] Create `word-tools/WordNormalizeTable.bas` (source: `scripts/WordNormalizeTable.bas`)
-- [ ] Create `word-tools/WordResizeBorderImagesCleanlines.bas` (source: `scripts/WordResizeBorderImagesCleanlines.bas`)
-- [ ] Create `word-tools/README-WordNormalizeTable.md` (source: `README/WordNormalizeTable.bas README.md`)
-- [ ] Create `word-tools/README-WordResizeBorderImages.md` (source: `README/WordResizeBorderImagesCleanlines.bas README.md`)
-- [ ] Create `word-tools/TESTING-WordNormalizeTable.md` (source: `tests/WordNormalizeTable.bas Testing Readme.md`)
-- [ ] Create `word-tools/TESTING-WordResizeBorderImages.md` (source: `tests/WordResizeBorderImagesCleanlines.bas Testing Readme.md`)
-
 ## excel-formatting/ — Stray file
 - [ ] Delete `excel-formatting/ExcelFormatting Testing Readme.md`
 
@@ -63,5 +55,7 @@
 - `outlook-keyword-search/` created (5 files)
 - `split-excel-by-manager/` created (4 files)
 - `win11-startup/` created (3 files)
+- `word-normalize-table/` created (3 files) — split from generic word-tools
+- `word-resize-border-images/` created (3 files) — split from generic word-tools
 - `tests/README.md` merged into root `README.md` and deleted
-- Root `README.md` updated: structure tree removed, file types section added, testing section updated
+- Root `README.md` updated: structure tree removed, file types section added, testing section updated, scripts table updated for word folder split
