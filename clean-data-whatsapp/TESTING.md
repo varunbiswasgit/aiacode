@@ -1,104 +1,156 @@
-# Clean-Data-WhatsApp — Testing Readme
+# Clean_data_whatsapp.ps1 — Testing Readme
 
 Test coverage for `clean-data-whatsapp/Clean_data_whatsapp.ps1`.
 
 ## Automated Tests
 
-No automated test harness exists. The script uses interactive `Read-Host` prompts that require manual input.
+**File:** `Clean_data_whatsapp.Tests.ps1` (Pester)
+
+Run from this folder:
+```powershell
+Invoke-Pester .\Clean_data_whatsapp.Tests.ps1 -Output Detailed
+```
+
+| Pester Describe Block | Covers |
+|-----------------------|--------|
+| Timestamp parsing — M/D/YY | TC-PS-04 |
+| Timestamp parsing — DD/MM/YYYY | TC-PS-04 |
+| Timestamp parsing — ISO 8601 | TC-PS-04 |
+| Multi-line merge | TC-PS-03 |
+| Sender filter | TC-PS-05 |
+| Unicode stripping | TC-PS-08 |
+| Empty file handling | TC-PS-11 |
 
 ## Manual Test Cases
 
-Environment setup:
+---
 
-1. Export a WhatsApp chat via **Chat > Export chat > Without media**.
-2. Open PowerShell and navigate to the `clean-data-whatsapp/` folder.
-3. Run `.\Clean_data_whatsapp.ps1` and supply the prompted values.
+### TC-PS-01 · Standard export — TSV output
+
+| Field | Detail |
+|-------|--------|
+| Setup | Text file with 3 messages: `1/5/23, 10:00 - Alice: Hello`, `1/5/23, 10:01 - Bob: Hi there`, `1/5/23, 10:02 - Alice: How are you?` |
+| Input | Format → `T` (TSV) |
+| Expected | Three tab-separated rows with columns: Date, Time, Sender, Message |
+| Pass criteria | Open in Excel via Data → From Text. Three rows render in four columns correctly. |
 
 ---
 
-### TC-01 · Standard WhatsApp export (M/D/YY format)
+### TC-PS-02 · Standard export — CSV output
 
-| Step | Action |
-|------|--------|
-| Input | WhatsApp export with timestamps like `[3/15/24, 10:32:00 AM]` |
-| Format | TSV |
-| Expected | Each message parsed into Date / Time / Sender / Message columns. Summary printed. |
+| Field | Detail |
+|-------|--------|
+| Setup | Same 3-message file as TC-PS-01 |
+| Input | Format → `C` (CSV) |
+| Expected | Three comma-separated rows. Fields with commas quoted per RFC 4180. |
+| Pass criteria | Open in Excel. Three rows, four columns, no data corruption. |
 
-### TC-02 · European date format (DD/MM/YYYY)
+---
 
-| Step | Action |
-|------|--------|
-| Input | Export with timestamps like `[15/03/2024, 10:32:00]` |
-| Expected | Dates normalised to `M/D/YY`. Output rows match correct calendar dates. |
+### TC-PS-03 · Multi-line message merged into single row
 
-### TC-03 · ISO 8601 date format (YYYY-MM-DD)
+| Field | Detail |
+|-------|--------|
+| Setup | Message spanning two lines: `1/5/23, 10:00 - Alice: Line one` followed by `continuation of line one` (no timestamp) |
+| Input | TSV output |
+| Expected | Single output row; Message = `Line one continuation of line one` |
+| Pass criteria | Output has one data row for this message, not two. |
 
-| Step | Action |
-|------|--------|
-| Input | Export with timestamps like `[2024-03-15, 10:32:00]` |
-| Expected | Dates normalised to `M/D/YY`. Output rows match correct calendar dates. |
+---
 
-### TC-04 · CSV output format
+### TC-PS-04 · Multiple timestamp formats normalised
 
-| Step | Action |
-|------|--------|
-| Format choice | `C` |
-| Expected | Fields containing commas or quotes are correctly quoted per RFC 4180. |
+| Field | Detail |
+|-------|--------|
+| Setup | Three messages using formats `1/5/23`, `05/01/2023`, and `2023-01-05` |
+| Input | TSV output |
+| Expected | All Date values normalised to `M/D/YY` format |
+| Pass criteria | All Date column values match the `M/D/YY` pattern. |
 
-### TC-05 · Sender filter
+---
 
-| Step | Action |
-|------|--------|
-| Sender filter | Partial name, e.g. `Alice` |
-| Expected | Output contains only messages where Sender matches `*Alice*`. Summary shows filtered count. |
+### TC-PS-05 · Sender filter — only matching sender returned
 
-### TC-06 · Date range filter
+| Field | Detail |
+|-------|--------|
+| Setup | Three messages from Alice, Bob, Alice |
+| Input | Sender filter → `Alice`. TSV output. |
+| Expected | Two rows returned (Alice’s messages only) |
+| Pass criteria | Row count = 2. No rows where Sender ≠ Alice. |
 
-| Step | Action |
-|------|--------|
-| FROM | `01/01/2024` |
-| TO | `01/31/2024` |
-| Expected | Only messages from January 2024 appear in output. |
+---
 
-### TC-07 · Multi-line message continuations
+### TC-PS-06 · Date range filter
 
-| Step | Action |
-|------|--------|
-| Input | A message that spans multiple lines in the export file |
-| Expected | Continuation lines are appended to the previous record’s Message field with a space separator. |
+| Field | Detail |
+|-------|--------|
+| Setup | Five messages dated 1/1/23 through 1/5/23 (one per day) |
+| Input | FROM `01/02/2023` TO `01/04/2023`. TSV output. |
+| Expected | Three rows returned (2nd, 3rd, 4th) |
+| Pass criteria | Output contains exactly three data rows within range. |
 
-### TC-08 · Input file not found
+---
 
-| Step | Action |
-|------|--------|
-| Input path | Non-existent file path |
-| Expected | Error message: `"Error: The input file '...' does not exist. Exiting..."` Script exits. |
+### TC-PS-07 · Message containing colons not mis-split
 
-### TC-09 · Invalid FROM date
+| Field | Detail |
+|-------|--------|
+| Setup | Message: `1/5/23, 10:00 - Alice: Time is 10:30:00 today` |
+| Input | TSV output |
+| Expected | Sender = `Alice`. Message = `Time is 10:30:00 today` |
+| Pass criteria | Message column contains full string with colons intact. |
 
-| Step | Action |
-|------|--------|
-| FROM | `not-a-date` |
-| Expected | Warning: `"Could not parse FROM date 'not-a-date'. Date filter ignored."` Script continues without date filter. |
+---
 
-### TC-10 · Blank filters (no filtering)
+### TC-PS-08 · Unicode LRM characters stripped
 
-| Step | Action |
-|------|--------|
-| Sender filter | *(blank)* |
-| FROM / TO | *(blank)* |
-| Expected | All parsed messages written to output. Summary shows full count. |
+| Field | Detail |
+|-------|--------|
+| Setup | Input file contains Left-to-Right Mark (U+200F) in sender names and message text |
+| Input | TSV output |
+| Expected | No LRM characters in output |
+| Pass criteria | `Select-String -Pattern '\u200F' output.txt` returns no matches. |
 
-### TC-11 · Unicode whitespace normalisation
+---
 
-| Step | Action |
-|------|--------|
-| Input | Messages containing `\u202F` (narrow no-break space) or `\u00A0` (non-breaking space) |
-| Expected | These characters replaced with a standard space in the output. |
+### TC-PS-09 · Path with surrounding quotes stripped
 
-### TC-12 · Empty input file
+| Field | Detail |
+|-------|--------|
+| Setup | Valid input at `C:\temp\chat.txt` |
+| Input | Path entered as `"C:\temp\chat.txt"` (with double-quotes, simulating drag-and-drop) |
+| Expected | Script accepts path and processes normally |
+| Pass criteria | Output file produced. No “file not found” error. |
 
-| Step | Action |
-|------|--------|
-| Input | A zero-byte or whitespace-only `.txt` file |
-| Expected | Output file created but empty. Summary shows `Total messages: 0`. |
+---
+
+### TC-PS-10 · Non-existent input file
+
+| Field | Detail |
+|-------|--------|
+| Setup | No file at provided path |
+| Input | Path → `C:\temp\nonexistent.txt` |
+| Expected | Error message printed; script exits without output |
+| Pass criteria | No output file created. Error references the missing path. |
+
+---
+
+### TC-PS-11 · Empty input file
+
+| Field | Detail |
+|-------|--------|
+| Setup | Input file exists but contains zero bytes |
+| Input | TSV output |
+| Expected | Warning printed (no messages found). Output empty or not created. |
+| Pass criteria | No data rows in output. No unhandled exception. |
+
+---
+
+### TC-PS-12 · Processing summary report printed
+
+| Field | Detail |
+|-------|--------|
+| Setup | Five messages from two senders over three days |
+| Input | TSV output, no filters |
+| Expected | Terminal prints: total messages, unique senders, sender list, date range |
+| Pass criteria | All four summary fields visible in terminal output. |
