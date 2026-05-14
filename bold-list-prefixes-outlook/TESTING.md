@@ -1,87 +1,159 @@
-# BoldListPrefixesOutlook.bas — Testing Readme
+# BoldListPrefixes.bas — Testing README
 
-Test coverage for `bold-list-prefixes-outlook/BoldListPrefixesOutlook.bas`.
+## Test Environment
 
-## Automated Tests
-
-No automated test harness exists. The macro relies on live Word/Outlook document objects that cannot be driven without UI mocking.
-
-## Manual Test Cases
-
-Environment setup:
-
-1. Open a Word document or an Outlook compose window.
-2. Press **Alt+F11**, import `bold-list-prefixes-outlook/BoldListPrefixesOutlook.bas`.
-3. Run `BoldListPrefixesOutlook` from **Alt+F8 → Run**.
+| Item | Requirement |
+|---|---|
+| Host | Microsoft Word 2016 or later **or** Microsoft Outlook 2016 or later |
+| VBA enabled | Yes — macros must be enabled |
+| Module location | Any standard `.bas` module in the host VBA project |
+| Test document | A `.docx` or Outlook compose window with the list items described below |
 
 ---
 
-### TC-01 · Colon delimiter
+## Automated Tests
 
-| Step | Action |
-|------|--------|
-| Setup | Bulleted list item: `"Status: In Progress"` |
-| Expected | `"Status:"` is bolded; `" In Progress"` is not |
+Run `Test_BoldListPrefixes.bas` from the same VBA project:
 
-### TC-02 · Dash delimiter
+1. Import both `BoldListPrefixesOutlook.bas` and `Test_BoldListPrefixes.bas` into the VBA project.
+2. Press `Alt+F8`, select `RunAllTests`, and click **Run**.
+3. Results appear in the Immediate window (`Ctrl+G`) and a summary `MsgBox`.
 
-| Step | Action |
-|------|--------|
-| Setup | Bulleted list item: `"Owner - Varun"` |
-| Expected | `"Owner -"` is bolded; `" Varun"` is not |
+---
 
-### TC-03 · Colon before dash
+## Manual Test Cases
 
-| Step | Action |
-|------|--------|
-| Setup | `"Type: high-priority"` |
-| Expected | `"Type:"` is bolded (colon wins as first delimiter) |
+### TC-01 — Colon delimiter, bulleted list
 
-### TC-04 · Dash before colon
+**Setup:** Bulleted list containing: `Scope: defines the boundary of work`
 
-| Step | Action |
-|------|--------|
-| Setup | `"Note - see: below"` |
-| Expected | `"Note -"` is bolded (dash appears first) |
+**Action:** Run `BoldListPrefixes`.
 
-### TC-05 · No delimiter
+**Expected:** `Scope:` is bold; ` defines the boundary of work` remains normal weight.
 
-| Step | Action |
-|------|--------|
-| Setup | List item with no `:` or `-` |
-| Expected | Paragraph skipped; no formatting change |
+**Pass criteria:** Bold ends at and includes the colon; nothing after the colon is bold.
 
-### TC-06 · Delimiter is first character
+---
 
-| Step | Action |
-|------|--------|
-| Setup | List item starting with `:text` |
-| Expected | Paragraph skipped (`endPos = 1` guard) |
+### TC-02 — Dash delimiter, numbered list
 
-### TC-07 · Non-list paragraph ignored
+**Setup:** Numbered list containing: `1. Owner - accountable for delivery`
 
-| Step | Action |
-|------|--------|
-| Setup | Normal paragraph (not in a list): `"Summary: done"` |
-| Expected | Paragraph skipped; no formatting change |
+**Action:** Run `BoldListPrefixes`.
 
-### TC-08 · No active document
+**Expected:** `Owner -` is bold; ` accountable for delivery` is normal weight.
 
-| Step | Action |
-|------|--------|
-| Setup | Run macro with no Word document or Outlook inspector open |
-| Expected | `MsgBox` shown: `"No editable document found."` Macro exits cleanly |
+**Pass criteria:** Bold ends at and includes the dash.
 
-### TC-09 · Outlook inspector
+---
 
-| Step | Action |
-|------|--------|
-| Setup | Open Outlook compose window with a bulleted list containing `"Action: review"` |
-| Expected | `"Action:"` is bolded; rest of the item unchanged |
+### TC-03 — Colon appears before dash
 
-### TC-10 · Mixed list and non-list paragraphs
+**Setup:** Bulleted list containing: `Priority: high - urgent`
 
-| Step | Action |
-|------|--------|
-| Setup | Document with 2 list items and 3 normal paragraphs, all containing `:` |
-| Expected | Only the 2 list items are bolded up to their first delimiter |
+**Action:** Run `BoldListPrefixes`.
+
+**Expected:** `Priority:` is bold (colon at position 9, dash at position 16 → colon wins).
+
+**Pass criteria:** Bold stops at the colon, not the dash.
+
+---
+
+### TC-04 — Dash appears before colon
+
+**Setup:** Bulleted list containing: `Step-by-step: follow the guide`
+
+**Action:** Run `BoldListPrefixes`.
+
+**Expected:** `Step-` is bold (first dash at position 5, colon at position 13 → dash wins).
+
+**Pass criteria:** Bold stops at the first dash.
+
+---
+
+### TC-05 — No delimiter present
+
+**Setup:** Bulleted list containing: `Plain list item with no delimiter`
+
+**Action:** Run `BoldListPrefixes`.
+
+**Expected:** No formatting change.
+
+**Pass criteria:** Paragraph is skipped without error or side effect.
+
+---
+
+### TC-06 — Non-list paragraph ignored
+
+**Setup:** A normal (non-list) paragraph: `Introduction: this section covers basics`
+
+**Action:** Run `BoldListPrefixes`.
+
+**Expected:** No formatting change to this paragraph.
+
+**Pass criteria:** `ListFormat.ListType = 0` guard prevents any bolding.
+
+---
+
+### TC-07 — Outlook compose window
+
+**Setup:** Open a new Outlook compose message; insert a bulleted list with `Action: send report`.
+
+**Action:** Run `BoldListPrefixes` from the Outlook VBA editor.
+
+**Expected:** `Action:` is bold.
+
+**Pass criteria:** Macro resolves `ActiveInspector.WordEditor` successfully; same output as TC-01.
+
+---
+
+### TC-08 — No open document
+
+**Setup:** Close all Word documents and all Outlook inspector windows.
+
+**Action:** Run `BoldListPrefixes`.
+
+**Expected:** A `MsgBox` appears: "No editable document found."
+
+**Pass criteria:** Macro exits cleanly with no unhandled runtime error.
+
+---
+
+### TC-09 — Mixed list types in one document
+
+**Setup:** Document contains one bulleted list item (`Item: detail`) and one numbered list item (`Step 1 - do this`).
+
+**Action:** Run `BoldListPrefixes`.
+
+**Expected:** Both prefixes bolded correctly and independently.
+
+**Pass criteria:** All `ListType <> 0` paragraphs processed; no cross-contamination.
+
+---
+
+### TC-10 — Delimiter at position 1 (edge case guard)
+
+**Setup:** Bulleted list containing: `: orphan colon`
+
+**Action:** Run `BoldListPrefixes`.
+
+**Expected:** No formatting change.
+
+**Pass criteria:** `endPos > 1` guard prevents zero-length bold range.
+
+---
+
+## Pass Criteria Summary
+
+| TC | Scenario | Pass condition |
+|---|---|---|
+| TC-01 | Colon delimiter | Bold ends at `:` |
+| TC-02 | Dash delimiter | Bold ends at `-` |
+| TC-03 | Colon before dash | Colon wins |
+| TC-04 | Dash before colon | Dash wins |
+| TC-05 | No delimiter | Paragraph skipped |
+| TC-06 | Non-list paragraph | Paragraph skipped |
+| TC-07 | Outlook inspector | Same result as Word |
+| TC-08 | No open document | MsgBox shown, clean exit |
+| TC-09 | Mixed list types | Both processed correctly |
+| TC-10 | Delimiter at position 1 | Paragraph skipped |
