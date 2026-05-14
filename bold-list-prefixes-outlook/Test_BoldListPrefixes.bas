@@ -69,6 +69,9 @@ Private Function CreateTestDoc(listItems() As String, _
     Set CreateTestDoc = doc
 End Function
 
+' ---------------------------------------------------------------------------
+' Helper: check bold up to a given position
+' ---------------------------------------------------------------------------
 Private Function IsBoldUpTo(para As Paragraph, posExpectedBoldEnd As Long) As Boolean
     Dim rng As Range
     Set rng = para.Range.Duplicate
@@ -89,54 +92,13 @@ Private Function IsNotBoldAfter(para As Paragraph, posAfter As Long) As Boolean
     IsNotBoldAfter = (rng.Font.Bold = False)
 End Function
 
+' ---------------------------------------------------------------------------
+' TC-01  Colon delimiter
+' ---------------------------------------------------------------------------
 Private Sub RunTest_ColonDelimiter(passed As Long, failed As Long, log As String)
     Const TEST_NAME As String = "TC-01 Colon delimiter"
-    Dim items(0) As String
-    items(0) = "Scope: defines the boundary"
-    Dim doc As Document
-    Set doc = CreateTestDoc(items)
-    BoldListPrefixes
-    Dim lp As Paragraph
-    For Each lp In doc.Paragraphs
-        If lp.Range.ListFormat.ListType <> 0 Then Exit For
-    Next lp
-    Dim posColon As Long
-    posColon = InStr(lp.Range.Text, ":")
-    If IsBoldUpTo(lp, posColon) And IsNotBoldAfter(lp, posColon) Then
-        passed = passed + 1 : log = log & "PASS  " & TEST_NAME & vbCrLf
-    Else
-        failed = failed + 1 : log = log & "FAIL  " & TEST_NAME & vbCrLf
-    End If
-    doc.Close wdDoNotSaveChanges
-End Sub
-
-Private Sub RunTest_DashDelimiter(passed As Long, failed As Long, log As String)
-    Const TEST_NAME As String = "TC-02 Dash delimiter"
-    Dim items(0) As String
-    items(0) = "Owner - accountable"
-    Dim doc As Document
-    Set doc = CreateTestDoc(items)
-    BoldListPrefixes
-    Dim lp As Paragraph
-    For Each lp In doc.Paragraphs
-        If lp.Range.ListFormat.ListType <> 0 Then Exit For
-    Next lp
-    Dim posDash As Long
-    posDash = InStr(lp.Range.Text, "-")
-    If IsBoldUpTo(lp, posDash) And IsNotBoldAfter(lp, posDash) Then
-        passed = passed + 1 : log = log & "PASS  " & TEST_NAME & vbCrLf
-    Else
-        failed = failed + 1 : log = log & "FAIL  " & TEST_NAME & vbCrLf
-    End If
-    doc.Close wdDoNotSaveChanges
-End Sub
-
-Private Sub RunTest_ColonBeforeDash(passed As Long, failed As Long, log As String)
-    Const TEST_NAME As String = "TC-03 Colon before dash"
-    Dim items(0) As String
-    items(0) = "Priority: high - urgent"
-    Dim doc As Document
-    Set doc = CreateTestDoc(items)
+    Dim items(0) As String : items(0) = "Scope: defines the boundary"
+    Dim doc As Document : Set doc = CreateTestDoc(items)
     BoldListPrefixes
     Dim lp As Paragraph
     For Each lp In doc.Paragraphs
@@ -151,12 +113,13 @@ Private Sub RunTest_ColonBeforeDash(passed As Long, failed As Long, log As Strin
     doc.Close wdDoNotSaveChanges
 End Sub
 
-Private Sub RunTest_DashBeforeColon(passed As Long, failed As Long, log As String)
-    Const TEST_NAME As String = "TC-04 Dash before colon"
-    Dim items(0) As String
-    items(0) = "Step-by-step: follow"
-    Dim doc As Document
-    Set doc = CreateTestDoc(items)
+' ---------------------------------------------------------------------------
+' TC-02  Dash delimiter
+' ---------------------------------------------------------------------------
+Private Sub RunTest_DashDelimiter(passed As Long, failed As Long, log As String)
+    Const TEST_NAME As String = "TC-02 Dash delimiter"
+    Dim items(0) As String : items(0) = "Owner - accountable"
+    Dim doc As Document : Set doc = CreateTestDoc(items)
     BoldListPrefixes
     Dim lp As Paragraph
     For Each lp In doc.Paragraphs
@@ -171,20 +134,61 @@ Private Sub RunTest_DashBeforeColon(passed As Long, failed As Long, log As Strin
     doc.Close wdDoNotSaveChanges
 End Sub
 
+' ---------------------------------------------------------------------------
+' TC-03  Colon before dash
+' ---------------------------------------------------------------------------
+Private Sub RunTest_ColonBeforeDash(passed As Long, failed As Long, log As String)
+    Const TEST_NAME As String = "TC-03 Colon before dash"
+    Dim items(0) As String : items(0) = "Priority: high - urgent"
+    Dim doc As Document : Set doc = CreateTestDoc(items)
+    BoldListPrefixes
+    Dim lp As Paragraph
+    For Each lp In doc.Paragraphs
+        If lp.Range.ListFormat.ListType <> 0 Then Exit For
+    Next lp
+    Dim posColon As Long : posColon = InStr(lp.Range.Text, ":")
+    If IsBoldUpTo(lp, posColon) And IsNotBoldAfter(lp, posColon) Then
+        passed = passed + 1 : log = log & "PASS  " & TEST_NAME & vbCrLf
+    Else
+        failed = failed + 1 : log = log & "FAIL  " & TEST_NAME & vbCrLf
+    End If
+    doc.Close wdDoNotSaveChanges
+End Sub
+
+' ---------------------------------------------------------------------------
+' TC-04  Dash before colon
+' ---------------------------------------------------------------------------
+Private Sub RunTest_DashBeforeColon(passed As Long, failed As Long, log As String)
+    Const TEST_NAME As String = "TC-04 Dash before colon"
+    Dim items(0) As String : items(0) = "Step-by-step: follow"
+    Dim doc As Document : Set doc = CreateTestDoc(items)
+    BoldListPrefixes
+    Dim lp As Paragraph
+    For Each lp In doc.Paragraphs
+        If lp.Range.ListFormat.ListType <> 0 Then Exit For
+    Next lp
+    Dim posDash As Long : posDash = InStr(lp.Range.Text, "-")
+    If IsBoldUpTo(lp, posDash) And IsNotBoldAfter(lp, posDash) Then
+        passed = passed + 1 : log = log & "PASS  " & TEST_NAME & vbCrLf
+    Else
+        failed = failed + 1 : log = log & "FAIL  " & TEST_NAME & vbCrLf
+    End If
+    doc.Close wdDoNotSaveChanges
+End Sub
+
+' ---------------------------------------------------------------------------
+' TC-05  No delimiter
+' ---------------------------------------------------------------------------
 Private Sub RunTest_NoDelimiter(passed As Long, failed As Long, log As String)
     Const TEST_NAME As String = "TC-05 No delimiter"
-    Dim items(0) As String
-    items(0) = "Plain list item no delimiter here"
-    Dim doc As Document
-    Set doc = CreateTestDoc(items)
+    Dim items(0) As String : items(0) = "Plain list item no delimiter here"
+    Dim doc As Document : Set doc = CreateTestDoc(items)
     BoldListPrefixes
     Dim lp As Paragraph
     For Each lp In doc.Paragraphs
         If lp.Range.ListFormat.ListType <> 0 Then Exit For
     Next lp
-    Dim rng As Range
-    Set rng = lp.Range.Duplicate
-    rng.End = rng.End - 1
+    Dim rng As Range : Set rng = lp.Range.Duplicate : rng.End = rng.End - 1
     If rng.Font.Bold = False Then
         passed = passed + 1 : log = log & "PASS  " & TEST_NAME & vbCrLf
     Else
@@ -193,20 +197,19 @@ Private Sub RunTest_NoDelimiter(passed As Long, failed As Long, log As String)
     doc.Close wdDoNotSaveChanges
 End Sub
 
+' ---------------------------------------------------------------------------
+' TC-06  Delimiter at position 1
+' ---------------------------------------------------------------------------
 Private Sub RunTest_DelimiterAtPosition1(passed As Long, failed As Long, log As String)
     Const TEST_NAME As String = "TC-10 Delimiter at position 1"
-    Dim items(0) As String
-    items(0) = ": orphan colon"
-    Dim doc As Document
-    Set doc = CreateTestDoc(items)
+    Dim items(0) As String : items(0) = ": orphan colon"
+    Dim doc As Document : Set doc = CreateTestDoc(items)
     BoldListPrefixes
     Dim lp As Paragraph
     For Each lp In doc.Paragraphs
         If lp.Range.ListFormat.ListType <> 0 Then Exit For
     Next lp
-    Dim rng As Range
-    Set rng = lp.Range.Duplicate
-    rng.End = rng.End - 1
+    Dim rng As Range : Set rng = lp.Range.Duplicate : rng.End = rng.End - 1
     If rng.Font.Bold = False Then
         passed = passed + 1 : log = log & "PASS  " & TEST_NAME & vbCrLf
     Else
@@ -215,19 +218,18 @@ Private Sub RunTest_DelimiterAtPosition1(passed As Long, failed As Long, log As 
     doc.Close wdDoNotSaveChanges
 End Sub
 
+' ---------------------------------------------------------------------------
+' TC-07  Non-list paragraph must remain untouched
+' ---------------------------------------------------------------------------
 Private Sub RunTest_NonListParagraphUnchanged(passed As Long, failed As Long, log As String)
     Const TEST_NAME As String = "TC-06 Non-list paragraph unchanged"
-    Dim items(0) As String
-    items(0) = "List item: relevant"
+    Dim items(0) As String : items(0) = "List item: relevant"
     Dim doc As Document
     Set doc = CreateTestDoc(items, "Introduction: not a list item")
     BoldListPrefixes
-    Dim firstPara As Paragraph
-    Set firstPara = doc.Paragraphs(1)
+    Dim firstPara As Paragraph : Set firstPara = doc.Paragraphs(1)
     If firstPara.Range.ListFormat.ListType = 0 Then
-        Dim rng As Range
-        Set rng = firstPara.Range.Duplicate
-        rng.End = rng.End - 1
+        Dim rng As Range : Set rng = firstPara.Range.Duplicate : rng.End = rng.End - 1
         If rng.Font.Bold = False Then
             passed = passed + 1 : log = log & "PASS  " & TEST_NAME & vbCrLf
         Else

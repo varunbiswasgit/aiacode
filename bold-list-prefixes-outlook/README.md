@@ -1,10 +1,13 @@
-# BoldListPrefixesOutlook.bas — Per-Script README
-
-## Purpose
+# Bold List Prefixes — Outlook & Word
 
 Bolds the **prefix** of every bulleted or numbered list item in the active document, up to and including the first colon (`:`) or dash (`-`), whichever appears first. Works identically in **Microsoft Word** and the **Outlook message editor**.
 
----
+## Files
+
+| File | Purpose |
+|------|---------|
+| `BoldListPrefixesOutlook.bas` | Main VBA macro |
+| `Test_BoldListPrefixes.bas` | Automated VBA unit test harness |
 
 ## Compatibility
 
@@ -12,8 +15,6 @@ Bolds the **prefix** of every bulleted or numbered list item in the active docum
 |---|---|
 | Microsoft Word (any version with VBA) | Yes |
 | Microsoft Outlook — compose/reply inspector | Yes |
-
----
 
 ## Logic Flow
 
@@ -25,8 +26,6 @@ Bolds the **prefix** of every bulleted or numbered list item in the active docum
 6. Select the earlier delimiter; if neither is present, skip the paragraph.
 7. Duplicate the paragraph range, trim its end to `Start + endPos - 1`, and apply `Font.Bold = True`.
 
----
-
 ## Configuration
 
 This macro has no external configuration. All behaviour is controlled by the paragraph content at run time.
@@ -37,16 +36,12 @@ This macro has no external configuration. All behaviour is controlled by the par
 | List types processed | All (`ListType <> 0`) | Bullet, numbered, and outline levels |
 | Minimum prefix length | 2 characters | `endPos > 1` guard prevents single-char false matches |
 
----
-
 ## Usage
 
 1. Open the Word document or the Outlook compose/reply window.
 2. Open the VBA editor (`Alt+F11`).
 3. Import or paste `BoldListPrefixesOutlook.bas` into any standard module.
 4. Run `BoldListPrefixesOutlook` (`F5` or `Alt+F8 → Run`).
-
----
 
 ## Error Handling
 
@@ -56,11 +51,13 @@ This macro has no external configuration. All behaviour is controlled by the par
 | List item with no `:` or `-` | Paragraph skipped silently |
 | `endPos = 1` (delimiter is the first character) | Paragraph skipped (guard: `endPos > 1`) |
 
----
-
 ## Version History
 
 | Version | Summary |
 |---|---|
 | v1 | Initial release — bold prefix up to first `:` or `-` in list items; Word + Outlook support |
 | v1.1 | Renamed from BoldListPrefixes to BoldListPrefixesOutlook to clarify Outlook context |
+
+## License
+
+See [LICENSE](../LICENSE) in the repository root.
