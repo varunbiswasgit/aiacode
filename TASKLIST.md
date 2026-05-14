@@ -6,7 +6,7 @@ _Last audited: 2026-05-14._
 
 | Folder | Status |
 |---|---|
-| `bold-list-prefixes-outlook` | ✅ |
+| `bold-list-prefixes-word-outlook` | ✅ |
 | `clean-data-whatsapp` | ✅ |
 | `excel-formatting` | ✅ |
 | `outlook-keyword-search` | ✅ |

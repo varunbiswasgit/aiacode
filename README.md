@@ -65,7 +65,7 @@ Each tool lives in its own self-contained folder. A folder holds the source scri
 
 | Folder | Type | Description |
 |--------|------|-------------|
-| [`bold-list-prefixes-outlook`](bold-list-prefixes-outlook/) | VBA (Word / Outlook) | Bolds the prefix of every bulleted or numbered list item up to the first colon or dash. Works in Word and the Outlook message editor. |
+| [`bold-list-prefixes-word-outlook`](bold-list-prefixes-word-outlook/) | VBA (Word / Outlook) | Bolds the prefix of every bulleted or numbered list item up to the first colon or dash. Works in Word and the Outlook message editor. |
 | [`clean-data-whatsapp`](clean-data-whatsapp/) | PowerShell | Cleans exported WhatsApp chat text files — removes formatting artifacts, validates paths, and extracts structured data. |
 | [`excel-formatting`](excel-formatting/) | VBA (Excel) | Unified Excel formatting and cleanup macro with four interactive modes: simple formatting, advanced formatting, optional column splitting, and generic table extraction. |
 | [`outlook-keyword-search`](outlook-keyword-search/) | VBA + PowerShell | Single and batch keyword search across Outlook folders. Available in a standalone VBA version and a PS-assisted version where Outlook stays fully responsive. |
