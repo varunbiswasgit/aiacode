@@ -1,6 +1,6 @@
-# ExcelFormatting.bas
+# Excel Formatting
 
-A combined, hardened Excel VBA macro module for generic workbook formatting, data cleanup, deduplication, and table conversion. Contains no personally identifiable information, file system paths, credentials, or organisation-specific strings.
+A hardened Excel VBA macro module for generic workbook formatting, data cleanup, deduplication, and table conversion. Contains no personally identifiable information, file system paths, credentials, or organisation-specific strings.
 
 ## Options at a Glance
 
@@ -22,13 +22,13 @@ A combined, hardened Excel VBA macro module for generic workbook formatting, dat
 
 ### Option 2 and 3 additionally
 
-6. **Text-to-columns** (before step 3 above) — re-evaluates each column’s data type with no delimiter specified, causing Excel to auto-convert text numbers, dates, and booleans.
+6. **Text-to-columns** (before step 3) — re-evaluates each column's data type with no delimiter specified, causing Excel to auto-convert text numbers, dates, and booleans.
 7. **Delete blank columns** — removes any column where `CountA = 0` across the full used range.
 8. **Convert to table** — wraps the used range in an Excel ListObject using style `TableStyleMedium2`. Skipped if the range is already inside a table.
 
 ### Option 3 additionally
 
-9. **Crop** (runs first, before all other steps) — two crop modes:
+9. **Crop** (runs first) — two crop modes:
    - **Keyword anchor**: user types the exact text of the first header cell (case-insensitive whole-cell match). The macro locates the anchor, scans the true table boundary, fills blank header cells with synthetic names (`Column1`, `Column2`, …), clears data outside the boundary, and deletes leading rows and columns.
    - **Cell selection**: user clicks the top-left header cell when prompted via an `InputBox(Type:=8)` cell-picker. The same crop logic runs from that cell as the anchor.
 
@@ -62,7 +62,7 @@ Public Sub RunUnifiedDataFormatter_v3()
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `OptionLevel` | `Long` | Carries the user’s menu choice (1, 2, or 3) to gate pipeline steps |
+| `OptionLevel` | `Long` | Carries the user's menu choice (1, 2, or 3) to gate pipeline steps |
 | `UseKeywordMode` | `Boolean` | `True` = keyword anchor; `False` = cell selection (Option 3 only) |
 | `MarkerText` | `String` | Keyword text supplied by the user (keyword mode only) |
 
@@ -72,6 +72,12 @@ Public Sub RunUnifiedDataFormatter_v3()
 - All `InputBox` cancel paths use type-checked wrapper functions (`TryGetLongInput`, `TryGetMarkerKeyword`).
 - Cell selection uses `On Error Resume Next` around the `InputBox(Type:=8)` call; a `Nothing` result raises a clean error with a descriptive message.
 - No personally identifiable data, file paths, or credentials are embedded.
+
+## Running Tests
+
+No automated test harness exists — `Application.InputBox` and `MsgBox` calls cannot be driven without UI mocking. All tests are manual. See `TESTING.md` for the full test case list.
+
+> **Future enhancement:** Introduce a `TRunOptions`-driven headless call path to enable Pester/RubberDuck automated testing.
 
 ## License
 

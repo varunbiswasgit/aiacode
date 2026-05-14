@@ -1,18 +1,15 @@
-# ExcelFormatting.bas — Testing Readme
+# Excel Formatting — Testing Guide
 
-Test coverage for `excel-formatting/ExcelFormatting.bas`.
+No automated test harness exists because `ExcelFormatting.bas` uses `Application.InputBox` and `MsgBox`, which cannot be driven without UI mocking.
 
-## Automated Tests
+> **Future enhancement:** Introduce a `TRunOptions`-driven headless call path to enable automated testing.
 
-No automated VBA test harness exists because `ExcelFormatting.bas` uses `Application.InputBox` and `MsgBox`, which cannot be driven without UI mocking.  
-Future enhancement: introduce a `TRunOptions`-driven headless call path to enable automated testing.
+---
 
-## Manual Test Cases
-
-Environment setup:
+## Environment Setup
 
 1. Open a new Excel workbook.
-2. Press **Alt + F11**, import `excel-formatting/ExcelFormatting.bas`.
+2. Press **Alt + F11**, import `ExcelFormatting.bas`.
 3. Run `RunUnifiedDataFormatter_v3` from **Developer → Macros**.
 
 ---
@@ -116,7 +113,7 @@ Environment setup:
 |------|--------|
 | Setup | Used range already converted to a ListObject before running. |
 | Input | Enter `2` |
-| Expected | `ConvertUsedRangeToTable` skips (range is already in a table). No error. |
+| Expected | `ConvertUsedRangeToTable` skips. No error. |
 | Pass criteria | `ws.ListObjects.Count` unchanged. |
 
 ---
@@ -136,7 +133,7 @@ Environment setup:
 
 | Step | Action |
 |------|--------|
-| Setup | Same as TC-12 (title, blank rows, data starting at C4). |
+| Setup | Same as TC-12. |
 | Input | Enter `3`. Crop method: `2`. Select cell C4 when prompted. |
 | Expected | Same result as TC-12. Rows 1–3 and columns A–B deleted. |
 | Pass criteria | `ws.Cells(1,1).Value = "Material Number"`. |
@@ -198,7 +195,7 @@ Environment setup:
 
 | Step | Action |
 |------|--------|
-| Setup | Two identical sheets with the table already at A1 (no leading rows/columns to crop). |
+| Setup | Two identical sheets with the table already at A1. |
 | Input | Option 2 on Sheet1. Option 3 (crop method `1`, keyword = A1 header) on Sheet2. |
 | Expected | Both sheets have identical widths, heights, wrap settings, deduped row count, and table formatting. |
 | Pass criteria | Cell-by-cell comparison shows no differences. |
