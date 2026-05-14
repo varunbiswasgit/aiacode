@@ -4,22 +4,13 @@ _Last audited: 2026-05-14. Only open tasks listed._
 
 ---
 
-## bold-list-prefixes-outlook
-- [ ] Review `Test_BoldListPrefixes.bas` — confirm it belongs here or move to a shared test utility folder
-
 ## clean-data-whatsapp
-- [ ] `Clean_data_whatsapp.Tests.ps1` naming inconsistent with other folders (others use `TESTING.md`, not a `.ps1` test file) — decide: keep as-is or align convention
-
-## outlook-keyword-search
-- [ ] Confirm `OutlookKeywordSearch_PS.bas` is not a duplicate of `OutlookKeywordSearch_PS.ps1`; remove whichever is redundant
+- [ ] `Clean_data_whatsapp.Tests.ps1` naming is inconsistent — all other folders use `TESTING.md`. Decide: keep `.ps1` test file as-is, or replace with a `TESTING.md` to align convention.
 
 ## split-excel-by-manager
-- [ ] Two scripts present (`SplitExcelByManager.bas` + `split_excel_by_manager.py`) — confirm both are intentional (VBA vs Python versions); if so, document the distinction in `README.md`
-
-## word-normalize-table
-- [ ] `WordNormalizeTable.bas` is only 812 bytes — verify file is complete and not truncated/stub
+- [ ] Two scripts present (`SplitExcelByManager.bas` = VBA, `split_excel_by_manager.py` = Python). Both are intentional. Update `README.md` to explain when to use each version.
 
 ---
 
 ## Root
-- [ ] Verify root `README.md` scripts table is current with all 8 folders listed
+- [ ] Verify root `README.md` scripts table lists all 8 folders correctly.
