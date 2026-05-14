@@ -65,6 +65,7 @@ aiacode/
 
 | Script | Type | Description |
 |--------|------|-------------|
+| [`BoldListPrefixes.bas`](scripts/BoldListPrefixes.bas) | VBA (Word / Outlook) | Bolds the prefix of every bulleted or numbered list item up to the first colon (`:`) or dash (`-`), whichever appears first. Works in Word and the Outlook message editor. |
 | [`Clean_data_whatsapp.ps1`](scripts/Clean_data_whatsapp.ps1) | PowerShell | Cleans and processes exported WhatsApp chat text files — removes formatting artifacts, validates paths, and extracts structured data. |
 | [`ExcelFormatting.bas`](scripts/ExcelFormatting.bas) | VBA (Excel) | Unified Excel formatting and cleanup macro with four interactive modes: simple formatting, advanced formatting, optional column splitting, and generic table extraction. |
 | [`OutlookKeywordSearch_Standalone.bas`](scripts/OutlookKeywordSearch_Standalone.bas) | VBA (Outlook) | Pure VBA, no PowerShell required. Single and batch keyword search. Results shown in MsgBox (single) or appended to Excel (batch). Non-mail folder skip, early exit per folder, DoEvents between batch rows. |
@@ -106,6 +107,12 @@ For automated Python tests:
 pip install pandas openpyxl pytest
 pytest tests/test_split_excel_by_manager.py -v
 ```
+
+For automated VBA tests (BoldListPrefixes):
+
+1. Open Microsoft Word.
+2. Import `scripts/BoldListPrefixes.bas` and `tests/Test_BoldListPrefixes.bas` into the VBA editor.
+3. Run `RunAllTests` (`Alt+F8 → RunAllTests → Run`).
 
 See [tests/README.md](tests/README.md) for the full test index.
 
