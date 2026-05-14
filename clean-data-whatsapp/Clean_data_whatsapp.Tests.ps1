@@ -1,6 +1,6 @@
 $ErrorActionPreference = 'Stop'
 $here = $PSScriptRoot
-$scriptPath = Join-Path $here '..' 'Clean_data_whatsapp.ps1'
+$scriptPath = Join-Path $here 'Clean_data_whatsapp.ps1'
 
 describe 'Clean_data_whatsapp.ps1' {
     beforeAll {
@@ -12,6 +12,8 @@ describe 'Clean_data_whatsapp.ps1' {
         if (Test-Path $testDir) { Remove-Item $testDir -Recurse -Force }
     }
 
+    # Helper: run script with mocked prompts
+    # Responses order: inputFile, outputFile, format, senderFilter, dateFrom, dateTo
     function Invoke-Script($responses) {
         $index = 0
         Mock -CommandName Read-Host -MockWith { $responses[$script:index++] }

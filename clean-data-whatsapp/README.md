@@ -1,4 +1,4 @@
-# Clean_data_whatsapp.ps1
+# Clean WhatsApp Chat Data
 
 A PowerShell script that parses a WhatsApp exported chat text file and produces a clean, structured TSV or CSV file with columns: **Date**, **Time**, **Sender**, **Message**.
 
@@ -8,7 +8,7 @@ A PowerShell script that parses a WhatsApp exported chat text file and produces 
 - Outputs TSV (tab-separated) or CSV (comma-separated)
 - Optional sender filter (substring match)
 - Optional date range filter (FROM / TO, `MM/DD/YYYY`)
-- Handles multi-line messages (continuation lines appended to the previous message)
+- Handles multi-line messages — continuation lines appended to the previous message
 - Strips Unicode invisible characters common in WhatsApp exports (`\u200E`, `\u202F`, `\u00A0`, `\u2007`)
 - Prints a summary report: total messages, unique senders, date range
 
@@ -37,6 +37,17 @@ The script prompts interactively for all inputs — no command-line arguments re
 
 - PowerShell 5.1 or later (Windows built-in)
 - No external modules required
+
+## Running Tests
+
+```powershell
+Invoke-Pester .\Clean_data_whatsapp.Tests.ps1 -Output Detailed
+```
+
+Requires [Pester](https://pester.dev/) v5+:
+```powershell
+Install-Module Pester -Force -SkipPublisherCheck
+```
 
 ## License
 
