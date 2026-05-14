@@ -1,32 +1,34 @@
-# Repo Reorganization — Task List
+# TASKLIST — aiacode Repo
 
-## Status: Complete ✅
-
-All tasks have been completed. This file is retained as a reorganization log.
+_Last audited: 2026-05-14. Only open tasks listed._
 
 ---
 
-## Completed
+## bold-list-prefixes-outlook
+- [ ] Review `Test_BoldListPrefixes.bas` — confirm it belongs here or move to a shared test utility folder
 
-### Functional Folders Created
-- `bold-list-prefixes-outlook/` — script, README, TESTING
-- `clean-data-whatsapp/` — script, README, TESTING
-- `excel-formatting/` — script, README, TESTING
-- `outlook-keyword-search/` — scripts (3), README, TESTING
-- `split-excel-by-manager/` — scripts (2), README, TESTING
-- `win11-startup/` — script, README, TESTING
-- `word-normalize-table/` — script, README, TESTING
-- `word-resize-border-images/` — script, README, TESTING
+## clean-data-whatsapp
+- [ ] `Clean_data_whatsapp.Tests.ps1` naming inconsistent with other folders (others use `TESTING.md`, not a `.ps1` test file) — decide: keep as-is or align convention
 
-### Legacy Folders Deleted
-- `scripts/` — all 11 files removed ✅
-- `README/` — all 10 files removed ✅
-- `tests/` — all 13 files removed ✅
+## excel-formatting
+- [ ] ✅ Clean (script + README + TESTING — no issues)
 
-### Stray Files Removed
-- `excel-formatting/ExcelFormatting Testing Readme.md` ✅
-- `scripts/.gitkeep` ✅
+## outlook-keyword-search
+- [ ] Two scripts present (`_PS.bas` and `_Standalone.bas`) plus a `.ps1` — confirm `OutlookKeywordSearch_PS.bas` is not a duplicate of `OutlookKeywordSearch_PS.ps1`; remove whichever is redundant
 
-### Root Files Updated
-- `README.md` — scripts table updated, structure documented
-- `temp.md` — renamed to `TASKLIST.md`
+## split-excel-by-manager
+- [ ] Two scripts present (`SplitExcelByManager.bas` + `split_excel_by_manager.py`) — confirm both are intentional (VBA vs Python versions); if so, document the distinction in `README.md`
+
+## win11-startup
+- [ ] ✅ Clean (script + README + TESTING — no issues)
+
+## word-normalize-table
+- [ ] `WordNormalizeTable.bas` is only 812 bytes — verify file is complete and not truncated/stub
+
+## word-resize-border-images
+- [ ] ✅ Clean (script + README + TESTING — no issues)
+
+---
+
+## Root
+- [ ] Verify root `README.md` scripts table is current with all 8 folders listed
