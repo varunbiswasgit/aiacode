@@ -22,7 +22,7 @@ A combined, hardened Excel VBA macro module for generic workbook formatting, dat
 
 ### Option 2 and 3 additionally
 
-6. **Text-to-columns** (before step 3 above) — re-evaluates each column's data type with no delimiter specified, causing Excel to auto-convert text numbers, dates, and booleans.
+6. **Text-to-columns** (before step 3 above) — re-evaluates each column’s data type with no delimiter specified, causing Excel to auto-convert text numbers, dates, and booleans.
 7. **Delete blank columns** — removes any column where `CountA = 0` across the full used range.
 8. **Convert to table** — wraps the used range in an Excel ListObject using style `TableStyleMedium2`. Skipped if the range is already inside a table.
 
@@ -62,7 +62,7 @@ Public Sub RunUnifiedDataFormatter_v3()
 
 | Field | Type | Purpose |
 |-------|------|---------|
-| `OptionLevel` | `Long` | Carries the user's menu choice (1, 2, or 3) to gate pipeline steps |
+| `OptionLevel` | `Long` | Carries the user’s menu choice (1, 2, or 3) to gate pipeline steps |
 | `UseKeywordMode` | `Boolean` | `True` = keyword anchor; `False` = cell selection (Option 3 only) |
 | `MarkerText` | `String` | Keyword text supplied by the user (keyword mode only) |
 
