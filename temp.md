@@ -1,74 +1,17 @@
-# Repo Reorganization — Task List (Refreshed May 14, 2026)
+# Repo Reorganization — Remaining Tasks
 
-## Current State
-You reorganized the repo yourself. Below is what is DONE and what still remains.
+## word-tools/ — Create folder
+- [ ] Create `word-tools/WordNormalizeTable.bas` (source: `scripts/WordNormalizeTable.bas`)
+- [ ] Create `word-tools/WordResizeBorderImagesCleanlines.bas` (source: `scripts/WordResizeBorderImagesCleanlines.bas`)
+- [ ] Create `word-tools/README-WordNormalizeTable.md` (source: `README/WordNormalizeTable.bas README.md`)
+- [ ] Create `word-tools/README-WordResizeBorderImages.md` (source: `README/WordResizeBorderImagesCleanlines.bas README.md`)
+- [ ] Create `word-tools/TESTING-WordNormalizeTable.md` (source: `tests/WordNormalizeTable.bas Testing Readme.md`)
+- [ ] Create `word-tools/TESTING-WordResizeBorderImages.md` (source: `tests/WordResizeBorderImagesCleanlines.bas Testing Readme.md`)
 
----
-
-## Folders: Status
-
-### ✅ bold-list-prefixes-outlook/ — COMPLETE
-All 4 files present:
-- `BoldListPrefixesOutlook.bas`
-- `README.md`
-- `TESTING.md`
-- `Test_BoldListPrefixes.bas`
-
-### ✅ clean-data-whatsapp/ — COMPLETE
-All 4 files present:
-- `Clean_data_whatsapp.ps1`
-- `Clean_data_whatsapp.Tests.ps1`
-- `README.md`
-- `TESTING.md`
-
-### ✅ excel-formatting/ — COMPLETE (1 stray file to delete)
-Files present:
-- `ExcelFormatting.bas`
-- `README.md`
-- `TESTING.md`
-- ⚠️ `ExcelFormatting Testing Readme.md` — stray file with spaces in name; DELETE
-
-### ✅ outlook-keyword-search/ — COMPLETE
-All 5 files present:
-- `OutlookKeywordSearch_PS.bas`
-- `OutlookKeywordSearch_PS.ps1`
-- `OutlookKeywordSearch_Standalone.bas`
-- `README.md`
-- `TESTING.md`
-
-### ✅ split-excel-by-manager/ — COMPLETE
-All 4 files present:
-- `SplitExcelByManager.bas`
-- `split_excel_by_manager.py`
-- `README.md`
-- `TESTING.md`
-
-### ✅ win11-startup/ — COMPLETE
-All 3 files present:
-- `Win11startup.ps1`
-- `README.md`
-- `TESTING.md`
-
----
-
-## Remaining Tasks
-
-### word-tools/ — NOT CREATED YET
-Scripts exist in `scripts/` but no dedicated folder created yet.
-- [ ] Create `word-tools/WordNormalizeTable.bas` (from `scripts/WordNormalizeTable.bas`)
-- [ ] Create `word-tools/WordResizeBorderImagesCleanlines.bas` (from `scripts/WordResizeBorderImagesCleanlines.bas`)
-- [ ] Create `word-tools/README-WordNormalizeTable.md` (from `README/WordNormalizeTable.bas README.md`)
-- [ ] Create `word-tools/README-WordResizeBorderImages.md` (from `README/WordResizeBorderImagesCleanlines.bas README.md`)
-- [ ] Create `word-tools/TESTING-WordNormalizeTable.md` (from `tests/WordNormalizeTable.bas Testing Readme.md`)
-- [ ] Create `word-tools/TESTING-WordResizeBorderImages.md` (from `tests/WordResizeBorderImagesCleanlines.bas Testing Readme.md`)
-
-### excel-formatting/ — Stray file
+## excel-formatting/ — Stray file
 - [ ] Delete `excel-formatting/ExcelFormatting Testing Readme.md`
 
-### Root Cleanup — Delete legacy folders
-Delete all files in these folders (GitHub requires deleting file-by-file):
-
-**scripts/** (11 files to delete):
+## scripts/ — Delete all 11 files
 - [ ] `scripts/BoldListPrefixesOutlook.bas`
 - [ ] `scripts/Clean_data_whatsapp.ps1`
 - [ ] `scripts/ExcelFormatting.bas`
@@ -81,14 +24,13 @@ Delete all files in these folders (GitHub requires deleting file-by-file):
 - [ ] `scripts/WordResizeBorderImagesCleanlines.bas`
 - [ ] `scripts/split_excel_by_manager.py`
 
-**tests/** (13 files to delete):
+## tests/ — Delete remaining 13 files
 - [ ] `tests/BoldListPrefixes.bas Testing Readme.md`
 - [ ] `tests/Clean_data_whatsapp.Tests.ps1`
 - [ ] `tests/Clean_data_whatsapp.ps1 Testing Readme.md`
 - [ ] `tests/ExcelFormatting.bas Testing Readme.md`
 - [ ] `tests/OutlookKeywordSearch_PS.bas Testing Readme.md`
 - [ ] `tests/OutlookKeywordSearch_Standalone.bas Testing Readme.md`
-- [ ] `tests/README.md`
 - [ ] `tests/SplitExcelByManager.bas Testing Readme.md`
 - [ ] `tests/Test_BoldListPrefixes.bas`
 - [ ] `tests/Win11startup.ps1 Testing Readme.md`
@@ -97,7 +39,7 @@ Delete all files in these folders (GitHub requires deleting file-by-file):
 - [ ] `tests/split_excel_by_manager.py Testing Readme.md`
 - [ ] `tests/test_split_excel_by_manager.py`
 
-**README/** (10 files to delete):
+## README/ — Delete all 10 files
 - [ ] `README/BoldListPrefixesOutlook.bas README.md`
 - [ ] `README/Clean_data_whatsapp.ps1 README.md`
 - [ ] `README/ExcelFormatting.bas README.md`
@@ -109,8 +51,17 @@ Delete all files in these folders (GitHub requires deleting file-by-file):
 - [ ] `README/WordResizeBorderImagesCleanlines.bas README.md`
 - [ ] `README/split_excel_by_manager.py.README.md`
 
-### Root README.md — Update index table
-- [ ] Update root `README.md` to reflect the 7 final folders
+## Final
+- [ ] Delete `temp.md`
 
-### temp.md — Delete when done
-- [ ] Delete `temp.md` after all tasks are complete
+---
+
+## Completed
+- `bold-list-prefixes-outlook/` created (4 files)
+- `clean-data-whatsapp/` created (4 files)
+- `excel-formatting/` created (3 files)
+- `outlook-keyword-search/` created (5 files)
+- `split-excel-by-manager/` created (4 files)
+- `win11-startup/` created (3 files)
+- `tests/README.md` merged into root `README.md` and deleted
+- Root `README.md` updated: structure tree removed, file types section added, testing section updated
