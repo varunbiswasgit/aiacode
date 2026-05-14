@@ -43,23 +43,21 @@ Every code change must add a new row to the version history table in the per-too
 
 ---
 
-## Repository Structure
+## How This Repository Is Organised
 
-```
-aiacode/
-├── bold-list-prefixes-outlook/   # VBA: bold list prefixes in Outlook / Word
-├── clean-data-whatsapp/          # PowerShell: clean exported WhatsApp chat files
-├── excel-formatting/             # VBA: Excel formatting and cleanup
-├── outlook-keyword-search/       # VBA + PowerShell: Outlook keyword search
-├── split-excel-by-manager/       # VBA + Python: split workbook by manager
-├── win11-startup/                # PowerShell: self-healing Windows 11 startup launcher
-├── word-tools/                   # VBA: Word table normalization and image cleanup
-├── CONTRIBUTING.md
-├── LICENSE
-└── README.md                     # This file
-```
+Each tool lives in its own self-contained folder. A folder holds the source script(s), a `README.md` explaining the tool, and a `TESTING.md` with test cases. There are no shared `scripts/`, `tests/`, or `README/` folders — everything a contributor needs for a given tool is in that tool’s folder.
 
-Each folder is self-contained: source script(s), a `README.md`, and a `TESTING.md`.
+---
+
+## File Types
+
+| Extension | What it is |
+|-----------|------------|
+| `.bas` | VBA module exported from an Office application (Word, Excel, or Outlook). Import into the VBA editor (`Alt+F11`) to use. |
+| `.ps1` | PowerShell script. Run from a PowerShell terminal or triggered by a VBA launcher. |
+| `.py` | Python script. Requires Python 3 and dependencies listed in the tool’s README. |
+| `README.md` | Human-readable documentation for the tool — purpose, usage, configuration, and version history. |
+| `TESTING.md` | Test plan for the tool — manual test cases, automated test instructions, and pass criteria. |
 
 ---
 
@@ -88,7 +86,7 @@ cd aiacode
 
 ### 2. Find the script you need
 
-Browse the tool folders above. Each folder's `README.md` explains purpose, configuration, and usage.
+Browse the Scripts table above. Each folder’s `README.md` covers purpose, configuration, and usage.
 
 ---
 
