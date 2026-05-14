@@ -14,18 +14,14 @@ $LaunchTimeoutSeconds   = 30
 $PostLaunchPauseSeconds = 2
 
 $apps = @(
-    @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";             ExpectedExe = "OUTLOOK.EXE" },
-    @{ Name = "Teams";          LaunchType = "Win32"; ShortcutPath = "$startMenu\02 Teams.lnk";          ProcessName = "ms-teams";            ExpectedExe = "ms-teams.exe" },
-    @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";            ExpectedExe = "OneDrive.exe" },
-    @{ Name = "ShareFile";      LaunchType = "Win32"; ShortcutPath = "$startMenu\04 ShareFile.lnk";      ProcessName = "ShareFile";           ExpectedExe = "ShareFile.exe" },
-    @{ Name = "Greenshot";      LaunchType = "Win32"; ShortcutPath = "$startMenu\05 Greenshot.lnk";      ProcessName = "Greenshot";           ExpectedExe = "Greenshot.exe" },
-    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Sticky Notes.lnk";   ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
-    @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\07 OneNote.lnk";        ProcessName = "ONENOTE";             ExpectedExe = "ONENOTE.EXE" },
-    @{ Name = "SAP GUI";        LaunchType = "Win32"; ShortcutPath = "$startMenu\08 SAP GUI.lnk";        ProcessName = "saplogon";            ExpectedExe = "saplogon.exe" },
-    @{ Name = "Notepad++";      LaunchType = "Win32"; ShortcutPath = "$startMenu\09 notepad++.lnk";      ProcessName = "notepad++";           ExpectedExe = "notepad++.exe" },
+    @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";            ExpectedExe = "OUTLOOK.EXE" },
+    @{ Name = "Teams";          LaunchType = "Win32"; ShortcutPath = "$startMenu\02 Teams.lnk";          ProcessName = "ms-teams";           ExpectedExe = "ms-teams.exe" },
+    @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";           ExpectedExe = "OneDrive.exe" },
+    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\04 Sticky Notes.lnk";   ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE" },
+    @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\05 OneNote.lnk";        ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE" },
     @{ Name = "Phone Link";     LaunchType = "Appx";  KnownAumid = "Microsoft.YourPhone_8wekyb3d8bbwe!App"; AppxName = "YourPhone"; StartAppName = "Phone Link"; ProcessName = "PhoneExperienceHost" },
-    @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$startMenu\11 Microsoft Edge.lnk"; ProcessName = "msedge";              ExpectedExe = "msedge.exe" },
-    @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$startMenu\12 Google Chrome.lnk";  ProcessName = "chrome";              ExpectedExe = "chrome.exe" }
+    @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$startMenu\07 Microsoft Edge.lnk"; ProcessName = "msedge";             ExpectedExe = "msedge.exe" },
+    @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$startMenu\08 Google Chrome.lnk";  ProcessName = "chrome";             ExpectedExe = "chrome.exe" }
 )
 
 $WshShell = New-Object -ComObject WScript.Shell
