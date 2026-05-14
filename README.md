@@ -1,6 +1,6 @@
 # aiacode — AI-Assisted Automation Scripts
 
-A curated collection of VBA macros, PowerShell, and Python scripts developed with AI assistance. All scripts are tested and documented; individual README files and test coverage are provided for each.
+A curated collection of VBA macros, PowerShell, and Python scripts developed with AI assistance. All scripts are tested and documented; each tool folder contains its own README and TESTING file.
 
 ---
 
@@ -8,38 +8,34 @@ A curated collection of VBA macros, PowerShell, and Python scripts developed wit
 
 **This applies to any AI agent, Copilot, or automated tool pushing changes to this repository.**
 
-Whenever you modify a script or any file in `scripts/`, you **must** also update all four of the following README files in the same commit or PR. Updating only some of them is not acceptable.
+Whenever you modify a script or any file in a tool folder, you **must** also update all of the following files in the same commit or PR:
 
-| README file | Location | What it covers |
-|-------------|----------|----------------|
+| File | Location | What it covers |
+|------|----------|----------------|
 | Global README | [`README.md`](README.md) | Script table, descriptions, repository overview |
-| Per-script README | [`README/<script filename> README.md`](README/) | Purpose, fields, logic, configuration, version history |
-| Testing README | [`tests/<script filename> Testing Readme.md`](tests/) | Manual test cases, pass criteria, test environment |
-| Tests index | [`tests/README.md`](tests/README.md) | Index of all test files and their coverage |
+| Per-tool README | `<tool-folder>/README.md` | Purpose, fields, logic, configuration, version history |
+| Per-tool TESTING | `<tool-folder>/TESTING.md` | Manual test cases, pass criteria, test environment |
 
 ### What triggers a README update
 
-Any of the following changes require all four READMEs to be reviewed and updated:
+Any of the following changes require all files above to be reviewed and updated:
 
-- Adding, removing, or renaming a field in the `$apps` array or equivalent config structure
-- Adding, changing, or removing a launch strategy or function
-- Changing default configuration values (`$InitialDelaySeconds`, `$MaxRepairDepth`, etc.)
-- Adding or removing a fallback or repair step in any function
-- Changing what is logged to the console
-- Changing how errors or failures are handled
-- Any change that affects the test cases documented in the Testing README
+- Adding, removing, or renaming a field in a config structure or input parameter
+- Adding, changing, or removing a function, launch strategy, or fallback step
+- Changing default configuration values
+- Changing what is logged, how errors are handled, or what output is produced
+- Any change that affects documented test cases
 - Adding a new script to the repository
 
-### Minimum update requirement per README
+### Minimum update requirement per file
 
 - **Global README** — update the script description in the Scripts table if behaviour changed.
-- **Per-script README** — update the relevant section (fields, logic flow, configuration table, version history). Always add a version history entry.
-- **Testing README** — add, update, or remove test cases to match the new behaviour. Update the pass criteria table.
-- **Tests index** — update the entry for this script if the test count or coverage changed.
+- **Per-tool README** — update the relevant section (fields, logic flow, configuration). Always add a version history entry.
+- **Per-tool TESTING** — add, update, or remove test cases to match the new behaviour.
 
 ### Version history
 
-Every code change must add a new row to the version history table in the per-script README. Do not edit existing rows. Format:
+Every code change must add a new row to the version history table in the per-tool README. Do not edit existing rows. Format:
 
 ```
 | vN | One-line summary of what changed |
@@ -51,30 +47,33 @@ Every code change must add a new row to the version history table in the per-scr
 
 ```
 aiacode/
-├── scripts/          # All production scripts
-├── README/           # Per-script README files
-├── tests/            # Test scripts and Testing Readme files
+├── bold-list-prefixes-outlook/   # VBA: bold list prefixes in Outlook / Word
+├── clean-data-whatsapp/          # PowerShell: clean exported WhatsApp chat files
+├── excel-formatting/             # VBA: Excel formatting and cleanup
+├── outlook-keyword-search/       # VBA + PowerShell: Outlook keyword search
+├── split-excel-by-manager/       # VBA + Python: split workbook by manager
+├── win11-startup/                # PowerShell: self-healing Windows 11 startup launcher
+├── word-tools/                   # VBA: Word table normalization and image cleanup
 ├── CONTRIBUTING.md
 ├── LICENSE
-└── README.md         # This file
+└── README.md                     # This file
 ```
+
+Each folder is self-contained: source script(s), a `README.md`, and a `TESTING.md`.
 
 ---
 
 ## Scripts
 
-| Script | Type | Description |
+| Folder | Type | Description |
 |--------|------|-------------|
-| [`BoldListPrefixes.bas`](scripts/BoldListPrefixes.bas) | VBA (Word / Outlook) | Bolds the prefix of every bulleted or numbered list item up to the first colon (`:`) or dash (`-`), whichever appears first. Works in Word and the Outlook message editor. |
-| [`Clean_data_whatsapp.ps1`](scripts/Clean_data_whatsapp.ps1) | PowerShell | Cleans and processes exported WhatsApp chat text files — removes formatting artifacts, validates paths, and extracts structured data. |
-| [`ExcelFormatting.bas`](scripts/ExcelFormatting.bas) | VBA (Excel) | Unified Excel formatting and cleanup macro with four interactive modes: simple formatting, advanced formatting, optional column splitting, and generic table extraction. |
-| [`OutlookKeywordSearch_Standalone.bas`](scripts/OutlookKeywordSearch_Standalone.bas) | VBA (Outlook) | Pure VBA, no PowerShell required. Single and batch keyword search. Results shown in MsgBox (single) or appended to Excel (batch). Non-mail folder skip, early exit per folder, DoEvents between batch rows. |
-| [`OutlookKeywordSearch_PS.bas`](scripts/OutlookKeywordSearch_PS.bas) + [`OutlookKeywordSearch_PS.ps1`](scripts/OutlookKeywordSearch_PS.ps1) | VBA (Outlook) + PowerShell | PS-assisted pair. VBA launcher fires PS engine as background process — Outlook stays fully responsive. Results via Windows toast + log (single) or Excel append (batch). Non-mail folder skip, early exit, OS yield. |
-| [`SplitExcelByManager.bas`](scripts/SplitExcelByManager.bas) | VBA (Excel) | Splits an Excel workbook into separate files, one per unique manager name, with sanitized filenames and configurable column targeting. |
-| [`split_excel_by_manager.py`](scripts/split_excel_by_manager.py) | Python | Cross-platform equivalent of `SplitExcelByManager.bas` using pandas and openpyxl. Produces identical output filenames. |
-| [`WordNormalizeTable.bas`](scripts/WordNormalizeTable.bas) | VBA (Word) | Normalizes all tables in the active Word document — sets width to 100%, clears row/cell constraints, and applies Arial 10pt. |
-| [`WordResizeBorderImagesCleanlines.bas`](scripts/WordResizeBorderImagesCleanlines.bas) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border, and cleans blank paragraphs. |
-| [`Win11startup.ps1`](scripts/Win11startup.ps1) | PowerShell | Self-healing Windows 11 startup launcher with Win32 shortcut-based repair and dynamic Appx AUMID resolution. |
+| [`bold-list-prefixes-outlook`](bold-list-prefixes-outlook/) | VBA (Word / Outlook) | Bolds the prefix of every bulleted or numbered list item up to the first colon or dash. Works in Word and the Outlook message editor. |
+| [`clean-data-whatsapp`](clean-data-whatsapp/) | PowerShell | Cleans exported WhatsApp chat text files — removes formatting artifacts, validates paths, and extracts structured data. |
+| [`excel-formatting`](excel-formatting/) | VBA (Excel) | Unified Excel formatting and cleanup macro with four interactive modes: simple formatting, advanced formatting, optional column splitting, and generic table extraction. |
+| [`outlook-keyword-search`](outlook-keyword-search/) | VBA + PowerShell | Single and batch keyword search across Outlook folders. Available in a standalone VBA version and a PS-assisted version where Outlook stays fully responsive. |
+| [`split-excel-by-manager`](split-excel-by-manager/) | VBA + Python | Splits an Excel workbook into separate files, one per unique manager name. Available as a VBA macro and a cross-platform Python script producing identical output. |
+| [`win11-startup`](win11-startup/) | PowerShell | Self-healing Windows 11 startup launcher with Win32 shortcut-based repair and dynamic Appx AUMID resolution. |
+| [`word-tools`](word-tools/) | VBA (Word) | Table normalization (width, constraints, font) and inline image resizing with configurable border and blank-paragraph cleanup. |
 
 ---
 
@@ -89,32 +88,44 @@ cd aiacode
 
 ### 2. Find the script you need
 
-All scripts are in the [`scripts/`](scripts/) folder.
-
-### 3. Read the script-specific README
-
-All per-script READMEs are in the [`README/`](README/) folder, named `<script filename> README.md`.
+Browse the tool folders above. Each folder's `README.md` explains purpose, configuration, and usage.
 
 ---
 
 ## Running Tests
 
-Test scripts and manual test case documentation are in the [`tests/`](tests/) folder.
+Each tool folder contains a `TESTING.md` with step-by-step manual test cases and, where applicable, an automated test script.
 
-For automated Python tests:
+### Automated tests — Python
 
 ```bash
 pip install pandas openpyxl pytest
-pytest tests/test_split_excel_by_manager.py -v
+pytest <tool-folder>/ -v
 ```
 
-For automated VBA tests (BoldListPrefixes):
+### Automated tests — PowerShell (Pester)
 
-1. Open Microsoft Word.
-2. Import `scripts/BoldListPrefixes.bas` and `tests/Test_BoldListPrefixes.bas` into the VBA editor.
-3. Run `RunAllTests` (`Alt+F8 → RunAllTests → Run`).
+```powershell
+cd <tool-folder>
+Invoke-Pester . -Output Detailed
+```
 
-See [tests/README.md](tests/README.md) for the full test index.
+### Automated tests — VBA
+
+1. Open the target Office application (Word, Excel, or Outlook).
+2. Open the VBA editor (`Alt+F11`).
+3. Import both the main script and the test script from the tool folder.
+4. Run the `RunAllTests` macro (`Alt+F8 → RunAllTests → Run`).
+5. Results appear in the Immediate window (`Ctrl+G`) and a summary dialog.
+
+### Manual tests
+
+For scripts without automated tests, follow the step-by-step test cases in `TESTING.md`. Each case specifies:
+
+- **Setup** — the document or data state required before running
+- **Action** — what to run or trigger
+- **Expected** — what the output should look like
+- **Pass criteria** — unambiguous pass/fail condition
 
 ---
 
