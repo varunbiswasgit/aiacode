@@ -25,7 +25,7 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 | `ProcessName` | Yes | Process name used to detect if running and confirm launch (no `.exe`) |
 | `ExpectedExe` | Yes | Exact executable filename used during shortcut repair and user-prompt validation |
 
-> Arguments needed at launch (e.g. `/memoryWindow start` for Sticky Notes) must be baked into the shortcut's Target field. The script invokes the `.lnk` via `WshShell.Run`, which passes them automatically.
+> Arguments needed at launch (e.g. `/memoryWindow start` for Sticky Notes) must be baked into the shortcut’s Target field. The script invokes the `.lnk` via `WshShell.Run`, which passes them automatically.
 
 ### Appx entry fields
 
@@ -45,15 +45,11 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 | 01 | Outlook | Win32 | |
 | 02 | Teams | Win32 | |
 | 03 | OneDrive | Win32 | |
-| 04 | ShareFile | Win32 | |
-| 05 | Greenshot | Win32 | |
-| 06 | Sticky Notes | Win32 | Shortcut Target includes `/memoryWindow start`; `ExpectedExe`/`ProcessName` = `ONENOTE.EXE`/`ONENOTE` |
-| 07 | OneNote | Win32 | Shares `ONENOTE` process with entry 06; skipped if ONENOTE already running |
-| 08 | SAP GUI | Win32 | |
-| 09 | Notepad++ | Win32 | |
-| 10 | Phone Link | Appx | `KnownAumid`: `Microsoft.YourPhone_8wekyb3d8bbwe!App`; resolved dynamically at runtime |
-| 11 | Microsoft Edge | Win32 | |
-| 12 | Google Chrome | Win32 | |
+| 04 | Sticky Notes | Win32 | Shortcut Target includes `/memoryWindow start`; `ExpectedExe`/`ProcessName` = `ONENOTE.EXE`/`ONENOTE` |
+| 05 | OneNote | Win32 | Shares `ONENOTE` process with entry 04; skipped if ONENOTE already running |
+| 06 | Phone Link | Appx | `KnownAumid`: `Microsoft.YourPhone_8wekyb3d8bbwe!App`; resolved dynamically at runtime |
+| 07 | Microsoft Edge | Win32 | |
+| 08 | Google Chrome | Win32 | |
 
 ## Win32 Launch Strategy
 
@@ -121,6 +117,7 @@ To run automatically at login, add a shortcut to this script in the Windows Star
 | v5 | Appx AUMID resolved dynamically (Get-StartApps -> KnownAumid verification -> AppxPackage manifest) |
 | v6 | Added optional `Arguments` field; Sticky Notes launched with `/memoryWindow start` |
 | v7 | Removed `Arguments` field; Win32 apps invoked via `WshShell.Run` on `.lnk` so baked-in arguments are preserved automatically |
+| v8 | Removed entries 4 (ShareFile), 5 (Greenshot), 8 (SAP GUI), 9 (Notepad++) from Default Entries; remaining entries renumbered 01–08 |
 
 ## License
 
