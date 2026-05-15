@@ -6,6 +6,9 @@
 #                 KnownAumid used only as primary candidate, not sole source of truth
 # - Sticky Notes: Win32 shortcut with /memoryWindow start baked into the .lnk Target field
 #                 WshShell.Run fires the shortcut as-is; no separate Arguments field needed
+# - Phone Link  : Win32 shortcut targeting explorer.exe with shell:appsFolder AUMID as Arguments
+#                 argument self-healing scans WindowsApps for the package family name fragment
+#                 and reconstructs the AUMID from the installed folder name + AppxManifest.xml
 
 $startMenu = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -19,7 +22,7 @@ $apps = @(
     @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";           ExpectedExe = "OneDrive.exe" },
     @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\04 Sticky Notes.lnk";   ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE" },
     @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\05 OneNote.lnk";        ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE" },
-    @{ Name = "Phone Link";     LaunchType = "Appx";  KnownAumid = "Microsoft.YourPhone_8wekyb3d8bbwe!App"; AppxName = "YourPhone"; StartAppName = "Phone Link"; ProcessName = "PhoneExperienceHost" },
+    @{ Name = "Phone Link";     LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Phone Link.lnk";     ProcessName = "PhoneExperienceHost"; ExpectedExe = "explorer.exe"; ExpectedArguments = "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App" },
     @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$startMenu\07 Microsoft Edge.lnk"; ProcessName = "msedge";             ExpectedExe = "msedge.exe" },
     @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$startMenu\08 Google Chrome.lnk";  ProcessName = "chrome";             ExpectedExe = "chrome.exe" }
 )
@@ -99,10 +102,13 @@ function Find-ExeWithinDepth {
 }
 
 function Update-ShortcutTarget {
-    param([string]$ShortcutPath, [string]$ExePath)
+    param([string]$ShortcutPath, [string]$ExePath, [string]$Arguments = "")
     $shortcut = Get-ShortcutObject -ShortcutPath $ShortcutPath
     $shortcut.TargetPath       = $ExePath
     $shortcut.WorkingDirectory = Split-Path -Path $ExePath -Parent
+    if (-not [string]::IsNullOrWhiteSpace($Arguments)) {
+        $shortcut.Arguments = $Arguments
+    }
     $shortcut.Save()
 }
 
@@ -133,7 +139,7 @@ function Repair-ShortcutTarget {
         $foundExe = Find-ExeWithinDepth -RootFolder $existingParent -ExpectedExe $App.ExpectedExe -MaxDepth $MaxRepairDepth
         if ($foundExe) {
             Write-Host "$($App.Name): found replacement at $($foundExe.FullName). Updating shortcut."
-            Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $foundExe.FullName
+            Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $foundExe.FullName -Arguments $App.ExpectedArguments
             return $foundExe.FullName
         }
         Write-Warning "$($App.Name): $($App.ExpectedExe) not found within $MaxRepairDepth levels of $existingParent."
@@ -142,10 +148,74 @@ function Repair-ShortcutTarget {
     }
     $manualPath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe
     if ($manualPath) {
-        Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $manualPath
+        Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $manualPath -Arguments $App.ExpectedArguments
         return $manualPath
     }
     return $null
+}
+
+function Repair-ShortcutArguments {
+    param($App)
+    $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
+    Write-Warning "$($App.Name): shortcut Arguments missing or invalid: '$($shortcut.Arguments)'"
+
+    # Extract the package family name fragment from ExpectedArguments
+    # e.g. "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App" -> "YourPhone_8wekyb3d8bbwe"
+    $aumidFragment = $null
+    if ($App.ExpectedArguments -match '\\([^\\!]+)!') {
+        $fullPfn       = $Matches[1]                      # Microsoft.YourPhone_8wekyb3d8bbwe
+        $aumidFragment = ($fullPfn -split '_', 2)[1]      # YourPhone_8wekyb3d8bbwe (drop publisher prefix)
+    }
+
+    if ([string]::IsNullOrWhiteSpace($aumidFragment)) {
+        Write-Warning "$($App.Name): cannot extract AUMID fragment from ExpectedArguments. Skipping argument repair."
+        return $null
+    }
+
+    # Traverse WindowsApps to find the installed package folder matching the family name fragment
+    $windowsApps = "C:\Program Files\WindowsApps"
+    Write-Host "$($App.Name): scanning $windowsApps for '*$aumidFragment*'..."
+    $pkgFolder = Get-ChildItem -LiteralPath $windowsApps -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "*$aumidFragment*" } |
+        Sort-Object Name -Descending |   # latest version first
+        Select-Object -First 1
+
+    if (-not $pkgFolder) {
+        Write-Warning "$($App.Name): no folder matching '*$aumidFragment*' found in WindowsApps."
+        return $null
+    }
+
+    Write-Host "$($App.Name): found package folder: $($pkgFolder.Name)"
+
+    # Read AppxManifest.xml to extract the Application Id
+    $manifestPath = Join-Path $pkgFolder.FullName "AppxManifest.xml"
+    $appId = $null
+    if (Test-Path -LiteralPath $manifestPath) {
+        try {
+            [xml]$manifest = Get-Content -LiteralPath $manifestPath -ErrorAction Stop
+            $appIds = $manifest.Package.Applications.Application.Id
+            $appId  = if ($appIds -contains 'App') { 'App' } else { $appIds | Select-Object -First 1 }
+        } catch {
+            Write-Warning "$($App.Name): could not read AppxManifest.xml. $_"
+        }
+    }
+
+    # Fall back to known AppId extracted from ExpectedArguments if manifest is unreadable (ACL-blocked)
+    if ([string]::IsNullOrWhiteSpace($appId)) {
+        Write-Warning "$($App.Name): manifest unreadable (likely ACL-blocked). Falling back to ExpectedArguments AppId."
+        $appId = ($App.ExpectedArguments -split '!') | Select-Object -Last 1
+    }
+
+    # Reconstruct PackageFamilyName from folder name by stripping version + architecture segment
+    $pfn          = $pkgFolder.Name -replace '_\d+\.\d+\.\d+\.\d+_[^_]+__', '_'
+    $aumid        = "$pfn!$appId"
+    $repairedArgs = "shell:appsFolder\$aumid"
+
+    Write-Host "$($App.Name): reconstructed AUMID: $aumid. Updating shortcut Arguments."
+    $shortcut.Arguments        = $repairedArgs
+    $shortcut.WorkingDirectory = Split-Path -Path $shortcut.TargetPath -Parent
+    $shortcut.Save()
+    return $repairedArgs
 }
 
 function Wait-ForProcessStart {
@@ -207,7 +277,22 @@ function Start-Win32App {
                 return $false
             }
             Write-Host "$($App.Name): shortcut repaired. Proceeding with launch."
+            $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
         }
+
+        # Validate Arguments field for shortcuts that depend on shell:appsFolder AUMID
+        if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
+            $currentArgs = $shortcut.Arguments
+            if ([string]::IsNullOrWhiteSpace($currentArgs) -or
+                $currentArgs -notlike "*$($App.ExpectedArguments)*") {
+                $repairedArgs = Repair-ShortcutArguments -App $App
+                if (-not $repairedArgs) {
+                    Write-Warning "$($App.Name): argument repair failed. Skipping.`n"
+                    return $false
+                }
+            }
+        }
+
         Write-Host "$($App.Name): launching via shortcut: $($App.ShortcutPath)"
         $WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
         if (Wait-ForProcessStart -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
