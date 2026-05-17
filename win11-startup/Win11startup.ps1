@@ -18,6 +18,9 @@
 #                    if a window appears -> 'Window' mode (skip only when window visible);
 #                    if no window appears -> 'Tray' mode (skip when process running).
 #                    No per-app flags needed; detection is fully automatic at runtime.
+# - Exe allowlist  : Test-ExePathAllowed enforces that any exe accepted via user prompt or
+#                    auto-discovery during repair lives under Program Files, Program Files (x86),
+#                    or Windows. Paths outside these roots are rejected before any shortcut write.
 
 $startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -25,6 +28,13 @@ $InitialDelaySeconds    = 10
 $LaunchTimeoutSeconds   = 30
 $PostLaunchPauseSeconds = 2
 $SettleSeconds          = 5   # how long to wait for MainWindowHandle after launch before classifying as Tray
+
+# Allowlisted root paths for exe repair; user-supplied or auto-discovered paths must live under one of these.
+$AllowedExeRoots = @(
+    $env:ProgramFiles,
+    ${env:ProgramFiles(x86)},
+    $env:SystemRoot
+) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
 $apps = @(
     @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";            ExpectedExe = "OUTLOOK.EXE" },
@@ -277,6 +287,22 @@ function Update-ShortcutTarget {
     $shortcut.Save()
 }
 
+# ---------------------------------------------------------------------------
+# Security: validate an exe path against the allowlisted roots before
+# persisting it into any shortcut target field.
+# ---------------------------------------------------------------------------
+function Test-ExePathAllowed {
+    param([string]$ExePath)
+    $full = [System.IO.Path]::GetFullPath($ExePath)
+    foreach ($root in $AllowedExeRoots) {
+        $rootFull = [System.IO.Path]::GetFullPath($root.TrimEnd('\\'))
+        if ($full.StartsWith($rootFull + '\\', [System.StringComparison]::OrdinalIgnoreCase)) {
+            return $true
+        }
+    }
+    return $false
+}
+
 function Prompt-ForExactExePath {
     param([string]$AppName, [string]$ExpectedExe)
     while ($true) {
@@ -288,6 +314,10 @@ function Prompt-ForExactExePath {
         }
         if ([System.IO.Path]::GetFileName($trimmed) -ine $ExpectedExe) {
             Write-Warning "File name must be exactly $ExpectedExe"; continue
+        }
+        if (-not (Test-ExePathAllowed -ExePath $trimmed)) {
+            Write-Warning "Path is outside allowed roots ($($AllowedExeRoots -join ', ')): $trimmed"
+            continue
         }
         return $trimmed
     }
@@ -348,9 +378,13 @@ function Repair-ShortcutTarget {
         Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $existingParent (max depth $MaxRepairDepth)..."
         $foundExe = Find-ExeWithinDepth -RootFolder $existingParent -ExpectedExe $App.ExpectedExe -MaxDepth $MaxRepairDepth
         if ($foundExe) {
-            Write-Host "$($App.Name): found replacement at $($foundExe.FullName). Updating shortcut."
-            Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $foundExe.FullName -Arguments $App.ExpectedArguments
-            return $foundExe.FullName
+            if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
+                Write-Warning "$($App.Name): discovered exe is outside allowed roots. Skipping auto-repair: $($foundExe.FullName)"
+            } else {
+                Write-Host "$($App.Name): found replacement at $($foundExe.FullName). Updating shortcut."
+                Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $foundExe.FullName -Arguments $App.ExpectedArguments
+                return $foundExe.FullName
+            }
         }
         Write-Warning "$($App.Name): $($App.ExpectedExe) not found within $MaxRepairDepth levels of $existingParent."
     } else {

@@ -9,7 +9,6 @@ Move each item to **Done** after its commit lands.
 
 ### Security
 
-- [ ] **SEC-01** — Allowlist exe repair paths: validate that a user-supplied or auto-discovered exe lives under `Program Files`, `Program Files (x86)`, or `Windows` before updating any shortcut target.
 - [ ] **SEC-02** — Authenticode signature check: before persisting a repaired shortcut, call `Get-AuthenticodeSignature` and reject executables whose status is not `Valid`.
 - [ ] **SEC-03** — Publisher allowlist: for each app entry, add an optional `ExpectedPublisher` field; compare the resolved exe's signer against it before writing the shortcut.
 - [ ] **SEC-04** — Process-name collision guard: when `Test-AppAlreadyOpen` finds a running process, verify its executable path matches `ExpectedExe` so an unrelated same-named process cannot cause a false skip.
@@ -40,4 +39,4 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
-_No tasks completed yet._
+- [x] **SEC-01** — Allowlist exe repair paths: added `$AllowedExeRoots` config array (`Program Files`, `Program Files (x86)`, `SystemRoot`) and `Test-ExePathAllowed` helper. Both `Prompt-ForExactExePath` (user input) and `Repair-ShortcutTarget` (auto-discovered exe) now reject paths outside the allowlist before writing any shortcut. _(v10)_
