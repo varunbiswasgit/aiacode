@@ -11,6 +11,9 @@
 #                 and reconstructs the AUMID from the installed folder name + AppxManifest.xml
 # - Bootstrap   : before launch loop, ensures every Win32 .lnk exists at the expected path;
 #                 renames misnumbered matches found in the same folder, or creates fresh if absent
+# - Main menu   : on launch, user chooses Run / Add / Delete / Modify / Exit
+#                 inline failure menu (Add+retry / Modify / Skip) appears when a shortcut
+#                 is missing or an app fails to start during the startup sequence
 
 $startMenu = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -31,6 +34,89 @@ $apps = @(
 
 $WshShell = New-Object -ComObject WScript.Shell
 
+# ---------------------------------------------------------------------------
+# Helper: numbered app picker used by main menu and inline failure menu
+# ---------------------------------------------------------------------------
+function Show-AppPicker {
+    param([string]$Prompt)
+    Write-Host "`n$Prompt"
+    for ($i = 0; $i -lt $apps.Count; $i++) {
+        $exists = if (Test-Path -LiteralPath $apps[$i].ShortcutPath -PathType Leaf) { "exists" } else { "missing" }
+        Write-Host ("  [{0}] {1,-20}  {2}  ({3})" -f ($i + 1), $apps[$i].Name, $exists, $apps[$i].ShortcutPath)
+    }
+    Write-Host "  [0] Cancel"
+    while ($true) {
+        $choice = Read-Host "Select"
+        if ($choice -match '^\d+$') {
+            $idx = [int]$choice
+            if ($idx -eq 0)                             { return $null }
+            if ($idx -ge 1 -and $idx -le $apps.Count)  { return $apps[$idx - 1] }
+        }
+        Write-Warning "Invalid selection. Enter a number between 0 and $($apps.Count)."
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Shortcut management: Add / Delete / Modify
+# ---------------------------------------------------------------------------
+function Add-Shortcut {
+    param($App)
+    if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) {
+        Write-Host "$($App.Name): shortcut already exists at '$($App.ShortcutPath)'."
+        return
+    }
+    Initialize-Shortcut -App $App
+}
+
+function Remove-Shortcut {
+    param($App)
+    if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
+        Write-Warning "$($App.Name): no shortcut found at '$($App.ShortcutPath)'."
+        return
+    }
+    $confirm = Read-Host "Delete '$($App.ShortcutPath)'? (Y/N)"
+    if ($confirm -ieq 'Y') {
+        Remove-Item -LiteralPath $App.ShortcutPath -Force
+        Write-Host "$($App.Name): shortcut deleted."
+    } else {
+        Write-Host "$($App.Name): deletion cancelled."
+    }
+}
+
+function Edit-Shortcut {
+    param($App)
+    # Argument-based apps (e.g. Phone Link): re-run AUMID argument repair
+    if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
+        if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
+            Write-Warning "$($App.Name): shortcut does not exist. Creating it first."
+            Initialize-Shortcut -App $App
+            return
+        }
+        Write-Host "$($App.Name): re-running argument repair..."
+        Repair-ShortcutArguments -App $App
+        return
+    }
+    # Standard Win32 apps: prompt for new exe and update the shortcut target
+    $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe
+    if ($exePath) {
+        if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
+            $sc = $WshShell.CreateShortcut($App.ShortcutPath)
+            $sc.TargetPath       = $exePath
+            $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
+            $sc.Save()
+            Write-Host "$($App.Name): shortcut created at '$($App.ShortcutPath)'."
+        } else {
+            Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $exePath
+            Write-Host "$($App.Name): shortcut updated to '$exePath'."
+        }
+    } else {
+        Write-Host "$($App.Name): modify cancelled."
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Core helpers
+# ---------------------------------------------------------------------------
 function Resolve-Aumid {
     param($App)
     $startApp = Get-StartApps | Where-Object { $_.Name -like "*$($App.StartAppName)*" } | Select-Object -First 1
@@ -142,10 +228,8 @@ function Find-MisnumberedShortcut {
 
 function Initialize-Shortcut {
     param($App)
-    # Already exists at the expected path — nothing to do
     if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { return }
 
-    # Look for a misnumbered .lnk with the same app name in the same folder
     $misnumbered = Find-MisnumberedShortcut -ExpectedPath $App.ShortcutPath -AppName $App.Name
     if ($misnumbered) {
         Write-Host "$($App.Name): misnumbered shortcut found ('$($misnumbered.Name)'). Renaming to expected name."
@@ -153,10 +237,8 @@ function Initialize-Shortcut {
         return
     }
 
-    # No .lnk found at all — create it fresh
     Write-Warning "$($App.Name): no shortcut found at '$($App.ShortcutPath)'. Creating..."
 
-    # Apps with ExpectedArguments (e.g. Phone Link) — fully automatic, no prompt needed
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
         $sc = $WshShell.CreateShortcut($App.ShortcutPath)
         $sc.TargetPath       = "C:\Windows\explorer.exe"
@@ -167,7 +249,6 @@ function Initialize-Shortcut {
         return
     }
 
-    # Standard Win32 apps — prompt user for the exe path, then create shortcut
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe
     if ($exePath) {
         $sc = $WshShell.CreateShortcut($App.ShortcutPath)
@@ -211,12 +292,10 @@ function Repair-ShortcutArguments {
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
     Write-Warning "$($App.Name): shortcut Arguments missing or invalid: '$($shortcut.Arguments)'"
 
-    # Extract the package family name fragment from ExpectedArguments
-    # e.g. "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App" -> "YourPhone_8wekyb3d8bbwe"
     $aumidFragment = $null
     if ($App.ExpectedArguments -match '\\([^\\!]+)!') {
-        $fullPfn       = $Matches[1]                      # Microsoft.YourPhone_8wekyb3d8bbwe
-        $aumidFragment = ($fullPfn -split '_', 2)[1]      # YourPhone_8wekyb3d8bbwe (drop publisher prefix)
+        $fullPfn       = $Matches[1]
+        $aumidFragment = ($fullPfn -split '_', 2)[1]
     }
 
     if ([string]::IsNullOrWhiteSpace($aumidFragment)) {
@@ -224,12 +303,11 @@ function Repair-ShortcutArguments {
         return $null
     }
 
-    # Traverse WindowsApps to find the installed package folder matching the family name fragment
     $windowsApps = "C:\Program Files\WindowsApps"
     Write-Host "$($App.Name): scanning $windowsApps for '*$aumidFragment*'..."
     $pkgFolder = Get-ChildItem -LiteralPath $windowsApps -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -like "*$aumidFragment*" } |
-        Sort-Object Name -Descending |   # latest version first
+        Sort-Object Name -Descending |
         Select-Object -First 1
 
     if (-not $pkgFolder) {
@@ -239,7 +317,6 @@ function Repair-ShortcutArguments {
 
     Write-Host "$($App.Name): found package folder: $($pkgFolder.Name)"
 
-    # Read AppxManifest.xml to extract the Application Id
     $manifestPath = Join-Path $pkgFolder.FullName "AppxManifest.xml"
     $appId = $null
     if (Test-Path -LiteralPath $manifestPath) {
@@ -252,13 +329,11 @@ function Repair-ShortcutArguments {
         }
     }
 
-    # Fall back to known AppId extracted from ExpectedArguments if manifest is unreadable (ACL-blocked)
     if ([string]::IsNullOrWhiteSpace($appId)) {
         Write-Warning "$($App.Name): manifest unreadable (likely ACL-blocked). Falling back to ExpectedArguments AppId."
         $appId = ($App.ExpectedArguments -split '!') | Select-Object -Last 1
     }
 
-    # Reconstruct PackageFamilyName from folder name by stripping version + architecture segment
     $pfn          = $pkgFolder.Name -replace '_\d+\.\d+\.\d+\.\d+_[^_]+__', '_'
     $aumid        = "$pfn!$appId"
     $repairedArgs = "shell:appsFolder\$aumid"
@@ -315,10 +390,35 @@ function Start-Win32App {
         Write-Host "$($App.Name): '$($App.ProcessName)' already running. Skipping.`n"
         return $true
     }
+
+    # ---- Inline failure menu: shortcut file not found ----
     if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-        Write-Warning "$($App.Name): shortcut file not found: $($App.ShortcutPath)`n"
-        return $false
+        Write-Warning "$($App.Name): shortcut file not found: $($App.ShortcutPath)"
+        Write-Host "  [1] Add / fix shortcut now and retry launch"
+        Write-Host "  [2] Modify an existing shortcut"
+        Write-Host "  [3] Skip"
+        $failChoice = Read-Host "Select"
+        switch ($failChoice) {
+            '1' {
+                Initialize-Shortcut -App $App
+                if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) {
+                    return Start-Win32App -App $App
+                }
+                Write-Warning "$($App.Name): shortcut still missing after add attempt. Skipping.`n"
+                return $false
+            }
+            '2' {
+                $target = Show-AppPicker -Prompt "Select shortcut to modify:"
+                if ($target) { Edit-Shortcut -App $target }
+                return $false
+            }
+            default {
+                Write-Host "$($App.Name): skipped.`n"
+                return $false
+            }
+        }
     }
+
     try {
         $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
         $targetPath = $shortcut.TargetPath
@@ -332,7 +432,6 @@ function Start-Win32App {
             $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
         }
 
-        # Validate Arguments field for shortcuts that depend on shell:appsFolder AUMID
         if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
             $currentArgs = $shortcut.Arguments
             if ([string]::IsNullOrWhiteSpace($currentArgs) -or
@@ -351,9 +450,28 @@ function Start-Win32App {
             Write-Host "$($App.Name): '$($App.ProcessName)' is now running.`n"
             Start-Sleep -Seconds $PostLaunchPauseSeconds
             return $true
-        } else {
-            Write-Warning "$($App.Name): '$($App.ProcessName)' did not appear within $LaunchTimeoutSeconds seconds.`n"
-            return $false
+        }
+
+        # ---- Inline failure menu: process did not start in time ----
+        Write-Warning "$($App.Name): '$($App.ProcessName)' did not appear within $LaunchTimeoutSeconds seconds."
+        Write-Host "  [1] Modify shortcut for $($App.Name) and retry"
+        Write-Host "  [2] Modify a different shortcut"
+        Write-Host "  [3] Skip"
+        $timeoutChoice = Read-Host "Select"
+        switch ($timeoutChoice) {
+            '1' {
+                Edit-Shortcut -App $App
+                return Start-Win32App -App $App
+            }
+            '2' {
+                $target = Show-AppPicker -Prompt "Select shortcut to modify:"
+                if ($target) { Edit-Shortcut -App $target }
+                return $false
+            }
+            default {
+                Write-Host "$($App.Name): skipped.`n"
+                return $false
+            }
         }
     } catch {
         Write-Warning "$($App.Name): launch failed. $_`n"
@@ -361,10 +479,45 @@ function Start-Win32App {
     }
 }
 
+# ---------------------------------------------------------------------------
+# Main menu
+# ---------------------------------------------------------------------------
+Write-Host "`n================================================"
+Write-Host "  Win11 Startup Manager"
+Write-Host "================================================"
+Write-Host "  [1] Run startup sequence"
+Write-Host "  [2] Add shortcut"
+Write-Host "  [3] Delete shortcut"
+Write-Host "  [4] Modify shortcut"
+Write-Host "  [5] Exit"
+Write-Host "------------------------------------------------"
+$mainChoice = Read-Host "Select"
+
+switch ($mainChoice) {
+    '2' {
+        $app = Show-AppPicker -Prompt "Select app to ADD shortcut for:"
+        if ($app) { Add-Shortcut -App $app }
+        exit
+    }
+    '3' {
+        $app = Show-AppPicker -Prompt "Select app to DELETE shortcut for:"
+        if ($app) { Remove-Shortcut -App $app }
+        exit
+    }
+    '4' {
+        $app = Show-AppPicker -Prompt "Select app to MODIFY shortcut for:"
+        if ($app) { Edit-Shortcut -App $app }
+        exit
+    }
+    '5' { exit }
+}
+
+# ---------------------------------------------------------------------------
+# Startup sequence (option 1 or Enter)
+# ---------------------------------------------------------------------------
 Write-Host "Waiting $InitialDelaySeconds seconds for system to stabilize..."
 Start-Sleep -Seconds $InitialDelaySeconds
 
-# Bootstrap: ensure all Win32 .lnk files exist and are correctly named before launching
 Write-Host "`n--- Shortcut bootstrap ---"
 foreach ($app in $apps) {
     if ($app.LaunchType -eq "Win32") {
