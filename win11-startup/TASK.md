@@ -9,9 +9,6 @@ Move each item to **Done** after its commit lands.
 
 ### Security
 
-- [ ] **SEC-03** — Publisher allowlist: add optional `ExpectedPublisher` field per app entry; after `Test-ExeSignatureTrusted` passes, compare `SignerCertificate.Subject` against the expected publisher string and reject the exe if it does not match.
-  > _Achievable: `Get-AuthenticodeSignature` already called; this adds a string compare on the cert subject._
-
 - [ ] **SEC-04** — Process-name collision guard: update `Test-AppAlreadyOpen` to compare each matching process's `.MainModule.FileName` against `ExpectedExe` so an unrelated same-named process cannot cause a false skip.
   > _Achievable: `MainModule.FileName` available on all non-system Win32 processes; `ExpectedExe` already in every app entry._
 
@@ -62,4 +59,5 @@ Move each item to **Done** after its commit lands.
 
 - [x] **SEC-01** — Allowlist exe repair paths: added `$AllowedExeRoots` config array and `Test-ExePathAllowed` helper; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject paths outside allowed roots. _(v10)_
 - [x] **SEC-02** — Authenticode signature check: added `Test-ExeSignatureTrusted` using `Get-AuthenticodeSignature`; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject executables whose signature status is not `Valid`. _(v11)_
+- [x] **SEC-03** — Publisher allowlist: added optional `ExpectedPublisher` field per app entry; `Test-ExeSignatureTrusted` accepts `-ExpectedPublisher` and verifies `SignerCertificate.Subject` contains the expected string when provided. Microsoft apps use `CN=Microsoft Corporation`; Chrome uses `CN=Google LLC`. _(v12)_
 - [x] **HARD-03** — Safer XML manifest loading: `Repair-ShortcutArguments` now uses `[xml]::new(); $manifest.Load($manifestPath)` instead of `[xml]$manifest = Get-Content` to handle BOMs and large manifests. _(v11)_
