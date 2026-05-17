@@ -45,6 +45,9 @@
 # - Test mode      : When $env:PS_STARTUP_TESTMODE = '1', the script dot-sources cleanly
 #                    (functions and vars available) but skips the interactive menu and
 #                    startup sequence entirely. Used by Win11startup.Tests.ps1.
+# - Config file    : $script:apps is loaded from apps.json in the same folder as the script.
+#                    Required fields: Name, LaunchType, ShortcutPath, ProcessName, ExpectedExe.
+#                    Add/Delete menu flows write changes back to apps.json automatically.
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:MaxRepairDepth         = 3
@@ -52,6 +55,7 @@ $script:InitialDelaySeconds    = 10
 $script:LaunchTimeoutSeconds   = 30
 $script:PostLaunchPauseSeconds = 2
 $script:SettleSeconds          = 5
+$script:AppsConfigPath         = Join-Path $PSScriptRoot "apps.json"
 
 $script:AllowedExeRoots = @(
     $env:ProgramFiles,
@@ -59,16 +63,44 @@ $script:AllowedExeRoots = @(
     $env:SystemRoot
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
-$script:apps = @(
-    @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$script:startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";            ExpectedExe = "OUTLOOK.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Teams";          LaunchType = "Win32"; ShortcutPath = "$script:startMenu\02 Teams.lnk";          ProcessName = "ms-teams";           ExpectedExe = "ms-teams.exe"; ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$script:startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";           ExpectedExe = "OneDrive.exe"; ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$script:startMenu\04 Sticky Notes.lnk";   ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$script:startMenu\05 OneNote.lnk";        ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Phone Link";     LaunchType = "Win32"; ShortcutPath = "$script:startMenu\06 Phone Link.lnk";     ProcessName = "PhoneExperienceHost"; ExpectedExe = "explorer.exe"; ExpectedArguments = "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App"; ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$script:startMenu\07 Microsoft Edge.lnk"; ProcessName = "msedge";             ExpectedExe = "msedge.exe";   ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$script:startMenu\08 Google Chrome.lnk";  ProcessName = "chrome";             ExpectedExe = "chrome.exe";   ExpectedPublisher = "CN=Google LLC" }
-)
+# ---------------------------------------------------------------------------
+# Config loader / exporter
+# ---------------------------------------------------------------------------
+function Import-AppsConfig {
+    param([string]$Path = $script:AppsConfigPath)
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "apps.json not found at '$Path'. Cannot continue without app configuration."
+    }
+    $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    $entries = $raw | ConvertFrom-Json
+    $required = @('Name','LaunchType','ShortcutPath','ProcessName','ExpectedExe')
+    $validated = @()
+    foreach ($entry in $entries) {
+        foreach ($field in $required) {
+            if ([string]::IsNullOrWhiteSpace($entry.$field)) {
+                throw "apps.json entry missing required field '$field': $(ConvertTo-Json $entry -Compress)"
+            }
+        }
+        # Normalise optional fields to empty strings so downstream code never sees $null
+        if ($null -eq $entry.ExpectedPublisher)  { $entry | Add-Member -NotePropertyName ExpectedPublisher  -NotePropertyValue '' -Force }
+        if ($null -eq $entry.ExpectedArguments)  { $entry | Add-Member -NotePropertyName ExpectedArguments  -NotePropertyValue '' -Force }
+        $validated += $entry
+    }
+    return $validated
+}
+
+function Export-AppsConfig {
+    param([string]$Path = $script:AppsConfigPath)
+    $script:apps | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $Path -Encoding UTF8
+    Write-Host "apps.json saved ($($script:apps.Count) entries)."
+}
+
+try {
+    $script:apps = Import-AppsConfig
+} catch {
+    Write-Error $_
+    exit 1
+}
 
 $script:WshShell = New-Object -ComObject WScript.Shell
 
@@ -172,25 +204,92 @@ function Show-AppPicker {
 # ---------------------------------------------------------------------------
 function Add-Shortcut {
     param($App)
-    if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) {
-        Write-Host "$($App.Name): shortcut already exists at '$($App.ShortcutPath)'."
+    if ($App) {
+        # Called from menu with existing app — just run initialize
+        Initialize-Shortcut -App $App
         return
     }
-    Initialize-Shortcut -App $App
+
+    # No app passed — prompt user for a brand-new entry
+    Write-Host "`n--- Add new app entry ---"
+    $name = Read-Host "App name (display label)"
+    if ([string]::IsNullOrWhiteSpace($name)) { Write-Host "Cancelled."; return }
+
+    $launchType = ''
+    while ($launchType -notin @('Win32','Appx')) {
+        $launchType = Read-Host "Launch type [Win32 / Appx]"
+    }
+
+    $number      = Read-Host "Shortcut number (e.g. 09)"
+    $lnkName     = "$number $name.lnk"
+    $shortcutPath = Join-Path $script:startMenu $lnkName
+
+    $processName = Read-Host "Process name (without .exe, e.g. chrome)"
+    $expectedExe = Read-Host "Expected exe filename (e.g. chrome.exe)"
+
+    $expectedPublisher = Read-Host "Expected publisher CN string (optional, press Enter to skip)"
+    $expectedArguments = Read-Host "Expected arguments (optional, e.g. shell:appsFolder\PFN!App, press Enter to skip)"
+
+    # Security gates for Win32 exe-based entries
+    $exePath = $null
+    if ($launchType -eq 'Win32' -and [string]::IsNullOrWhiteSpace($expectedArguments)) {
+        $exePath = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
+        if (-not $exePath) { Write-Host "Cancelled."; return }
+    }
+
+    $newEntry = [PSCustomObject]@{
+        Name              = $name
+        LaunchType        = $launchType
+        ShortcutPath      = $shortcutPath
+        ProcessName       = $processName
+        ExpectedExe       = $expectedExe
+        ExpectedPublisher = $expectedPublisher
+        ExpectedArguments = $expectedArguments
+    }
+
+    # Create the shortcut on disk
+    if ($exePath) {
+        $sc = $script:WshShell.CreateShortcut($shortcutPath)
+        $sc.TargetPath       = $exePath
+        $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
+        $sc.Save()
+        Write-Host "Shortcut created: $shortcutPath"
+    } elseif (-not [string]::IsNullOrWhiteSpace($expectedArguments)) {
+        $sc = $script:WshShell.CreateShortcut($shortcutPath)
+        $sc.TargetPath       = "$env:SystemRoot\explorer.exe"
+        $sc.Arguments        = $expectedArguments
+        $sc.WorkingDirectory = $env:SystemRoot
+        $sc.Save()
+        Write-Host "Shortcut created with arguments: $shortcutPath"
+    }
+
+    # Append to in-memory array and persist
+    $script:apps += $newEntry
+    Export-AppsConfig
+    Write-Host "'$name' added to apps.json."
 }
 
 function Remove-Shortcut {
     param($App)
     if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
         Write-Warning "$($App.Name): no shortcut found at '$($App.ShortcutPath)'."
-        return
-    }
-    $confirm = Read-Host "Delete '$($App.ShortcutPath)'? (Y/N)"
-    if ($confirm -ieq 'Y') {
-        Remove-Item -LiteralPath $App.ShortcutPath -Force
-        Write-Host "$($App.Name): shortcut deleted."
     } else {
-        Write-Host "$($App.Name): deletion cancelled."
+        $confirm = Read-Host "Delete '$($App.ShortcutPath)'? (Y/N)"
+        if ($confirm -ieq 'Y') {
+            Remove-Item -LiteralPath $App.ShortcutPath -Force
+            Write-Host "$($App.Name): shortcut deleted."
+        } else {
+            Write-Host "$($App.Name): deletion cancelled."
+            return
+        }
+    }
+
+    # Remove from in-memory array and persist regardless of whether .lnk existed
+    $confirm2 = Read-Host "Also remove '$($App.Name)' from apps.json? (Y/N)"
+    if ($confirm2 -ieq 'Y') {
+        $script:apps = $script:apps | Where-Object { $_.Name -ne $App.Name }
+        Export-AppsConfig
+        Write-Host "$($App.Name): removed from apps.json."
     }
 }
 
@@ -655,8 +754,8 @@ $mainChoice = Read-Host "Select"
 
 switch ($mainChoice) {
     '2' {
-        $app = Show-AppPicker -Prompt "Select app to ADD shortcut for:"
-        if ($app) { Add-Shortcut -App $app }
+        $app = Show-AppPicker -Prompt "Select app to ADD shortcut for (or [0] to add a new app entry):"
+        Add-Shortcut -App $app
         exit
     }
     '3' {

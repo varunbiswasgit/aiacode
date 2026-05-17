@@ -7,15 +7,7 @@ Move each item to **Done** after its commit lands.
 
 ## To Do
 
-### Refactor
-
-- [ ] **REF-01** — Externalize `$script:apps` to `apps.json`: move the inline `$script:apps` table from `Win11startup.ps1` into a sibling `apps.json` config file loaded via `Get-Content | ConvertFrom-Json`. Validate required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`) on load and fail closed if the file is missing or malformed. Allows adding new app entries without editing the script source. All existing security gates (allowlist, signature, publisher) remain unchanged.
-  > _Achievable: replace the inline array with a single loader block; all downstream code is field-name-based and requires no other changes._
-  > _Prerequisite: must be completed before REF-02._
-
-- [ ] **REF-02** — Write-back new app entries to `apps.json` via Add menu: extend the **[2] Add shortcut** flow to prompt the user for all required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`, optional `ExpectedPublisher`, optional `ExpectedArguments`), validate each field passes the existing security gates (allowlist, signature, publisher), append the new entry to the in-memory `$script:apps` array, and persist the updated array back to `apps.json` via `ConvertTo-Json | Set-Content`. The Delete menu flow should similarly remove the entry from `apps.json` when the shortcut is deleted.
-  > _Achievable: self-contained change to Add-Shortcut and Remove-Shortcut; no changes to launch or repair logic._
-  > _Depends on: REF-01._
+_All tasks complete. No open items._
 
 ---
 
@@ -45,3 +37,5 @@ Move each item to **Done** after its commit lands.
 - [x] **TEST-04** — Unit test `Test-ExePathAllowed` (4 cases: Program Files, SystemRoot, TEMP reject, Desktop reject) and `Test-ExeSignatureTrusted` (4 cases: notepad valid, correct publisher, wrong publisher, fake .exe). _(v16)_
 - [x] **INT-01** — Integration harness: `Describe Integration` gated by `$env:RUN_INTEGRATION -eq '1'`; `BeforeAll` creates temp dir, `AfterAll` removes all temp `.lnk` files and the dir. _(v16)_
 - [x] **INT-02** — Shortcut bootstrap smoke test: creates a real `.lnk` pointing to `notepad.exe`, calls `Initialize-Shortcut`, confirms shortcut exists and `TargetPath` resolves correctly, cleans up in `AfterAll`. _(v16)_
+- [x] **REF-01** — Externalize `$script:apps` to `apps.json`: inline array removed from `Win11startup.ps1`; `Import-AppsConfig` loads and validates the file on startup, failing closed on missing/malformed entries; `apps.json` added with all 8 app entries. _(v17)_
+- [x] **REF-02** — Write-back new app entries to `apps.json` via Add/Delete menus: `Add-Shortcut` extended to prompt for all fields when called with no existing app, validates through security gates, creates the `.lnk`, appends to `$script:apps`, and persists via `Export-AppsConfig`; `Remove-Shortcut` extended to remove the entry from `$script:apps` and save `apps.json` after deletion. _(v17)_
