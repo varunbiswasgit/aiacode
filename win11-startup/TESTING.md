@@ -10,7 +10,8 @@ All tests are manual. No automated Pester test file exists — core behaviour in
 - PowerShell 5.1 or later
 - `Get-AppxPackage` and `Get-StartApps` available (standard on Windows 10/11)
 - All Win32 shortcut files present in `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\` with numbered naming convention
-- Entry 06 shortcut (`06 Sticky Notes.lnk`) Target field set to `"...\ONENOTE.EXE" /memoryWindow start`
+- Entry 04 shortcut (`04 Sticky Notes.lnk`) Target field set to `"...\ONENOTE.EXE" /memoryWindow start`
+- Entry 06 shortcut (`06 Phone Link.lnk`) Target = `C:\Windows\explorer.exe`; Arguments = `shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App`
 - Phone Link installed (for TC-11 through TC-15)
 
 ---
@@ -21,28 +22,28 @@ All tests are manual. No automated Pester test file exists — core behaviour in
 
 **Setup:** Shortcut target exists. App not running.
 **Action:** Run the script.
-**Expected:** `[Name]: launching via shortcut: <path>.lnk` then `[Name]: '[ProcessName]' is now running.`
+**Expected:** `[Name]: launching via shortcut: <path>.lnk` then `(presence mode: Window)` or `(presence mode: Tray)` then `[Name]: ready.`
 **Pass criteria:** App process visible in Task Manager within 30 seconds.
 
 ### TC-02 — Sticky Notes: baked-in arguments honoured via WshShell.Run
 
-**Setup:** Entry 06 shortcut Target contains `"...\ONENOTE.EXE" /memoryWindow start`. `ONENOTE` not running.
+**Setup:** Entry 04 shortcut Target contains `"...\ONENOTE.EXE" /memoryWindow start`. `ONENOTE` not running.
 **Action:** Run the script.
-**Expected:** `Sticky Notes: launching via shortcut: ...\06 Sticky Notes.lnk` then `'ONENOTE' is now running.` A sticky note window (not full OneNote UI) opens.
+**Expected:** `Sticky Notes: launching via shortcut: ...\04 Sticky Notes.lnk` then `(presence mode: Window)` then `Sticky Notes: ready.` A sticky note window (not full OneNote UI) opens.
 **Pass criteria:** Sticky note window visible. `ONENOTE` process running. Full OneNote UI NOT open.
 
 ### TC-03 — Already running: process detected before launch
 
 **Setup:** Launch one app manually before running the script.
 **Action:** Run the script.
-**Expected:** `[Name]: '[ProcessName]' already running. Skipping.` No second instance launched.
+**Expected:** `[Name]: already open. Skipping.` No second instance launched.
 **Pass criteria:** Only one instance of the process in Task Manager.
 
 ### TC-04 — Sticky Notes / OneNote process order: OneNote skipped after Sticky Notes
 
-**Setup:** Neither `ONENOTE` process running. Both entries 06 and 07 present.
+**Setup:** Neither `ONENOTE` process running. Both entries 04 and 05 present.
 **Action:** Run the script.
-**Expected:** Entry 06 launches and `ONENOTE` starts. Entry 07 logs `OneNote: 'ONENOTE' already running. Skipping.`
+**Expected:** Entry 04 launches and `ONENOTE` starts. Entry 05 logs `OneNote: already open. Skipping.`
 **Pass criteria:** One `ONENOTE` process. Sticky note window visible. Full OneNote UI not opened separately.
 
 ### TC-05 — Win32: shortcut target broken, exe found within depth 3
@@ -77,59 +78,73 @@ All tests are manual. No automated Pester test file exists — core behaviour in
 
 **Setup:** Delete or rename one shortcut file.
 **Action:** Run the script.
-**Expected:** `WARNING: [Name]: shortcut file not found: <path>`. App in failure list.
-**Pass criteria:** Script continues. Remaining apps launch.
+**Expected:** `WARNING: [Name]: shortcut file not found: <path>` and inline failure menu (Add / Modify / Skip).
+**Pass criteria:** Script continues after user selects Skip. Remaining apps launch.
 
 ### TC-10 — Win32: process does not appear within 30 seconds
 
 **Setup:** Point a shortcut to a valid exe that does not produce a detectable process within 30 seconds.
 **Action:** Run the script.
-**Expected:** After 30 seconds: `WARNING: [Name]: '[ProcessName]' did not appear within 30 seconds.`
+**Expected:** After 30 seconds: `WARNING: [Name]: did not become ready within 30 seconds.` and inline failure menu.
 **Pass criteria:** Script does not hang beyond 30 seconds. Failure logged.
 
-### TC-11 — Appx: AUMID resolved via Get-StartApps (step 1)
+### TC-11 — Phone Link: valid shortcut Arguments, no repair needed
 
-**Setup:** Phone Link installed and visible in Start. `PhoneExperienceHost` not running.
+**Setup:** Entry 06 shortcut Arguments field matches the installed AUMID. `PhoneExperienceHost` not running.
 **Action:** Run the script.
-**Expected:** `AUMID resolved via Get-StartApps: <aumid>` then `'PhoneExperienceHost' is now running.`
-**Pass criteria:** Phone Link window visible. `PhoneExperienceHost` in Task Manager.
+**Expected:** `Phone Link: launching via shortcut: ...\06 Phone Link.lnk` then `(presence mode: Window)` or `(presence mode: Tray)` then `Phone Link: ready.`
+**Pass criteria:** `PhoneExperienceHost` running in Task Manager.
 
-### TC-12 — Appx: AUMID resolved via KnownAumid verification (step 2)
+### TC-12 — Phone Link: Arguments stale, self-healing reconstructs AUMID
 
-**Setup:** Phone Link installed but NOT visible in `Get-StartApps`. `KnownAumid` package family present in `Get-AppxPackage`.
+**Setup:** Manually set the shortcut Arguments to an outdated AUMID (wrong version number). Phone Link installed.
 **Action:** Run the script.
-**Expected:** Step 1 skipped. `KnownAumid verified as installed: <aumid>`. App launches.
-**Pass criteria:** `PhoneExperienceHost` running. AUMID matches `KnownAumid`.
+**Expected:** `WARNING: [Name]: shortcut Arguments missing or invalid`. Script scans WindowsApps, finds the matching package folder, reads `AppxManifest.xml`, reconstructs AUMID, updates the shortcut, and launches.
+**Pass criteria:** Shortcut Arguments updated to correct AUMID. `PhoneExperienceHost` running.
 
-### TC-13 — Appx: AUMID resolved via AppxPackage manifest (step 3)
+### TC-13 — Phone Link: WindowsApps folder not found during argument repair
 
-**Setup:** Temporarily set `KnownAumid` to a fake package family. `Get-StartApps` does not return Phone Link.
-**Action:** Run the script.
-**Expected:** Steps 1 and 2 fail. `AUMID discovered via AppxPackage manifest: <aumid>`. App launches.
-**Pass criteria:** `PhoneExperienceHost` running. Manifest-discovered AUMID used.
+**Setup:** Temporarily rename or set the `WindowsApps` scan path to a non-existent location in the script.
+**Action:** Run the script with stale Arguments.
+**Expected:** `no folder matching '*<fragment>*' found in WindowsApps.` App in failure list.
+**Pass criteria:** Script continues. Phone Link in final failure summary.
 
-### TC-14 — Appx: all AUMID resolution steps fail
-
-**Setup:** Set `KnownAumid`, `AppxName`, and `StartAppName` to values matching nothing installed.
-**Action:** Run the script.
-**Expected:** All three steps fail. `no AUMID found. Skipping.` App in failure list.
-**Pass criteria:** Script continues. App in final failure summary.
-
-### TC-15 — Appx: already running
+### TC-14 — Phone Link: already running (tray/window)
 
 **Setup:** Phone Link already open before running the script.
 **Action:** Run the script.
-**Expected:** `Phone Link: 'PhoneExperienceHost' already running. Skipping.` AUMID resolution not attempted.
-**Pass criteria:** No second instance. Single `PhoneExperienceHost` in Task Manager.
+**Expected:** `Phone Link: already open. Skipping.` No second instance launched.
+**Pass criteria:** Single `PhoneExperienceHost` process in Task Manager.
 
-### TC-16 — Full sequence: all apps launch successfully
+### TC-15 — Presence mode: Window app detected correctly
+
+**Setup:** Any app that opens a visible window (e.g. Outlook, Chrome). Not running.
+**Action:** Run the script.
+**Expected:** Within `$SettleSeconds` (5 s), `(presence mode: Window)` logged. App confirmed ready when `MainWindowHandle != 0`.
+**Pass criteria:** Mode logged as `Window`. App window visible.
+
+### TC-16 — Presence mode: Tray app detected correctly
+
+**Setup:** Any tray-only app (e.g. OneDrive). Not running.
+**Action:** Run the script.
+**Expected:** No window appears within 5 s. `(presence mode: Tray)` logged. App confirmed ready on process presence alone.
+**Pass criteria:** Mode logged as `Tray`. Process visible in Task Manager. No window required.
+
+### TC-17 — Presence mode: $SettleSeconds tuning — slow machine
+
+**Setup:** Increase `$SettleSeconds` to 10 in the script. Use an app that normally opens a window after 6–8 s.
+**Action:** Run the script.
+**Expected:** Window appears before the settle period expires. App classified as `Window`, not `Tray`.
+**Pass criteria:** Mode logged as `Window`. Misclassification avoided by longer settle time.
+
+### TC-18 — Full sequence: all apps launch successfully
 
 **Setup:** All Win32 shortcut targets valid. Phone Link installed. No apps pre-running.
 **Action:** Run the script.
-**Expected:** Each app launches sequentially. Console ends with `Startup sequence completed successfully.`
+**Expected:** Each app launches sequentially with presence mode logged. Console ends with `Startup sequence completed successfully.`
 **Pass criteria:** All processes visible in Task Manager. No warnings or failure list.
 
-### TC-17 — Win32: repaired shortcut persists on second run
+### TC-19 — Win32: repaired shortcut persists on second run
 
 **Setup:** Trigger TC-05 or TC-06 to repair a shortcut. Close the launched app.
 **Action:** Run the script a second time without changes.
@@ -142,7 +157,7 @@ All tests are manual. No automated Pester test file exists — core behaviour in
 
 | TC | Scenario | Pass If |
 |----|----------|---------|
-| TC-01 | Valid Win32, not running | App launches within 30 s |
+| TC-01 | Valid Win32, not running | App launches; presence mode logged; ready within 30 s |
 | TC-02 | Sticky Notes via WshShell.Run | Sticky note window opens; `/memoryWindow start` honoured from .lnk |
 | TC-03 | App already running | Skipped; no second instance |
 | TC-04 | Sticky Notes then OneNote process order | OneNote skipped; one ONENOTE process |
@@ -150,12 +165,14 @@ All tests are manual. No automated Pester test file exists — core behaviour in
 | TC-06 | Broken Win32 target, user provides path | Shortcut updated; app launches via repaired .lnk |
 | TC-07 | Invalid then valid paths at prompt | Prompt repeats; accepts correct input |
 | TC-08 | User skips prompt | App in failure list; script continues |
-| TC-09 | `.lnk` file missing | Warning logged; script continues |
-| TC-10 | Win32 process timeout | Warning after 30 s; script continues |
-| TC-11 | Appx AUMID via Get-StartApps | Correct AUMID logged; app launches |
-| TC-12 | Appx AUMID via KnownAumid | KnownAumid confirmed; app launches |
-| TC-13 | Appx AUMID via manifest | Manifest AUMID used; app launches |
-| TC-14 | All AUMID steps fail | Warning logged; app in failure list |
-| TC-15 | Appx already running | Skipped; no AUMID resolution attempted |
-| TC-16 | Full sequence | All apps running; success message |
-| TC-17 | Repaired shortcut reused | No repair on second run |
+| TC-09 | `.lnk` file missing | Inline failure menu shown; script continues after Skip |
+| TC-10 | Win32 process timeout | Inline failure menu after 30 s; script continues |
+| TC-11 | Phone Link: valid Arguments | Launches via explorer.exe shell:appsFolder; PhoneExperienceHost running |
+| TC-12 | Phone Link: stale Arguments, self-healed | AUMID reconstructed from WindowsApps; shortcut updated; app launches |
+| TC-13 | Phone Link: WindowsApps scan fails | Warning logged; app in failure list |
+| TC-14 | Phone Link already running | Skipped; no second instance |
+| TC-15 | Presence mode: Window | Mode logged as Window; window visible |
+| TC-16 | Presence mode: Tray | Mode logged as Tray; process running; no window needed |
+| TC-17 | Presence mode: slow machine tuning | Window classified correctly with larger $SettleSeconds |
+| TC-18 | Full sequence | All apps running; success message |
+| TC-19 | Repaired shortcut reused | No repair on second run |

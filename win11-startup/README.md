@@ -1,6 +1,6 @@
 # Win11 Startup Launcher
 
-A curated Windows 11 startup launcher that sequentially starts a fixed list of personal applications. Uses a `WshShell.Run`-based launch strategy for Win32 apps so baked-in shortcut arguments are always honoured, with self-healing shortcut repair as a fallback. Appx (Store/packaged) apps are launched via AUMID resolved dynamically at runtime.
+A curated Windows 11 startup launcher that sequentially starts a fixed list of personal applications. Uses a `WshShell.Run`-based launch strategy for Win32 apps so baked-in shortcut arguments are always honoured, with self-healing shortcut repair as a fallback. Appx (Store/packaged) apps are launched via AUMID resolved dynamically at runtime. After each launch, the script automatically detects whether the app is window-based or tray-only — no per-app flags needed.
 
 ## Key Features
 
@@ -8,10 +8,12 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 - Two launch strategies per entry via `LaunchType`:
   - `Win32` — shortcut invoked via `WshShell.Run` so arguments baked into the `.lnk` Target field are preserved exactly. Self-healing repair and user-prompt fallback activate only when the shortcut target is broken.
   - `Appx` — AUMID resolved at runtime in three stages; `KnownAumid` is the primary candidate only, not a hardcoded dependency.
-- Skips any app whose process is already running.
+- **Runtime presence-mode detection** — after launch, `Get-AppPresenceMode` polls `MainWindowHandle` for `$SettleSeconds` (default 5 s). Apps that produce a visible window are classified as `Window` mode; apps that run headless in the system tray are classified as `Tray` mode. No `WindowCheck` flag or per-app configuration is needed.
+- `Test-AppAlreadyOpen` skips relaunch correctly for both Window and Tray apps — a tray app already in the process list is treated as open without requiring a visible window.
 - Bounded Win32 search — depth fixed at 3 to avoid slow machine-wide crawls.
 - Prompts user for exact executable path when automated Win32 repair fails; validates path before accepting.
-- Logs each outcome: running (skip), launched, repaired/discovered-and-launched, or failed.
+- Inline failure menu appears when a shortcut is missing or an app times out — offering Add+retry, Modify, or Skip without restarting the sequence.
+- Logs each outcome: running (skip), launched with detected mode, repaired/discovered-and-launched, or failed.
 
 ## App List
 
@@ -24,8 +26,9 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 | `ShortcutPath` | Yes | Full path to the `.lnk` shortcut file |
 | `ProcessName` | Yes | Process name used to detect if running and confirm launch (no `.exe`) |
 | `ExpectedExe` | Yes | Exact executable filename used during shortcut repair and user-prompt validation |
+| `ExpectedArguments` | No | Expected `Arguments` field value in the `.lnk`; triggers argument self-healing when present (e.g. Phone Link AUMID) |
 
-> Arguments needed at launch (e.g. `/memoryWindow start` for Sticky Notes) must be baked into the shortcut’s Target field. The script invokes the `.lnk` via `WshShell.Run`, which passes them automatically.
+> Arguments needed at launch (e.g. `/memoryWindow start` for Sticky Notes) must be baked into the shortcut's Target field. The script invokes the `.lnk` via `WshShell.Run`, which passes them automatically.
 
 ### Appx entry fields
 
@@ -44,20 +47,22 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 |---|-----|------------|-------|
 | 01 | Outlook | Win32 | |
 | 02 | Teams | Win32 | |
-| 03 | OneDrive | Win32 | |
+| 03 | OneDrive | Win32 | Tray app — classified automatically at runtime |
 | 04 | Sticky Notes | Win32 | Shortcut Target includes `/memoryWindow start`; `ExpectedExe`/`ProcessName` = `ONENOTE.EXE`/`ONENOTE` |
 | 05 | OneNote | Win32 | Shares `ONENOTE` process with entry 04; skipped if ONENOTE already running |
-| 06 | Phone Link | Appx | `KnownAumid`: `Microsoft.YourPhone_8wekyb3d8bbwe!App`; resolved dynamically at runtime |
+| 06 | Phone Link | Win32 | `ExpectedArguments`: `shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App`; argument self-healing scans WindowsApps for the package folder and reconstructs the AUMID from `AppxManifest.xml` |
 | 07 | Microsoft Edge | Win32 | |
 | 08 | Google Chrome | Win32 | |
 
 ## Win32 Launch Strategy
 
 ```
-1. Check if process is already running  -> skip if yes
-2. Verify .lnk file exists              -> log failure if missing
+1. Test-AppAlreadyOpen (process running?)   -> skip if yes
+2. Verify .lnk file exists                  -> inline failure menu if missing
 3. Read shortcut TargetPath
-4. Target valid?  -> invoke .lnk via WshShell.Run
+4. Target valid?  -> check Arguments if ExpectedArguments set
+   Arguments valid? -> invoke .lnk via WshShell.Run
+   Arguments wrong? -> Repair-ShortcutArguments -> invoke repaired .lnk
 5. Target broken? -> Repair-ShortcutTarget:
      a. Climb parent folders to find nearest existing folder
      b. Search downward max 3 levels for ExpectedExe
@@ -65,9 +70,24 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
      d. Not found? -> prompt user for exact exe path
      e. Valid input? -> update shortcut, invoke repaired .lnk
      f. Skipped? -> log failure, continue
-6. Wait up to 30 s for ProcessName to appear
-7. Log success or timeout failure
+6. Wait-ForAppReady:
+     Phase 1 (SettleSeconds): Get-AppPresenceMode polls MainWindowHandle
+       -> Window mode: continue to Phase 2
+       -> Tray mode:   confirm ready immediately
+     Phase 2 (remaining timeout): wait for MainWindowHandle (Window mode only)
+7. Log success or timeout failure; inline failure menu on timeout
 ```
+
+## Phone Link Argument Self-Healing
+
+Phone Link is a packaged UWP app. Its `PhoneExperienceHost.exe` lives under `C:\Program Files\WindowsApps\` which is ACL-locked to `TrustedInstaller` — direct `.exe` invocation always fails. The correct and only reliable launch path is via `explorer.exe shell:appsFolder\<AUMID>`.
+
+The script stores this as a Win32 `.lnk` targeting `explorer.exe` with the AUMID as the `Arguments` field. If the installed package version changes and the AUMID no longer matches, `Repair-ShortcutArguments` automatically:
+
+1. Extracts the `PackageFamilyName` fragment from `ExpectedArguments`.
+2. Scans `C:\Program Files\WindowsApps` for a matching folder (newest version preferred).
+3. Reads `AppxManifest.xml` to confirm the `AppId`.
+4. Reconstructs the AUMID and updates the shortcut `Arguments` field.
 
 ## Appx AUMID Resolution
 
@@ -78,6 +98,18 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 If all three fail -> app skipped, added to failure list
 ```
 
+## Presence Mode Detection
+
+`Get-AppPresenceMode` is called automatically after every launch. It polls `MainWindowHandle` for up to `$SettleSeconds` (default 5 s):
+
+| Result | Meaning | Ready condition |
+|--------|---------|----------------|
+| `Window` | A visible window appeared within settle time | `MainWindowHandle != 0` within timeout |
+| `Tray` | Process running but no window after settle time | Process presence alone is sufficient |
+| `$null` | Process never appeared during settle time | Continues polling up to full timeout |
+
+This removes the need for any `WindowCheck`, `TrayApp`, or equivalent per-app flag in the `$apps` table.
+
 ## Configuration
 
 | Variable | Default | Description |
@@ -85,8 +117,9 @@ If all three fail -> app skipped, added to failure list
 | `$startMenu` | System Start Menu Programs path | Base folder for all Win32 shortcut files |
 | `$MaxRepairDepth` | `3` | Maximum folder depth searched during Win32 shortcut repair |
 | `$InitialDelaySeconds` | `10` | Wait time after login before starting the sequence |
-| `$LaunchTimeoutSeconds` | `30` | Maximum seconds to wait for a process to appear after launch |
+| `$LaunchTimeoutSeconds` | `30` | Maximum seconds to wait for a process to become ready after launch |
 | `$PostLaunchPauseSeconds` | `2` | Pause between apps after a successful launch |
+| `$SettleSeconds` | `5` | Seconds polled for `MainWindowHandle` to classify an app as Window or Tray mode |
 
 ## Requirements
 
@@ -118,6 +151,7 @@ To run automatically at login, add a shortcut to this script in the Windows Star
 | v6 | Added optional `Arguments` field; Sticky Notes launched with `/memoryWindow start` |
 | v7 | Removed `Arguments` field; Win32 apps invoked via `WshShell.Run` on `.lnk` so baked-in arguments are preserved automatically |
 | v8 | Removed entries 4 (ShareFile), 5 (Greenshot), 8 (SAP GUI), 9 (Notepad++) from Default Entries; remaining entries renumbered 01–08 |
+| v9 | Replaced static `WindowCheck` flag with runtime presence-mode detection (`Get-AppPresenceMode`, `Test-AppAlreadyOpen`, `Wait-ForAppReady`); added `$SettleSeconds` config variable; Phone Link reclassified as Win32 with `ExpectedArguments` and argument self-healing |
 
 ## License
 

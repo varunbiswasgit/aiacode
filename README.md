@@ -45,7 +45,7 @@ Every code change must add a new row to the version history table in the per-too
 
 ## How This Repository Is Organised
 
-Each tool lives in its own self-contained folder. A folder holds the source script(s), a `README.md` explaining the tool, and a `TESTING.md` with test cases. There are no shared `scripts/`, `tests/`, or `README/` folders — everything a contributor needs for a given tool is in that tool’s folder.
+Each tool lives in its own self-contained folder. A folder holds the source script(s), a `README.md` explaining the tool, and a `TESTING.md` with test cases. There are no shared `scripts/`, `tests/`, or `README/` folders — everything a contributor needs for a given tool is in that tool's folder.
 
 ---
 
@@ -55,7 +55,7 @@ Each tool lives in its own self-contained folder. A folder holds the source scri
 |-----------|------------|
 | `.bas` | VBA module exported from an Office application (Word, Excel, or Outlook). Import into the VBA editor (`Alt+F11`) to use. |
 | `.ps1` | PowerShell script. Run from a PowerShell terminal or triggered by a VBA launcher. |
-| `.py` | Python script. Requires Python 3 and dependencies listed in the tool’s README. |
+| `.py` | Python script. Requires Python 3 and dependencies listed in the tool's README. |
 | `README.md` | Human-readable documentation for the tool — purpose, usage, configuration, and version history. |
 | `TESTING.md` | Test plan for the tool — manual test cases, automated test instructions, and pass criteria. |
 
@@ -70,7 +70,7 @@ Each tool lives in its own self-contained folder. A folder holds the source scri
 | [`excel-formatting`](excel-formatting/) | VBA (Excel) | Unified Excel formatting and cleanup macro with four interactive modes: simple formatting, advanced formatting, optional column splitting, and generic table extraction. |
 | [`outlook-keyword-search`](outlook-keyword-search/) | VBA + PowerShell | Single and batch keyword search across Outlook folders. Available in a standalone VBA version and a PS-assisted version where Outlook stays fully responsive. |
 | [`split-excel-by-manager`](split-excel-by-manager/) | VBA + Python | Splits an Excel workbook into separate files, one per unique manager name. Available as a VBA macro and a cross-platform Python script producing identical output. |
-| [`win11-startup`](win11-startup/) | PowerShell | Self-healing Windows 11 startup launcher with Win32 shortcut-based repair and dynamic Appx AUMID resolution. |
+| [`win11-startup`](win11-startup/) | PowerShell | Self-healing Windows 11 startup launcher with Win32 shortcut-based repair, dynamic Appx AUMID resolution, and runtime presence-mode detection (Window vs Tray) that removes the need for per-app flags. |
 | [`word-normalize-table`](word-normalize-table/) | VBA (Word) | Normalises all tables in the active document — sets width to 100%, clears row/cell constraints, centres cell content vertically. |
 | [`word-resize-border-images`](word-resize-border-images/) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border, and cleans blank paragraphs including Unicode invisible characters. |
 
@@ -87,7 +87,7 @@ cd aiacode
 
 ### 2. Find the script you need
 
-Browse the Scripts table above. Each folder’s `README.md` covers purpose, configuration, and usage.
+Browse the Scripts table above. Each folder's `README.md` covers purpose, configuration, and usage.
 
 ---
 
