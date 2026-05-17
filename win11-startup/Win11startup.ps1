@@ -31,6 +31,9 @@
 #                    When present, the SignerCertificate.Subject must contain that string.
 #                    Each app entry carries an optional ExpectedPublisher field; Microsoft apps
 #                    use 'CN=Microsoft Corporation', Chrome uses 'CN=Google LLC'.
+# - Process guard  : Test-AppAlreadyOpen now compares each matching process MainModule filename
+#                    against ExpectedExe before treating the app as already open, preventing
+#                    false skips caused by unrelated same-named processes.
 
 $startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -83,11 +86,27 @@ function Get-AppPresenceMode {
 }
 
 # Returns $true when the app is considered 'already open' based on its detected presence mode.
+# For Win32 apps, matching processes must also have MainModule.FileName equal to ExpectedExe.
 # Called at the top of Start-Win32App / Start-AppxApp before attempting a launch.
 function Test-AppAlreadyOpen {
-    param([string]$ProcessName)
+    param(
+        [string]$ProcessName,
+        [string]$ExpectedExe = ""
+    )
     $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
     if (-not $procs) { return $false }
+
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedExe)) {
+        $procs = $procs | Where-Object {
+            try {
+                [System.IO.Path]::GetFileName($_.MainModule.FileName) -ieq $ExpectedExe
+            } catch {
+                $false
+            }
+        }
+        if (-not $procs) { return $false }
+    }
+
     # If any instance owns a visible window, it is open in Window mode
     if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) { return $true }
     # Process running but no window -> could be Tray mode; treat as open so we don't relaunch
@@ -539,7 +558,7 @@ function Start-AppxApp {
 
 function Start-Win32App {
     param($App)
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) {
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe) {
         Write-Host "$($App.Name): already open. Skipping.`n"
         return $true
     }
