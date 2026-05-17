@@ -7,7 +7,13 @@ Move each item to **Done** after its commit lands.
 
 ## To Do
 
-_All tasks complete. No open items._
+### Fixes
+
+- [ ] **FIX-01** — Repair Add-menu Appx support mismatch: the new `Add-Shortcut` flow currently accepts `LaunchType = 'Appx'` but does not prompt for or persist the Appx-specific fields used by `Resolve-Aumid` (`StartAppName`, `KnownAumid`, `AppxName`). Either remove `Appx` from the Add flow or extend the prompt/export/import path to fully support those fields.
+
+- [ ] **FIX-02** — Restore a true Cancel path in the Add flow: the Add menu prompt says `or [0] to add a new app entry`, but `Show-AppPicker` already returns `$null` for `0`, so the same return value currently means both cancel and create-new. Split these outcomes so Add has both a real cancel action and an explicit create-new action.
+
+- [ ] **FIX-03** — Correct phase-2 timeout math in `Wait-ForAppReady`: the function uses `Min($script:SettleSeconds, $TimeoutSeconds)` for phase 1, but subtracts the full `$script:SettleSeconds` instead of the actual phase-1 value. Store the phase-1 settle duration in a variable and subtract that exact value when calculating remaining timeout.
 
 ---
 
