@@ -9,6 +9,8 @@
 # - Phone Link  : Win32 shortcut targeting explorer.exe with shell:appsFolder AUMID as Arguments
 #                 argument self-healing scans WindowsApps for the package family name fragment
 #                 and reconstructs the AUMID from the installed folder name + AppxManifest.xml
+# - Bootstrap   : before launch loop, ensures every Win32 .lnk exists at the expected path;
+#                 renames misnumbered matches found in the same folder, or creates fresh if absent
 
 $startMenu = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -125,6 +127,56 @@ function Prompt-ForExactExePath {
             Write-Warning "File name must be exactly $ExpectedExe"; continue
         }
         return $trimmed
+    }
+}
+
+function Find-MisnumberedShortcut {
+    param([string]$ExpectedPath, [string]$AppName)
+    $expectedFile = [System.IO.Path]::GetFileName($ExpectedPath)
+    $folder       = [System.IO.Path]::GetDirectoryName($ExpectedPath)
+    if (-not (Test-Path -LiteralPath $folder -PathType Container)) { return $null }
+    return Get-ChildItem -LiteralPath $folder -Filter "*.lnk" |
+        Where-Object { $_.Name -ne $expectedFile -and $_.BaseName -like "*$AppName*" } |
+        Select-Object -First 1
+}
+
+function Initialize-Shortcut {
+    param($App)
+    # Already exists at the expected path — nothing to do
+    if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { return }
+
+    # Look for a misnumbered .lnk with the same app name in the same folder
+    $misnumbered = Find-MisnumberedShortcut -ExpectedPath $App.ShortcutPath -AppName $App.Name
+    if ($misnumbered) {
+        Write-Host "$($App.Name): misnumbered shortcut found ('$($misnumbered.Name)'). Renaming to expected name."
+        Rename-Item -LiteralPath $misnumbered.FullName -NewName ([System.IO.Path]::GetFileName($App.ShortcutPath))
+        return
+    }
+
+    # No .lnk found at all — create it fresh
+    Write-Warning "$($App.Name): no shortcut found at '$($App.ShortcutPath)'. Creating..."
+
+    # Apps with ExpectedArguments (e.g. Phone Link) — fully automatic, no prompt needed
+    if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
+        $sc = $WshShell.CreateShortcut($App.ShortcutPath)
+        $sc.TargetPath       = "C:\Windows\explorer.exe"
+        $sc.Arguments        = $App.ExpectedArguments
+        $sc.WorkingDirectory = "C:\Windows"
+        $sc.Save()
+        Write-Host "$($App.Name): shortcut created with Arguments: $($App.ExpectedArguments)"
+        return
+    }
+
+    # Standard Win32 apps — prompt user for the exe path, then create shortcut
+    $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe
+    if ($exePath) {
+        $sc = $WshShell.CreateShortcut($App.ShortcutPath)
+        $sc.TargetPath       = $exePath
+        $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
+        $sc.Save()
+        Write-Host "$($App.Name): shortcut created at '$($App.ShortcutPath)'."
+    } else {
+        Write-Warning "$($App.Name): shortcut creation skipped by user."
     }
 }
 
@@ -311,6 +363,15 @@ function Start-Win32App {
 
 Write-Host "Waiting $InitialDelaySeconds seconds for system to stabilize..."
 Start-Sleep -Seconds $InitialDelaySeconds
+
+# Bootstrap: ensure all Win32 .lnk files exist and are correctly named before launching
+Write-Host "`n--- Shortcut bootstrap ---"
+foreach ($app in $apps) {
+    if ($app.LaunchType -eq "Win32") {
+        Initialize-Shortcut -App $app
+    }
+}
+Write-Host "--- Bootstrap complete ---`n"
 
 $failedApps = @()
 foreach ($app in $apps) {
