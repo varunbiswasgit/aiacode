@@ -38,6 +38,11 @@ Move each item to **Done** after its commit lands.
 
 - [ ] **REF-01** — Externalize `$apps` to `apps.json`: move the inline `$apps` table from `Win11startup.ps1` into a sibling `apps.json` config file loaded via `Get-Content | ConvertFrom-Json`. Validate required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`) on load and fail closed if the file is missing or malformed. Allows adding new app entries without editing the script source. All existing security gates (allowlist, signature, publisher) remain unchanged.
   > _Achievable: replace the inline array with a single loader block; all downstream code is field-name-based and requires no other changes._
+  > _Prerequisite: must be completed before REF-02._
+
+- [ ] **REF-02** — Write-back new app entries to `apps.json` via Add menu: extend the **[2] Add shortcut** flow to prompt the user for all required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`, optional `ExpectedPublisher`, optional `ExpectedArguments`), validate each field passes the existing security gates (allowlist, signature, publisher), append the new entry to the in-memory `$apps` array, and persist the updated array back to `apps.json` via `ConvertTo-Json | Set-Content`. The Delete menu flow should similarly remove the entry from `apps.json` when the shortcut is deleted.
+  > _Achievable: self-contained change to Add-Shortcut and Remove-Shortcut; no changes to launch or repair logic._
+  > _Depends on: REF-01._
 
 ---
 
