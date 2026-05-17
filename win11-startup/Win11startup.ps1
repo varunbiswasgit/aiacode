@@ -14,7 +14,7 @@
 # - Main menu      : on launch, user chooses Run / Add / Delete / Modify / Exit
 #                    inline failure menu (Add+retry / Modify / Skip) appears when a shortcut
 #                    is missing or an app fails to start during the startup sequence
-# - Presence mode  : after launch, Get-AppPresenceMode polls MainWindowHandle for $SettleSeconds;
+# - Presence mode  : after launch, Get-AppPresenceMode polls MainWindowHandle for $script:SettleSeconds;
 #                    if a window appears -> 'Window' mode (skip only when window visible);
 #                    if no window appears -> 'Tray' mode (skip when process running).
 #                    No per-app flags needed; detection is fully automatic at runtime.
@@ -38,41 +38,42 @@
 #                    from ExpectedArguments. Pattern requires the full value to match
 #                    ^shell:appsFolder\<PFN>!<AppId>$ and constrains PFN to start with
 #                    'Microsoft.' to block path injection via crafted argument strings.
+# - Script scope   : All shared vars ($WshShell, $apps, $startMenu, $MaxRepairDepth,
+#                    $InitialDelaySeconds, $LaunchTimeoutSeconds, $PostLaunchPauseSeconds,
+#                    $SettleSeconds, $AllowedExeRoots) use $script: scope so dot-sourced
+#                    Pester runs cannot leak or shadow globals.
 
-$startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
-$MaxRepairDepth         = 3
-$InitialDelaySeconds    = 10
-$LaunchTimeoutSeconds   = 30
-$PostLaunchPauseSeconds = 2
-$SettleSeconds          = 5   # how long to wait for MainWindowHandle after launch before classifying as Tray
+$script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
+$script:MaxRepairDepth         = 3
+$script:InitialDelaySeconds    = 10
+$script:LaunchTimeoutSeconds   = 30
+$script:PostLaunchPauseSeconds = 2
+$script:SettleSeconds          = 5
 
-# Allowlisted root paths for exe repair; user-supplied or auto-discovered paths must live under one of these.
-$AllowedExeRoots = @(
+$script:AllowedExeRoots = @(
     $env:ProgramFiles,
     ${env:ProgramFiles(x86)},
     $env:SystemRoot
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
-$apps = @(
-    @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";            ExpectedExe = "OUTLOOK.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Teams";          LaunchType = "Win32"; ShortcutPath = "$startMenu\02 Teams.lnk";          ProcessName = "ms-teams";           ExpectedExe = "ms-teams.exe"; ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";           ExpectedExe = "OneDrive.exe"; ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\04 Sticky Notes.lnk";   ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\05 OneNote.lnk";        ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Phone Link";     LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Phone Link.lnk";     ProcessName = "PhoneExperienceHost"; ExpectedExe = "explorer.exe"; ExpectedArguments = "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App"; ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$startMenu\07 Microsoft Edge.lnk"; ProcessName = "msedge";             ExpectedExe = "msedge.exe";   ExpectedPublisher = "CN=Microsoft Corporation" },
-    @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$startMenu\08 Google Chrome.lnk";  ProcessName = "chrome";             ExpectedExe = "chrome.exe";   ExpectedPublisher = "CN=Google LLC" }
+$script:apps = @(
+    @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$script:startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";            ExpectedExe = "OUTLOOK.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Teams";          LaunchType = "Win32"; ShortcutPath = "$script:startMenu\02 Teams.lnk";          ProcessName = "ms-teams";           ExpectedExe = "ms-teams.exe"; ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$script:startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";           ExpectedExe = "OneDrive.exe"; ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$script:startMenu\04 Sticky Notes.lnk";   ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$script:startMenu\05 OneNote.lnk";        ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Phone Link";     LaunchType = "Win32"; ShortcutPath = "$script:startMenu\06 Phone Link.lnk";     ProcessName = "PhoneExperienceHost"; ExpectedExe = "explorer.exe"; ExpectedArguments = "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App"; ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$script:startMenu\07 Microsoft Edge.lnk"; ProcessName = "msedge";             ExpectedExe = "msedge.exe";   ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$script:startMenu\08 Google Chrome.lnk";  ProcessName = "chrome";             ExpectedExe = "chrome.exe";   ExpectedPublisher = "CN=Google LLC" }
 )
 
-$WshShell = New-Object -ComObject WScript.Shell
+$script:WshShell = New-Object -ComObject WScript.Shell
 
 # ---------------------------------------------------------------------------
 # Presence mode detection
-# Polls MainWindowHandle for up to $SettleSeconds after launch.
-# Returns 'Window' if a visible window appears; 'Tray' if the process stays headless.
 # ---------------------------------------------------------------------------
 function Get-AppPresenceMode {
-    param([string]$ProcessName, [int]$SettleSecs = $SettleSeconds)
+    param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds)
     $elapsed = 0
     while ($elapsed -lt $SettleSecs) {
         $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
@@ -82,16 +83,12 @@ function Get-AppPresenceMode {
         Start-Sleep -Seconds 1
         $elapsed++
     }
-    # Process exists but no window appeared within settle time -> tray-only
     if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) {
         return 'Tray'
     }
-    return $null   # process never started
+    return $null
 }
 
-# Returns $true when the app is considered 'already open' based on its detected presence mode.
-# For Win32 apps, matching processes must also have MainModule.FileName equal to ExpectedExe.
-# Called at the top of Start-Win32App / Start-AppxApp before attempting a launch.
 function Test-AppAlreadyOpen {
     param(
         [string]$ProcessName,
@@ -111,23 +108,16 @@ function Test-AppAlreadyOpen {
         if (-not $procs) { return $false }
     }
 
-    # If any instance owns a visible window, it is open in Window mode
     if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) { return $true }
-    # Process running but no window -> could be Tray mode; treat as open so we don't relaunch
     return $true
 }
 
-# Waits for the app to reach a 'ready' state after launch.
-# Phase 1 ($SettleSeconds): classify as Window or Tray.
-# Phase 2 (remaining timeout): for Window mode, wait for MainWindowHandle; Tray mode is already confirmed.
 function Wait-ForAppReady {
-    param([string]$ProcessName, [int]$TimeoutSeconds = $LaunchTimeoutSeconds)
+    param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
 
-    # Phase 1: settle
-    $mode = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs ([Math]::Min($SettleSeconds, $TimeoutSeconds))
+    $mode = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs ([Math]::Min($script:SettleSeconds, $TimeoutSeconds))
     if ($null -eq $mode) {
-        # Process never appeared during settle period; keep waiting for process up to full timeout
-        $remaining = $TimeoutSeconds - $SettleSeconds
+        $remaining = $TimeoutSeconds - $script:SettleSeconds
         $elapsed   = 0
         while ($elapsed -lt $remaining) {
             if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) { return $true }
@@ -139,13 +129,9 @@ function Wait-ForAppReady {
 
     Write-Host "  (presence mode: $mode)"
 
-    if ($mode -eq 'Tray') {
-        # Tray apps confirm on process presence alone - already confirmed in Get-AppPresenceMode
-        return $true
-    }
+    if ($mode -eq 'Tray') { return $true }
 
-    # Window mode: wait for MainWindowHandle in remaining time
-    $remaining = $TimeoutSeconds - $SettleSeconds
+    $remaining = $TimeoutSeconds - $script:SettleSeconds
     $elapsed   = 0
     while ($elapsed -lt $remaining) {
         $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
@@ -157,29 +143,29 @@ function Wait-ForAppReady {
 }
 
 # ---------------------------------------------------------------------------
-# Helper: numbered app picker used by main menu and inline failure menus
+# Helper: numbered app picker
 # ---------------------------------------------------------------------------
 function Show-AppPicker {
     param([string]$Prompt)
     Write-Host "`n$Prompt"
-    for ($i = 0; $i -lt $apps.Count; $i++) {
-        $exists = if (Test-Path -LiteralPath $apps[$i].ShortcutPath -PathType Leaf) { "exists" } else { "missing" }
-        Write-Host ("  [{0}] {1,-20}  {2}  ({3})" -f ($i + 1), $apps[$i].Name, $exists, $apps[$i].ShortcutPath)
+    for ($i = 0; $i -lt $script:apps.Count; $i++) {
+        $exists = if (Test-Path -LiteralPath $script:apps[$i].ShortcutPath -PathType Leaf) { "exists" } else { "missing" }
+        Write-Host ("  [{0}] {1,-20}  {2}  ({3})" -f ($i + 1), $script:apps[$i].Name, $exists, $script:apps[$i].ShortcutPath)
     }
     Write-Host "  [0] Cancel"
     while ($true) {
         $choice = Read-Host "Select"
         if ($choice -match '^\d+$') {
             $idx = [int]$choice
-            if ($idx -eq 0)                            { return $null }
-            if ($idx -ge 1 -and $idx -le $apps.Count) { return $apps[$idx - 1] }
+            if ($idx -eq 0)                                          { return $null }
+            if ($idx -ge 1 -and $idx -le $script:apps.Count)        { return $script:apps[$idx - 1] }
         }
-        Write-Warning "Invalid selection. Enter a number between 0 and $($apps.Count)."
+        Write-Warning "Invalid selection. Enter a number between 0 and $($script:apps.Count)."
     }
 }
 
 # ---------------------------------------------------------------------------
-# Shortcut management: Add / Delete / Modify
+# Shortcut management
 # ---------------------------------------------------------------------------
 function Add-Shortcut {
     param($App)
@@ -220,7 +206,7 @@ function Edit-Shortcut {
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($exePath) {
         if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-            $sc = $WshShell.CreateShortcut($App.ShortcutPath)
+            $sc = $script:WshShell.CreateShortcut($App.ShortcutPath)
             $sc.TargetPath       = $exePath
             $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
             $sc.Save()
@@ -274,7 +260,7 @@ function Resolve-Aumid {
 function Get-ShortcutObject {
     param([string]$ShortcutPath)
     if (-not (Test-Path -LiteralPath $ShortcutPath)) { throw "Shortcut not found: $ShortcutPath" }
-    return $WshShell.CreateShortcut($ShortcutPath)
+    return $script:WshShell.CreateShortcut($ShortcutPath)
 }
 
 function Get-NearestExistingParent {
@@ -320,13 +306,10 @@ function Update-ShortcutTarget {
     $shortcut.Save()
 }
 
-# ---------------------------------------------------------------------------
-# Security: validate an exe path against the allowlisted roots.
-# ---------------------------------------------------------------------------
 function Test-ExePathAllowed {
     param([string]$ExePath)
     $full = [System.IO.Path]::GetFullPath($ExePath)
-    foreach ($root in $AllowedExeRoots) {
+    foreach ($root in $script:AllowedExeRoots) {
         $rootFull = [System.IO.Path]::GetFullPath($root.TrimEnd('\\'))
         if ($full.StartsWith($rootFull + '\\', [System.StringComparison]::OrdinalIgnoreCase)) {
             return $true
@@ -335,11 +318,6 @@ function Test-ExePathAllowed {
     return $false
 }
 
-# ---------------------------------------------------------------------------
-# Security: verify Authenticode signature before persisting any exe path.
-# Rejects files whose signature status is not 'Valid'.
-# Optional -ExpectedPublisher: when supplied, SignerCertificate.Subject must contain the string.
-# ---------------------------------------------------------------------------
 function Test-ExeSignatureTrusted {
     param(
         [string]$ExePath,
@@ -382,7 +360,7 @@ function Prompt-ForExactExePath {
             Write-Warning "File name must be exactly $ExpectedExe"; continue
         }
         if (-not (Test-ExePathAllowed -ExePath $trimmed)) {
-            Write-Warning "Path is outside allowed roots ($($AllowedExeRoots -join ', ')): $trimmed"
+            Write-Warning "Path is outside allowed roots ($($script:AllowedExeRoots -join ', ')): $trimmed"
             continue
         }
         if (-not (Test-ExeSignatureTrusted -ExePath $trimmed -ExpectedPublisher $ExpectedPublisher)) {
@@ -417,7 +395,7 @@ function Initialize-Shortcut {
     Write-Warning "$($App.Name): no shortcut found at '$($App.ShortcutPath)'. Creating..."
 
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
-        $sc = $WshShell.CreateShortcut($App.ShortcutPath)
+        $sc = $script:WshShell.CreateShortcut($App.ShortcutPath)
         $sc.TargetPath       = "C:\Windows\explorer.exe"
         $sc.Arguments        = $App.ExpectedArguments
         $sc.WorkingDirectory = "C:\Windows"
@@ -428,7 +406,7 @@ function Initialize-Shortcut {
 
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($exePath) {
-        $sc = $WshShell.CreateShortcut($App.ShortcutPath)
+        $sc = $script:WshShell.CreateShortcut($App.ShortcutPath)
         $sc.TargetPath       = $exePath
         $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
         $sc.Save()
@@ -445,8 +423,8 @@ function Repair-ShortcutTarget {
     Write-Warning "$($App.Name): shortcut target missing or invalid: $targetPath"
     $existingParent = Get-NearestExistingParent -Path $targetPath
     if ($existingParent) {
-        Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $existingParent (max depth $MaxRepairDepth)..."
-        $foundExe = Find-ExeWithinDepth -RootFolder $existingParent -ExpectedExe $App.ExpectedExe -MaxDepth $MaxRepairDepth
+        Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $existingParent (max depth $script:MaxRepairDepth)..."
+        $foundExe = Find-ExeWithinDepth -RootFolder $existingParent -ExpectedExe $App.ExpectedExe -MaxDepth $script:MaxRepairDepth
         if ($foundExe) {
             if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
                 Write-Warning "$($App.Name): discovered exe is outside allowed roots. Skipping auto-repair: $($foundExe.FullName)"
@@ -458,7 +436,7 @@ function Repair-ShortcutTarget {
                 return $foundExe.FullName
             }
         }
-        Write-Warning "$($App.Name): $($App.ExpectedExe) not found within $MaxRepairDepth levels of $existingParent."
+        Write-Warning "$($App.Name): $($App.ExpectedExe) not found within $script:MaxRepairDepth levels of $existingParent."
     } else {
         Write-Warning "$($App.Name): could not determine an existing parent folder from the broken target."
     }
@@ -475,8 +453,6 @@ function Repair-ShortcutArguments {
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
     Write-Warning "$($App.Name): shortcut Arguments missing or invalid: '$($shortcut.Arguments)'"
 
-    # Anchored regex: full ExpectedArguments must match shell:appsFolder\<PFN>!<AppId>
-    # PFN constrained to start with 'Microsoft.' to prevent injection via crafted argument strings.
     $aumidFragment = $null
     if ($App.ExpectedArguments -match '^shell:appsFolder\\(Microsoft\.[A-Za-z0-9._]+_[A-Za-z0-9]+)![A-Za-z0-9._-]+$') {
         $fullPfn       = $Matches[1]
@@ -548,12 +524,12 @@ function Start-AppxApp {
     try {
         Write-Host "$($App.Name): launching via shell:appsFolder\$aumid"
         Start-Process explorer.exe "shell:appsFolder\$aumid" -ErrorAction Stop
-        if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
+        if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $script:LaunchTimeoutSeconds) {
             Write-Host "$($App.Name): ready.`n"
-            Start-Sleep -Seconds $PostLaunchPauseSeconds
+            Start-Sleep -Seconds $script:PostLaunchPauseSeconds
             return $true
         } else {
-            Write-Warning "$($App.Name): did not become ready within $LaunchTimeoutSeconds seconds.`n"
+            Write-Warning "$($App.Name): did not become ready within $script:LaunchTimeoutSeconds seconds.`n"
             return $false
         }
     } catch {
@@ -569,7 +545,6 @@ function Start-Win32App {
         return $true
     }
 
-    # ---- Inline failure menu: shortcut file not found ----
     if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
         Write-Warning "$($App.Name): shortcut file not found: $($App.ShortcutPath)"
         Write-Host "  [1] Add / fix shortcut now and retry launch"
@@ -623,16 +598,15 @@ function Start-Win32App {
         }
 
         Write-Host "$($App.Name): launching via shortcut: $($App.ShortcutPath)"
-        $WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
+        $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
 
-        if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
+        if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $script:LaunchTimeoutSeconds) {
             Write-Host "$($App.Name): ready.`n"
-            Start-Sleep -Seconds $PostLaunchPauseSeconds
+            Start-Sleep -Seconds $script:PostLaunchPauseSeconds
             return $true
         }
 
-        # ---- Inline failure menu: app did not become ready in time ----
-        Write-Warning "$($App.Name): did not become ready within $LaunchTimeoutSeconds seconds."
+        Write-Warning "$($App.Name): did not become ready within $script:LaunchTimeoutSeconds seconds."
         Write-Host "  [1] Modify shortcut for $($App.Name) and retry"
         Write-Host "  [2] Modify a different shortcut"
         Write-Host "  [3] Skip"
@@ -692,13 +666,13 @@ switch ($mainChoice) {
 }
 
 # ---------------------------------------------------------------------------
-# Startup sequence (option 1 or Enter)
+# Startup sequence
 # ---------------------------------------------------------------------------
-Write-Host "Waiting $InitialDelaySeconds seconds for system to stabilize..."
-Start-Sleep -Seconds $InitialDelaySeconds
+Write-Host "Waiting $script:InitialDelaySeconds seconds for system to stabilize..."
+Start-Sleep -Seconds $script:InitialDelaySeconds
 
 Write-Host "`n--- Shortcut bootstrap ---"
-foreach ($app in $apps) {
+foreach ($app in $script:apps) {
     if ($app.LaunchType -eq "Win32") {
         Initialize-Shortcut -App $app
     }
@@ -706,7 +680,7 @@ foreach ($app in $apps) {
 Write-Host "--- Bootstrap complete ---`n"
 
 $failedApps = @()
-foreach ($app in $apps) {
+foreach ($app in $script:apps) {
     $ok = if ($app.LaunchType -eq "Appx") {
         Start-AppxApp -App $app
     } else {

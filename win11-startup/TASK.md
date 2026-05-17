@@ -7,11 +7,6 @@ Move each item to **Done** after its commit lands.
 
 ## To Do
 
-### Hardening
-
-- [ ] **HARD-02** — Add `$script:` scope to shared vars: prefix `$WshShell`, `$apps`, `$startMenu`, `$MaxRepairDepth`, `$InitialDelaySeconds`, `$LaunchTimeoutSeconds`, `$PostLaunchPauseSeconds`, `$SettleSeconds`, and `$AllowedExeRoots` so dot-sourced Pester runs cannot leak or shadow globals.
-  > _Achievable: search-and-replace on declarations and all references._
-
 ### Unit Tests (Pester)
 
 - [ ] **TEST-01** — Pester scaffold: create `Win11startup.Tests.ps1`; add `BeforeAll` that sets `$env:PS_STARTUP_TESTMODE = '1'` then dot-sources the script. Add a 2-line guard in the main script that skips the menu and startup sequence when the env var is set.
@@ -36,11 +31,11 @@ Move each item to **Done** after its commit lands.
 
 ### Refactor
 
-- [ ] **REF-01** — Externalize `$apps` to `apps.json`: move the inline `$apps` table from `Win11startup.ps1` into a sibling `apps.json` config file loaded via `Get-Content | ConvertFrom-Json`. Validate required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`) on load and fail closed if the file is missing or malformed. Allows adding new app entries without editing the script source. All existing security gates (allowlist, signature, publisher) remain unchanged.
+- [ ] **REF-01** — Externalize `$script:apps` to `apps.json`: move the inline `$script:apps` table from `Win11startup.ps1` into a sibling `apps.json` config file loaded via `Get-Content | ConvertFrom-Json`. Validate required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`) on load and fail closed if the file is missing or malformed. Allows adding new app entries without editing the script source. All existing security gates (allowlist, signature, publisher) remain unchanged.
   > _Achievable: replace the inline array with a single loader block; all downstream code is field-name-based and requires no other changes._
   > _Prerequisite: must be completed before REF-02._
 
-- [ ] **REF-02** — Write-back new app entries to `apps.json` via Add menu: extend the **[2] Add shortcut** flow to prompt the user for all required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`, optional `ExpectedPublisher`, optional `ExpectedArguments`), validate each field passes the existing security gates (allowlist, signature, publisher), append the new entry to the in-memory `$apps` array, and persist the updated array back to `apps.json` via `ConvertTo-Json | Set-Content`. The Delete menu flow should similarly remove the entry from `apps.json` when the shortcut is deleted.
+- [ ] **REF-02** — Write-back new app entries to `apps.json` via Add menu: extend the **[2] Add shortcut** flow to prompt the user for all required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`, optional `ExpectedPublisher`, optional `ExpectedArguments`), validate each field passes the existing security gates (allowlist, signature, publisher), append the new entry to the in-memory `$script:apps` array, and persist the updated array back to `apps.json` via `ConvertTo-Json | Set-Content`. The Delete menu flow should similarly remove the entry from `apps.json` when the shortcut is deleted.
   > _Achievable: self-contained change to Add-Shortcut and Remove-Shortcut; no changes to launch or repair logic._
   > _Depends on: REF-01._
 
@@ -59,9 +54,10 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
-- [x] **SEC-01** — Allowlist exe repair paths: added `$AllowedExeRoots` config array and `Test-ExePathAllowed` helper; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject paths outside allowed roots. _(v10)_
+- [x] **SEC-01** — Allowlist exe repair paths: added `$script:AllowedExeRoots` config array and `Test-ExePathAllowed` helper; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject paths outside allowed roots. _(v10)_
 - [x] **SEC-02** — Authenticode signature check: added `Test-ExeSignatureTrusted` using `Get-AuthenticodeSignature`; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject executables whose signature status is not `Valid`. _(v11)_
 - [x] **SEC-03** — Publisher allowlist: added optional `ExpectedPublisher` field per app entry; `Test-ExeSignatureTrusted` accepts `-ExpectedPublisher` and verifies `SignerCertificate.Subject` contains the expected string when provided. Microsoft apps use `CN=Microsoft Corporation`; Chrome uses `CN=Google LLC`. _(v12)_
 - [x] **SEC-04** — Process-name collision guard: `Test-AppAlreadyOpen` now accepts `ExpectedExe`, filters matching processes by `MainModule.FileName`, and returns false if no exact executable match remains; `Start-Win32App` passes `App.ExpectedExe`. _(v13)_
 - [x] **HARD-01** — Anchored `Repair-ShortcutArguments` regex: replaced loose PFN extraction with a fully anchored pattern `^shell:appsFolder\\(Microsoft\.[A-Za-z0-9._]+_[A-Za-z0-9]+)![A-Za-z0-9._-]+$` that constrains PFN to start with `Microsoft.` and requires the full argument string to match, blocking path injection via crafted `ExpectedArguments` values. _(v14)_
+- [x] **HARD-02** — `$script:` scope on all shared vars: prefixed `$WshShell`, `$apps`, `$startMenu`, `$MaxRepairDepth`, `$InitialDelaySeconds`, `$LaunchTimeoutSeconds`, `$PostLaunchPauseSeconds`, `$SettleSeconds`, and `$AllowedExeRoots` with `$script:` on declaration and all references; prevents variable leak or shadowing when dot-sourced by Pester. _(v15)_
 - [x] **HARD-03** — Safer XML manifest loading: `Repair-ShortcutArguments` now uses `[xml]::new(); $manifest.Load($manifestPath)` instead of `[xml]$manifest = Get-Content` to handle BOMs and large manifests. _(v11)_
