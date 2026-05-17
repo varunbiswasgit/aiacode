@@ -28,7 +28,7 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 | `ProcessName` | Yes | Process name used to detect if running and confirm launch (no `.exe`) |
 | `ExpectedExe` | Yes | Exact executable filename used during shortcut repair and user-prompt validation |
 | `ExpectedPublisher` | No | Authenticode signer CN string; verified before any repaired or user-supplied exe is persisted |
-| `ExpectedArguments` | No | Expected `Arguments` field value in the `.lnk`; triggers argument self-healing when present (e.g. Phone Link AUMID) |
+| `ExpectedArguments` | No | Expected `Arguments` field value in the `.lnk`; triggers argument self-healing when present and the shortcut arguments become stale (e.g. a `shell:appsFolder\<AUMID>` value for a packaged app launched via `explorer.exe`) |
 | `StartAppName` | No | Leave empty for Win32-only entries |
 | `KnownAumid` | No | Leave empty for Win32-only entries |
 | `AppxName` | No | Leave empty for Win32-only entries |
@@ -85,16 +85,18 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 7. Log success or timeout failure; inline failure menu on timeout
 ```
 
-## Phone Link Argument Self-Healing
+## Shortcut Argument Self-Healing
 
-Phone Link is a packaged UWP app. Its `PhoneExperienceHost.exe` lives under `C:\Program Files\WindowsApps\` which is ACL-locked to `TrustedInstaller` — direct `.exe` invocation always fails. The correct and only reliable launch path is via `explorer.exe shell:appsFolder\<AUMID>`.
+Some apps cannot be launched by invoking their `.exe` directly. Packaged UWP and MSIX apps install their binaries under `C:\Program Files\WindowsApps\`, a folder ACL-locked to `TrustedInstaller`. Direct `.exe` invocation from this path is always blocked. The correct launch path for any such app is via `explorer.exe shell:appsFolder\<AUMID>`.
 
-The script stores this as a Win32 `.lnk` targeting `explorer.exe` with the AUMID as the `Arguments` field. If the installed package version changes and the AUMID no longer matches, `Repair-ShortcutArguments` automatically:
+The script stores these as Win32 `.lnk` entries targeting `explorer.exe`, with the `shell:appsFolder\<AUMID>` value in the shortcut `Arguments` field and the same value in `ExpectedArguments`. When Windows updates the app and the installed package version changes, the AUMID embedded in the shortcut becomes stale. `Repair-ShortcutArguments` handles this automatically for any entry that carries an `ExpectedArguments` value:
 
-1. Extracts the `PackageFamilyName` fragment from `ExpectedArguments`.
-2. Scans `C:\Program Files\WindowsApps` for a matching folder (newest version preferred).
-3. Reads `AppxManifest.xml` to confirm the `AppId`.
-4. Reconstructs the AUMID and updates the shortcut `Arguments` field.
+1. Extracts the `PackageFamilyName` fragment from `ExpectedArguments` using an anchored regex.
+2. Scans `C:\Program Files\WindowsApps` for a folder matching that fragment (newest version preferred).
+3. Reads `AppxManifest.xml` from the matched folder to confirm the current `AppId`.
+4. Reconstructs the AUMID as `<PackageFamilyName>!<AppId>` and updates the shortcut `Arguments` field.
+
+This applies to any packaged app entry in `apps.json` that sets `ExpectedArguments` to a `shell:appsFolder\...` value — not only the default Phone Link entry.
 
 ## Appx AUMID Resolution
 
@@ -195,6 +197,7 @@ To run automatically at login, add a shortcut to this script in the Windows Star
 | v17 | Externalised `$script:apps` to `apps.json` (`Import-AppsConfig` / `Export-AppsConfig`); Add and Delete menu flows persist changes automatically |
 | v18 | FIX-01: Add-menu Appx support (`StartAppName`, `KnownAumid`, `AppxName` collected and persisted); FIX-02: `Show-AppPicker -AllowNew` with `__NEW__` sentinel; FIX-03: `Wait-ForAppReady` phase-1 clamping fixes phase-2 timeout math |
 | v19 | TEST-08–12 Pester tests added (Import-AppsConfig, Get-NearestExistingParent, Show-AppPicker -AllowNew, Add-Shortcut dispatch, Wait-ForAppReady clamping); apps.json updated with Appx fields on all entries; README version history and field tables completed |
+| v20 | Generalised "Shortcut Argument Self-Healing" section — applies to any `ExpectedArguments`-bearing entry, not only Phone Link; updated `ExpectedArguments` field description accordingly |
 
 ## License
 
