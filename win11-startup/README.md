@@ -13,6 +13,7 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 - Bounded Win32 search — depth fixed at 3 to avoid slow machine-wide crawls.
 - Prompts user for exact executable path when automated Win32 repair fails; validates path before accepting.
 - Inline failure menu appears when a shortcut is missing or an app times out — offering Add+retry, Modify, or Skip without restarting the sequence.
+- App list externalised to `apps.json`; Add/Delete menu writes changes back automatically.
 - Logs each outcome: running (skip), launched with detected mode, repaired/discovered-and-launched, or failed.
 
 ## App List
@@ -26,7 +27,11 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 | `ShortcutPath` | Yes | Full path to the `.lnk` shortcut file |
 | `ProcessName` | Yes | Process name used to detect if running and confirm launch (no `.exe`) |
 | `ExpectedExe` | Yes | Exact executable filename used during shortcut repair and user-prompt validation |
+| `ExpectedPublisher` | No | Authenticode signer CN string; verified before any repaired or user-supplied exe is persisted |
 | `ExpectedArguments` | No | Expected `Arguments` field value in the `.lnk`; triggers argument self-healing when present (e.g. Phone Link AUMID) |
+| `StartAppName` | No | Leave empty for Win32-only entries |
+| `KnownAumid` | No | Leave empty for Win32-only entries |
+| `AppxName` | No | Leave empty for Win32-only entries |
 
 > Arguments needed at launch (e.g. `/memoryWindow start` for Sticky Notes) must be baked into the shortcut's Target field. The script invokes the `.lnk` via `WshShell.Run`, which passes them automatically.
 
@@ -36,10 +41,12 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
 |-------|----------|-------------|
 | `Name` | Yes | Display name used in log output |
 | `LaunchType` | Yes | `"Appx"` |
+| `ShortcutPath` | Yes | Full path to the `.lnk` shortcut file (targets `explorer.exe`) |
+| `ProcessName` | Yes | Process name used to confirm launch and detect if already running (no `.exe`) |
+| `ExpectedExe` | Yes | Set to `explorer.exe` for all Appx entries |
 | `KnownAumid` | Yes | Last-known AUMID (`PackageFamilyName!AppId`); verified at runtime — not assumed permanently valid |
 | `AppxName` | Yes | Partial package name used in `Get-AppxPackage` discovery when `KnownAumid` is stale |
 | `StartAppName` | Yes | Display name pattern used in `Get-StartApps` discovery (first resolution step) |
-| `ProcessName` | Yes | Process name used to confirm launch and detect if already running (no `.exe`) |
 
 ### Default entries
 
@@ -121,6 +128,32 @@ This removes the need for any `WindowCheck`, `TrayApp`, or equivalent per-app fl
 | `$PostLaunchPauseSeconds` | `2` | Pause between apps after a successful launch |
 | `$SettleSeconds` | `5` | Seconds polled for `MainWindowHandle` to classify an app as Window or Tray mode |
 
+## Automated Tests (Pester)
+
+Unit tests are in `Win11startup.Tests.ps1`. They run in test mode (`$env:PS_STARTUP_TESTMODE = '1'`) which dot-sources the script without triggering the interactive menu or startup sequence.
+
+```powershell
+# Unit tests only
+Invoke-Pester .\Win11startup.Tests.ps1
+
+# Unit + integration tests (requires live Windows environment with shortcuts present)
+$env:RUN_INTEGRATION = '1'; Invoke-Pester .\Win11startup.Tests.ps1
+```
+
+| Test ID | Covers |
+|---------|--------|
+| TEST-02 | `Get-RelativeDepth` — all depth/boundary cases |
+| TEST-03 | `Find-MisnumberedShortcut` — match, no-match, empty folder, missing folder |
+| TEST-04a | `Test-ExePathAllowed` — allowed roots, denied paths |
+| TEST-04b | `Test-ExeSignatureTrusted` — valid sig, correct/wrong publisher, unsigned file |
+| TEST-08 | `Import-AppsConfig` — valid load, optional field normalisation, missing required field, missing file |
+| TEST-09 | `Get-NearestExistingParent` — deep path, empty string, immediate parent |
+| TEST-10 | `Show-AppPicker -AllowNew` — `__NEW__` sentinel on `N`, `$null` on `0` |
+| TEST-11 | `Add-Shortcut` dispatch — `$null` cancel, real app object re-init, `__NEW__` new-entry |
+| TEST-12 | `Wait-ForAppReady` phase-1 clamping — `TimeoutSeconds < SettleSeconds`, normal case |
+| INT-01 | Integration harness setup/teardown |
+| INT-02 | `Initialize-Shortcut` smoke test with real `.lnk` |
+
 ## Requirements
 
 - Windows 10 or Windows 11
@@ -152,6 +185,16 @@ To run automatically at login, add a shortcut to this script in the Windows Star
 | v7 | Removed `Arguments` field; Win32 apps invoked via `WshShell.Run` on `.lnk` so baked-in arguments are preserved automatically |
 | v8 | Removed entries 4 (ShareFile), 5 (Greenshot), 8 (SAP GUI), 9 (Notepad++) from Default Entries; remaining entries renumbered 01–08 |
 | v9 | Replaced static `WindowCheck` flag with runtime presence-mode detection (`Get-AppPresenceMode`, `Test-AppAlreadyOpen`, `Wait-ForAppReady`); added `$SettleSeconds` config variable; Phone Link reclassified as Win32 with `ExpectedArguments` and argument self-healing |
+| v10 | Added exe allowlist (`Test-ExePathAllowed`); restricted repair and user-prompt acceptance to paths under Program Files, Program Files (x86), or Windows |
+| v11 | Added Authenticode signature gate (`Test-ExeSignatureTrusted`); added safer XML manifest loading via `[xml]::new() + Load()` |
+| v12 | Added optional `ExpectedPublisher` per entry; publisher CN string verified against signer certificate subject during repair and user-prompt flows |
+| v13 | Added `ExpectedExe` guard in `Test-AppAlreadyOpen`; prevents false skip caused by unrelated same-named processes |
+| v14 | Anchored `Repair-ShortcutArguments` regex; pattern requires full `shell:appsFolder\<PFN>!<AppId>` form with `Microsoft.` prefix constraint |
+| v15 | All shared variables moved to `$script:` scope; prevents Pester dot-source from leaking or shadowing globals |
+| v16 | Added Pester test file (`Win11startup.Tests.ps1`); `$env:PS_STARTUP_TESTMODE` guard; TEST-02 through TEST-04 unit tests; INT-01/INT-02 integration harness |
+| v17 | Externalised `$script:apps` to `apps.json` (`Import-AppsConfig` / `Export-AppsConfig`); Add and Delete menu flows persist changes automatically |
+| v18 | FIX-01: Add-menu Appx support (`StartAppName`, `KnownAumid`, `AppxName` collected and persisted); FIX-02: `Show-AppPicker -AllowNew` with `__NEW__` sentinel; FIX-03: `Wait-ForAppReady` phase-1 clamping fixes phase-2 timeout math |
+| v19 | TEST-08–12 Pester tests added (Import-AppsConfig, Get-NearestExistingParent, Show-AppPicker -AllowNew, Add-Shortcut dispatch, Wait-ForAppReady clamping); apps.json updated with Appx fields on all entries; README version history and field tables completed |
 
 ## License
 

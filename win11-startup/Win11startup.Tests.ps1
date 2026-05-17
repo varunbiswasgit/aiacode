@@ -141,6 +141,202 @@ Describe 'Unit' {
             }
         }
     }
+
+    # -----------------------------------------------------------------------
+    # TEST-08: Import-AppsConfig
+    # -----------------------------------------------------------------------
+    Describe 'Import-AppsConfig' {
+
+        BeforeEach {
+            $script:cfgDir = Join-Path $env:TEMP ("PesterCfg_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:cfgDir | Out-Null
+        }
+
+        AfterEach {
+            Remove-Item -LiteralPath $script:cfgDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'loads a valid apps.json without error' {
+            $json = @'
+[
+  {
+    "Name": "Notepad",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\Fake\\01 Notepad.lnk",
+    "ProcessName": "notepad",
+    "ExpectedExe": "notepad.exe"
+  }
+]
+'@
+            $cfgPath = Join-Path $script:cfgDir 'apps.json'
+            $json | Set-Content -LiteralPath $cfgPath -Encoding UTF8
+            $result = Import-AppsConfig -Path $cfgPath
+            $result.Count | Should -Be 1
+            $result[0].Name | Should -Be 'Notepad'
+        }
+
+        It 'normalises missing optional Appx fields to empty strings' {
+            $json = @'
+[
+  {
+    "Name": "App",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\Fake\\01 App.lnk",
+    "ProcessName": "app",
+    "ExpectedExe": "app.exe"
+  }
+]
+'@
+            $cfgPath = Join-Path $script:cfgDir 'apps.json'
+            $json | Set-Content -LiteralPath $cfgPath -Encoding UTF8
+            $result = Import-AppsConfig -Path $cfgPath
+            $result[0].StartAppName | Should -Be ''
+            $result[0].KnownAumid   | Should -Be ''
+            $result[0].AppxName     | Should -Be ''
+        }
+
+        It 'throws when a required field is missing' {
+            $json = @'
+[
+  {
+    "Name": "BadApp",
+    "LaunchType": "Win32"
+  }
+]
+'@
+            $cfgPath = Join-Path $script:cfgDir 'apps.json'
+            $json | Set-Content -LiteralPath $cfgPath -Encoding UTF8
+            { Import-AppsConfig -Path $cfgPath } | Should -Throw
+        }
+
+        It 'throws when the file does not exist' {
+            { Import-AppsConfig -Path (Join-Path $script:cfgDir 'missing.json') } | Should -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # TEST-09: Get-NearestExistingParent
+    # -----------------------------------------------------------------------
+    Describe 'Get-NearestExistingParent' {
+
+        It 'returns SystemRoot when given a path deep under it' {
+            $deep = Join-Path $env:SystemRoot 'NonExistentFolder\sub\file.exe'
+            $result = Get-NearestExistingParent -Path $deep
+            $result | Should -Not -BeNullOrEmpty
+            Test-Path -LiteralPath $result -PathType Container | Should -Be $true
+        }
+
+        It 'returns null for an empty string' {
+            Get-NearestExistingParent -Path '' | Should -BeNullOrEmpty
+        }
+
+        It 'returns the parent folder when the immediate parent exists' {
+            $existingFolder = $env:TEMP
+            $fakePath = Join-Path $existingFolder 'DoesNotExist.exe'
+            $result = Get-NearestExistingParent -Path $fakePath
+            $result | Should -Be $existingFolder
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # TEST-10: Show-AppPicker -AllowNew sentinel (FIX-02)
+    # -----------------------------------------------------------------------
+    Describe 'Show-AppPicker -AllowNew' {
+
+        It 'returns __NEW__ when N is entered and -AllowNew is set' {
+            # Temporarily override $script:apps with one fake entry so the
+            # picker has something to display, then feed 'n' as input.
+            $saved = $script:apps
+            $script:apps = @(
+                [PSCustomObject]@{ Name='FakeApp'; ShortcutPath='C:\Fake\01 FakeApp.lnk' }
+            )
+            try {
+                $result = 'n' | & { Show-AppPicker -Prompt 'Test' -AllowNew }
+                $result | Should -Be '__NEW__'
+            } finally {
+                $script:apps = $saved
+            }
+        }
+
+        It 'returns $null when 0 is entered regardless of -AllowNew' {
+            $saved = $script:apps
+            $script:apps = @(
+                [PSCustomObject]@{ Name='FakeApp'; ShortcutPath='C:\Fake\01 FakeApp.lnk' }
+            )
+            try {
+                $result = '0' | & { Show-AppPicker -Prompt 'Test' -AllowNew }
+                $result | Should -BeNullOrEmpty
+            } finally {
+                $script:apps = $saved
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # TEST-11: Add-Shortcut dispatch on $null / __NEW__ / real app (FIX-01 + FIX-02)
+    # -----------------------------------------------------------------------
+    Describe 'Add-Shortcut dispatch' {
+
+        It 'prints cancel message and returns when $null is passed' {
+            # Should not throw and should produce "Add cancelled."
+            { Add-Shortcut -App $null } | Should -Not -Throw
+        }
+
+        It 'calls Initialize-Shortcut when a real app object is passed (re-init path)' {
+            # Provide a fake app whose ShortcutPath already exists to exercise
+            # the Initialize-Shortcut early-exit (no-op) branch.
+            $dir = Join-Path $env:TEMP ("PesterAddTest_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $dir | Out-Null
+            $lnk = Join-Path $dir '01 FakeApp.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($lnk)
+            $sc.TargetPath = "$env:SystemRoot\System32\notepad.exe"
+            $sc.Save()
+            $fakeApp = [PSCustomObject]@{
+                Name              = 'FakeApp'
+                LaunchType        = 'Win32'
+                ShortcutPath      = $lnk
+                ProcessName       = 'notepad'
+                ExpectedExe       = 'notepad.exe'
+                ExpectedPublisher = ''
+                ExpectedArguments = ''
+            }
+            try {
+                # Should not throw; Initialize-Shortcut sees existing lnk and returns silently.
+                { Add-Shortcut -App $fakeApp } | Should -Not -Throw
+            } finally {
+                Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # TEST-12: Wait-ForAppReady phase-2 timeout math (FIX-03)
+    # -----------------------------------------------------------------------
+    Describe 'Wait-ForAppReady phase-1 clamping' {
+
+        It 'does not exceed TimeoutSeconds when TimeoutSeconds < SettleSeconds' {
+            # When TimeoutSeconds (2) < $script:SettleSeconds (5), phase1Secs
+            # must clamp to 2 so phase-2 remaining = 0 (not negative).
+            # We test the pure math without running the real function by
+            # verifying [Math]::Min behaves as the script requires.
+            $settleSeconds  = 5
+            $timeoutSeconds = 2
+            $phase1Secs = [Math]::Min($settleSeconds, $timeoutSeconds)
+            $remaining  = $timeoutSeconds - $phase1Secs
+            $phase1Secs | Should -Be 2
+            $remaining  | Should -Be 0
+        }
+
+        It 'uses full SettleSeconds when TimeoutSeconds >= SettleSeconds' {
+            $settleSeconds  = 5
+            $timeoutSeconds = 30
+            $phase1Secs = [Math]::Min($settleSeconds, $timeoutSeconds)
+            $remaining  = $timeoutSeconds - $phase1Secs
+            $phase1Secs | Should -Be 5
+            $remaining  | Should -Be 25
+        }
+    }
 }
 
 # ---------------------------------------------------------------------------

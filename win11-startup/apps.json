@@ -6,7 +6,10 @@
     "ProcessName": "OUTLOOK",
     "ExpectedExe": "OUTLOOK.EXE",
     "ExpectedPublisher": "CN=Microsoft Corporation",
-    "ExpectedArguments": ""
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
   },
   {
     "Name": "Teams",
@@ -15,7 +18,10 @@
     "ProcessName": "ms-teams",
     "ExpectedExe": "ms-teams.exe",
     "ExpectedPublisher": "CN=Microsoft Corporation",
-    "ExpectedArguments": ""
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
   },
   {
     "Name": "OneDrive",
@@ -24,7 +30,10 @@
     "ProcessName": "OneDrive",
     "ExpectedExe": "OneDrive.exe",
     "ExpectedPublisher": "CN=Microsoft Corporation",
-    "ExpectedArguments": ""
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
   },
   {
     "Name": "Sticky Notes",
@@ -33,7 +42,10 @@
     "ProcessName": "ONENOTE",
     "ExpectedExe": "ONENOTE.EXE",
     "ExpectedPublisher": "CN=Microsoft Corporation",
-    "ExpectedArguments": ""
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
   },
   {
     "Name": "OneNote",
@@ -42,7 +54,10 @@
     "ProcessName": "ONENOTE",
     "ExpectedExe": "ONENOTE.EXE",
     "ExpectedPublisher": "CN=Microsoft Corporation",
-    "ExpectedArguments": ""
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
   },
   {
     "Name": "Phone Link",
@@ -50,8 +65,11 @@
     "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\06 Phone Link.lnk",
     "ProcessName": "PhoneExperienceHost",
     "ExpectedExe": "explorer.exe",
-    "ExpectedPublisher": "CN=Microsoft Corporation",
-    "ExpectedArguments": "shell:appsFolder\\Microsoft.YourPhone_8wekyb3d8bbwe!App"
+    "ExpectedPublisher": "CN=Microsoft Windows",
+    "ExpectedArguments": "shell:appsFolder\\Microsoft.YourPhone_8wekyb3d8bbwe!App",
+    "StartAppName": "Phone Link",
+    "KnownAumid": "Microsoft.YourPhone_8wekyb3d8bbwe!App",
+    "AppxName": "YourPhone"
   },
   {
     "Name": "Microsoft Edge",
@@ -60,7 +78,10 @@
     "ProcessName": "msedge",
     "ExpectedExe": "msedge.exe",
     "ExpectedPublisher": "CN=Microsoft Corporation",
-    "ExpectedArguments": ""
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
   },
   {
     "Name": "Google Chrome",
@@ -69,6 +90,9 @@
     "ProcessName": "chrome",
     "ExpectedExe": "chrome.exe",
     "ExpectedPublisher": "CN=Google LLC",
-    "ExpectedArguments": ""
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
   }
 ]
