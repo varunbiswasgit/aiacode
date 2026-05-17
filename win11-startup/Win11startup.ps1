@@ -27,6 +27,10 @@
 #                    Repair-ShortcutTarget.
 # - XML load       : Repair-ShortcutArguments uses [xml]::new() + Load() instead of
 #                    [xml]$m = Get-Content to correctly handle BOMs and large manifest files.
+# - Publisher gate : Test-ExeSignatureTrusted accepts an optional -ExpectedPublisher string.
+#                    When present, the SignerCertificate.Subject must contain that string.
+#                    Each app entry carries an optional ExpectedPublisher field; Microsoft apps
+#                    use 'CN=Microsoft Corporation', Chrome uses 'CN=Google LLC'.
 
 $startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -43,14 +47,14 @@ $AllowedExeRoots = @(
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
 $apps = @(
-    @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";            ExpectedExe = "OUTLOOK.EXE" },
-    @{ Name = "Teams";          LaunchType = "Win32"; ShortcutPath = "$startMenu\02 Teams.lnk";          ProcessName = "ms-teams";           ExpectedExe = "ms-teams.exe" },
-    @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";           ExpectedExe = "OneDrive.exe" },
-    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\04 Sticky Notes.lnk";   ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE" },
-    @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\05 OneNote.lnk";        ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE" },
-    @{ Name = "Phone Link";     LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Phone Link.lnk";     ProcessName = "PhoneExperienceHost"; ExpectedExe = "explorer.exe"; ExpectedArguments = "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App" },
-    @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$startMenu\07 Microsoft Edge.lnk"; ProcessName = "msedge";             ExpectedExe = "msedge.exe" },
-    @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$startMenu\08 Google Chrome.lnk";  ProcessName = "chrome";             ExpectedExe = "chrome.exe" }
+    @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";            ExpectedExe = "OUTLOOK.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Teams";          LaunchType = "Win32"; ShortcutPath = "$startMenu\02 Teams.lnk";          ProcessName = "ms-teams";           ExpectedExe = "ms-teams.exe"; ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "OneDrive";       LaunchType = "Win32"; ShortcutPath = "$startMenu\03 OneDrive.lnk";       ProcessName = "OneDrive";           ExpectedExe = "OneDrive.exe"; ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Sticky Notes";   LaunchType = "Win32"; ShortcutPath = "$startMenu\04 Sticky Notes.lnk";   ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "OneNote";        LaunchType = "Win32"; ShortcutPath = "$startMenu\05 OneNote.lnk";        ProcessName = "ONENOTE";            ExpectedExe = "ONENOTE.EXE";  ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Phone Link";     LaunchType = "Win32"; ShortcutPath = "$startMenu\06 Phone Link.lnk";     ProcessName = "PhoneExperienceHost"; ExpectedExe = "explorer.exe"; ExpectedArguments = "shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App"; ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Microsoft Edge"; LaunchType = "Win32"; ShortcutPath = "$startMenu\07 Microsoft Edge.lnk"; ProcessName = "msedge";             ExpectedExe = "msedge.exe";   ExpectedPublisher = "CN=Microsoft Corporation" },
+    @{ Name = "Google Chrome";  LaunchType = "Win32"; ShortcutPath = "$startMenu\08 Google Chrome.lnk";  ProcessName = "chrome";             ExpectedExe = "chrome.exe";   ExpectedPublisher = "CN=Google LLC" }
 )
 
 $WshShell = New-Object -ComObject WScript.Shell
@@ -190,7 +194,7 @@ function Edit-Shortcut {
         Repair-ShortcutArguments -App $App
         return
     }
-    $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe
+    $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($exePath) {
         if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
             $sc = $WshShell.CreateShortcut($App.ShortcutPath)
@@ -311,14 +315,27 @@ function Test-ExePathAllowed {
 # ---------------------------------------------------------------------------
 # Security: verify Authenticode signature before persisting any exe path.
 # Rejects files whose signature status is not 'Valid'.
+# Optional -ExpectedPublisher: when supplied, SignerCertificate.Subject must contain the string.
 # ---------------------------------------------------------------------------
 function Test-ExeSignatureTrusted {
-    param([string]$ExePath)
+    param(
+        [string]$ExePath,
+        [string]$ExpectedPublisher = ""
+    )
     try {
         $sig = Get-AuthenticodeSignature -FilePath $ExePath -ErrorAction Stop
-        if ($sig.Status -eq 'Valid') { return $true }
-        Write-Warning "Signature status for '$ExePath' is '$($sig.Status)'. Only 'Valid' is accepted."
-        return $false
+        if ($sig.Status -ne 'Valid') {
+            Write-Warning "Signature status for '$ExePath' is '$($sig.Status)'. Only 'Valid' is accepted."
+            return $false
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedPublisher)) {
+            $subject = $sig.SignerCertificate.Subject
+            if ($subject -notlike "*$ExpectedPublisher*") {
+                Write-Warning "Publisher mismatch for '$ExePath'. Expected subject to contain '$ExpectedPublisher', got '$subject'."
+                return $false
+            }
+        }
+        return $true
     } catch {
         Write-Warning "Could not verify Authenticode signature for '$ExePath'. $_"
         return $false
@@ -326,7 +343,11 @@ function Test-ExeSignatureTrusted {
 }
 
 function Prompt-ForExactExePath {
-    param([string]$AppName, [string]$ExpectedExe)
+    param(
+        [string]$AppName,
+        [string]$ExpectedExe,
+        [string]$ExpectedPublisher = ""
+    )
     while ($true) {
         $inputPath = Read-Host "Enter the full path for $AppName ($ExpectedExe), or press Enter to skip"
         if ([string]::IsNullOrWhiteSpace($inputPath)) { return $null }
@@ -341,8 +362,8 @@ function Prompt-ForExactExePath {
             Write-Warning "Path is outside allowed roots ($($AllowedExeRoots -join ', ')): $trimmed"
             continue
         }
-        if (-not (Test-ExeSignatureTrusted -ExePath $trimmed)) {
-            Write-Warning "File does not have a valid Authenticode signature: $trimmed"
+        if (-not (Test-ExeSignatureTrusted -ExePath $trimmed -ExpectedPublisher $ExpectedPublisher)) {
+            Write-Warning "File did not pass signature/publisher verification: $trimmed"
             continue
         }
         return $trimmed
@@ -382,7 +403,7 @@ function Initialize-Shortcut {
         return
     }
 
-    $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe
+    $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($exePath) {
         $sc = $WshShell.CreateShortcut($App.ShortcutPath)
         $sc.TargetPath       = $exePath
@@ -406,8 +427,8 @@ function Repair-ShortcutTarget {
         if ($foundExe) {
             if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
                 Write-Warning "$($App.Name): discovered exe is outside allowed roots. Skipping auto-repair: $($foundExe.FullName)"
-            } elseif (-not (Test-ExeSignatureTrusted -ExePath $foundExe.FullName)) {
-                Write-Warning "$($App.Name): discovered exe does not have a valid Authenticode signature. Skipping auto-repair: $($foundExe.FullName)"
+            } elseif (-not (Test-ExeSignatureTrusted -ExePath $foundExe.FullName -ExpectedPublisher $App.ExpectedPublisher)) {
+                Write-Warning "$($App.Name): discovered exe did not pass signature/publisher verification. Skipping auto-repair: $($foundExe.FullName)"
             } else {
                 Write-Host "$($App.Name): found replacement at $($foundExe.FullName). Updating shortcut."
                 Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $foundExe.FullName -Arguments $App.ExpectedArguments
@@ -418,7 +439,7 @@ function Repair-ShortcutTarget {
     } else {
         Write-Warning "$($App.Name): could not determine an existing parent folder from the broken target."
     }
-    $manualPath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe
+    $manualPath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($manualPath) {
         Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $manualPath -Arguments $App.ExpectedArguments
         return $manualPath
