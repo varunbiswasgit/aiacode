@@ -7,11 +7,6 @@ Move each item to **Done** after its commit lands.
 
 ## To Do
 
-### Security
-
-- [ ] **SEC-04** — Process-name collision guard: update `Test-AppAlreadyOpen` to compare each matching process's `.MainModule.FileName` against `ExpectedExe` so an unrelated same-named process cannot cause a false skip.
-  > _Achievable: `MainModule.FileName` available on all non-system Win32 processes; `ExpectedExe` already in every app entry._
-
 ### Hardening
 
 - [ ] **HARD-01** — Tighten `Repair-ShortcutArguments` regex: replace the loose `\\([^\\!]+)!` match with an anchored pattern requiring the PFN to begin with a known publisher prefix (e.g. `Microsoft\.`) to prevent path injection via a crafted `ExpectedArguments` value.
@@ -60,4 +55,5 @@ Move each item to **Done** after its commit lands.
 - [x] **SEC-01** — Allowlist exe repair paths: added `$AllowedExeRoots` config array and `Test-ExePathAllowed` helper; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject paths outside allowed roots. _(v10)_
 - [x] **SEC-02** — Authenticode signature check: added `Test-ExeSignatureTrusted` using `Get-AuthenticodeSignature`; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject executables whose signature status is not `Valid`. _(v11)_
 - [x] **SEC-03** — Publisher allowlist: added optional `ExpectedPublisher` field per app entry; `Test-ExeSignatureTrusted` accepts `-ExpectedPublisher` and verifies `SignerCertificate.Subject` contains the expected string when provided. Microsoft apps use `CN=Microsoft Corporation`; Chrome uses `CN=Google LLC`. _(v12)_
+- [x] **SEC-04** — Process-name collision guard: `Test-AppAlreadyOpen` now accepts `ExpectedExe`, filters matching processes by `MainModule.FileName`, and returns false if no exact executable match remains; `Start-Win32App` passes `App.ExpectedExe`. _(v13)_
 - [x] **HARD-03** — Safer XML manifest loading: `Repair-ShortcutArguments` now uses `[xml]::new(); $manifest.Load($manifestPath)` instead of `[xml]$manifest = Get-Content` to handle BOMs and large manifests. _(v11)_
