@@ -1,25 +1,30 @@
 # Curated startup launcher with self-healing shortcut repair
-# - Win32 apps  : shortcut invoked via WshShell.Run when target is valid (preserves baked-in arguments)
-#                 self-healing repair + user-prompt fallback used only when shortcut target is broken
-#                 repaired shortcuts are then invoked via WshShell.Run as well
-# - Appx apps   : AUMID resolved at runtime (Get-StartApps -> KnownAumid verification -> AppxPackage manifest)
-#                 KnownAumid used only as primary candidate, not sole source of truth
-# - Sticky Notes: Win32 shortcut with /memoryWindow start baked into the .lnk Target field
-#                 WshShell.Run fires the shortcut as-is; no separate Arguments field needed
-# - Phone Link  : Win32 shortcut targeting explorer.exe with shell:appsFolder AUMID as Arguments
-#                 argument self-healing scans WindowsApps for the package family name fragment
-#                 and reconstructs the AUMID from the installed folder name + AppxManifest.xml
-# - Bootstrap   : before launch loop, ensures every Win32 .lnk exists at the expected path;
-#                 renames misnumbered matches found in the same folder, or creates fresh if absent
-# - Main menu   : on launch, user chooses Run / Add / Delete / Modify / Exit
-#                 inline failure menu (Add+retry / Modify / Skip) appears when a shortcut
-#                 is missing or an app fails to start during the startup sequence
+# - Win32 apps     : shortcut invoked via WshShell.Run when target is valid (preserves baked-in arguments)
+#                    self-healing repair + user-prompt fallback used only when shortcut target is broken
+#                    repaired shortcuts are then invoked via WshShell.Run as well
+# - Appx apps      : AUMID resolved at runtime (Get-StartApps -> KnownAumid verification -> AppxPackage manifest)
+#                    KnownAumid used only as primary candidate, not sole source of truth
+# - Sticky Notes   : Win32 shortcut with /memoryWindow start baked into the .lnk Target field
+#                    WshShell.Run fires the shortcut as-is; no separate Arguments field needed
+# - Phone Link     : Win32 shortcut targeting explorer.exe with shell:appsFolder AUMID as Arguments
+#                    argument self-healing scans WindowsApps for the package family name fragment
+#                    and reconstructs the AUMID from the installed folder name + AppxManifest.xml
+# - Bootstrap      : before launch loop, ensures every Win32 .lnk exists at the expected path;
+#                    renames misnumbered matches found in the same folder, or creates fresh if absent
+# - Main menu      : on launch, user chooses Run / Add / Delete / Modify / Exit
+#                    inline failure menu (Add+retry / Modify / Skip) appears when a shortcut
+#                    is missing or an app fails to start during the startup sequence
+# - Presence mode  : after launch, Get-AppPresenceMode polls MainWindowHandle for $SettleSeconds;
+#                    if a window appears -> 'Window' mode (skip only when window visible);
+#                    if no window appears -> 'Tray' mode (skip when process running).
+#                    No per-app flags needed; detection is fully automatic at runtime.
 
-$startMenu = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
+$startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
 $InitialDelaySeconds    = 10
 $LaunchTimeoutSeconds   = 30
 $PostLaunchPauseSeconds = 2
+$SettleSeconds          = 5   # how long to wait for MainWindowHandle after launch before classifying as Tray
 
 $apps = @(
     @{ Name = "Outlook";        LaunchType = "Win32"; ShortcutPath = "$startMenu\01 Outlook.lnk";        ProcessName = "OUTLOOK";            ExpectedExe = "OUTLOOK.EXE" },
@@ -35,7 +40,81 @@ $apps = @(
 $WshShell = New-Object -ComObject WScript.Shell
 
 # ---------------------------------------------------------------------------
-# Helper: numbered app picker used by main menu and inline failure menu
+# Presence mode detection
+# Polls MainWindowHandle for up to $SettleSeconds after launch.
+# Returns 'Window' if a visible window appears; 'Tray' if the process stays headless.
+# ---------------------------------------------------------------------------
+function Get-AppPresenceMode {
+    param([string]$ProcessName, [int]$SettleSecs = $SettleSeconds)
+    $elapsed = 0
+    while ($elapsed -lt $SettleSecs) {
+        $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
+        if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) {
+            return 'Window'
+        }
+        Start-Sleep -Seconds 1
+        $elapsed++
+    }
+    # Process exists but no window appeared within settle time -> tray-only
+    if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) {
+        return 'Tray'
+    }
+    return $null   # process never started
+}
+
+# Returns $true when the app is considered 'already open' based on its detected presence mode.
+# Called at the top of Start-Win32App / Start-AppxApp before attempting a launch.
+function Test-AppAlreadyOpen {
+    param([string]$ProcessName)
+    $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
+    if (-not $procs) { return $false }
+    # If any instance owns a visible window, it is open in Window mode
+    if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) { return $true }
+    # Process running but no window -> could be Tray mode; treat as open so we don't relaunch
+    return $true
+}
+
+# Waits for the app to reach a 'ready' state after launch.
+# Phase 1 ($SettleSeconds): classify as Window or Tray.
+# Phase 2 (remaining timeout): for Window mode, wait for MainWindowHandle; Tray mode is already confirmed.
+function Wait-ForAppReady {
+    param([string]$ProcessName, [int]$TimeoutSeconds = $LaunchTimeoutSeconds)
+
+    # Phase 1: settle
+    $mode = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs ([Math]::Min($SettleSeconds, $TimeoutSeconds))
+    if ($null -eq $mode) {
+        # Process never appeared during settle period; keep waiting for process up to full timeout
+        $remaining = $TimeoutSeconds - $SettleSeconds
+        $elapsed   = 0
+        while ($elapsed -lt $remaining) {
+            if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) { return $true }
+            Start-Sleep -Seconds 1
+            $elapsed++
+        }
+        return $false
+    }
+
+    Write-Host "  (presence mode: $mode)"
+
+    if ($mode -eq 'Tray') {
+        # Tray apps confirm on process presence alone - already confirmed in Get-AppPresenceMode
+        return $true
+    }
+
+    # Window mode: wait for MainWindowHandle in remaining time
+    $remaining = $TimeoutSeconds - $SettleSeconds
+    $elapsed   = 0
+    while ($elapsed -lt $remaining) {
+        $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
+        if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) { return $true }
+        Start-Sleep -Seconds 1
+        $elapsed++
+    }
+    return $false
+}
+
+# ---------------------------------------------------------------------------
+# Helper: numbered app picker used by main menu and inline failure menus
 # ---------------------------------------------------------------------------
 function Show-AppPicker {
     param([string]$Prompt)
@@ -49,8 +128,8 @@ function Show-AppPicker {
         $choice = Read-Host "Select"
         if ($choice -match '^\d+$') {
             $idx = [int]$choice
-            if ($idx -eq 0)                             { return $null }
-            if ($idx -ge 1 -and $idx -le $apps.Count)  { return $apps[$idx - 1] }
+            if ($idx -eq 0)                            { return $null }
+            if ($idx -ge 1 -and $idx -le $apps.Count) { return $apps[$idx - 1] }
         }
         Write-Warning "Invalid selection. Enter a number between 0 and $($apps.Count)."
     }
@@ -85,7 +164,6 @@ function Remove-Shortcut {
 
 function Edit-Shortcut {
     param($App)
-    # Argument-based apps (e.g. Phone Link): re-run AUMID argument repair
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
         if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
             Write-Warning "$($App.Name): shortcut does not exist. Creating it first."
@@ -96,7 +174,6 @@ function Edit-Shortcut {
         Repair-ShortcutArguments -App $App
         return
     }
-    # Standard Win32 apps: prompt for new exe and update the shortcut target
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe
     if ($exePath) {
         if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
@@ -345,21 +422,13 @@ function Repair-ShortcutArguments {
     return $repairedArgs
 }
 
-function Wait-ForProcessStart {
-    param([string]$ProcessName, [int]$TimeoutSeconds = 30)
-    $elapsed = 0
-    while ($elapsed -lt $TimeoutSeconds) {
-        if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) { return $true }
-        Start-Sleep -Seconds 1
-        $elapsed++
-    }
-    return $false
-}
-
+# ---------------------------------------------------------------------------
+# Launch functions
+# ---------------------------------------------------------------------------
 function Start-AppxApp {
     param($App)
-    if (Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue) {
-        Write-Host "$($App.Name): '$($App.ProcessName)' already running. Skipping.`n"
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) {
+        Write-Host "$($App.Name): already open. Skipping.`n"
         return $true
     }
     $aumid = Resolve-Aumid -App $App
@@ -370,12 +439,12 @@ function Start-AppxApp {
     try {
         Write-Host "$($App.Name): launching via shell:appsFolder\$aumid"
         Start-Process explorer.exe "shell:appsFolder\$aumid" -ErrorAction Stop
-        if (Wait-ForProcessStart -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
-            Write-Host "$($App.Name): '$($App.ProcessName)' is now running.`n"
+        if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
+            Write-Host "$($App.Name): ready.`n"
             Start-Sleep -Seconds $PostLaunchPauseSeconds
             return $true
         } else {
-            Write-Warning "$($App.Name): '$($App.ProcessName)' did not appear within $LaunchTimeoutSeconds seconds.`n"
+            Write-Warning "$($App.Name): did not become ready within $LaunchTimeoutSeconds seconds.`n"
             return $false
         }
     } catch {
@@ -386,8 +455,8 @@ function Start-AppxApp {
 
 function Start-Win32App {
     param($App)
-    if (Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue) {
-        Write-Host "$($App.Name): '$($App.ProcessName)' already running. Skipping.`n"
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) {
+        Write-Host "$($App.Name): already open. Skipping.`n"
         return $true
     }
 
@@ -446,14 +515,15 @@ function Start-Win32App {
 
         Write-Host "$($App.Name): launching via shortcut: $($App.ShortcutPath)"
         $WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
-        if (Wait-ForProcessStart -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
-            Write-Host "$($App.Name): '$($App.ProcessName)' is now running.`n"
+
+        if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $LaunchTimeoutSeconds) {
+            Write-Host "$($App.Name): ready.`n"
             Start-Sleep -Seconds $PostLaunchPauseSeconds
             return $true
         }
 
-        # ---- Inline failure menu: process did not start in time ----
-        Write-Warning "$($App.Name): '$($App.ProcessName)' did not appear within $LaunchTimeoutSeconds seconds."
+        # ---- Inline failure menu: app did not become ready in time ----
+        Write-Warning "$($App.Name): did not become ready within $LaunchTimeoutSeconds seconds."
         Write-Host "  [1] Modify shortcut for $($App.Name) and retry"
         Write-Host "  [2] Modify a different shortcut"
         Write-Host "  [3] Skip"
