@@ -34,6 +34,10 @@
 # - Process guard  : Test-AppAlreadyOpen now compares each matching process MainModule filename
 #                    against ExpectedExe before treating the app as already open, preventing
 #                    false skips caused by unrelated same-named processes.
+# - Regex anchor   : Repair-ShortcutArguments uses a fully anchored regex to extract the PFN
+#                    from ExpectedArguments. Pattern requires the full value to match
+#                    ^shell:appsFolder\<PFN>!<AppId>$ and constrains PFN to start with
+#                    'Microsoft.' to block path injection via crafted argument strings.
 
 $startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -471,8 +475,10 @@ function Repair-ShortcutArguments {
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
     Write-Warning "$($App.Name): shortcut Arguments missing or invalid: '$($shortcut.Arguments)'"
 
+    # Anchored regex: full ExpectedArguments must match shell:appsFolder\<PFN>!<AppId>
+    # PFN constrained to start with 'Microsoft.' to prevent injection via crafted argument strings.
     $aumidFragment = $null
-    if ($App.ExpectedArguments -match '\\([^\\!]+)!') {
+    if ($App.ExpectedArguments -match '^shell:appsFolder\\(Microsoft\.[A-Za-z0-9._]+_[A-Za-z0-9]+)![A-Za-z0-9._-]+$') {
         $fullPfn       = $Matches[1]
         $aumidFragment = ($fullPfn -split '_', 2)[1]
     }

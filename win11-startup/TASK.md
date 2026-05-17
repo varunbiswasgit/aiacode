@@ -9,9 +9,6 @@ Move each item to **Done** after its commit lands.
 
 ### Hardening
 
-- [ ] **HARD-01** — Tighten `Repair-ShortcutArguments` regex: replace the loose `\\([^\\!]+)!` match with an anchored pattern requiring the PFN to begin with a known publisher prefix (e.g. `Microsoft\.`) to prevent path injection via a crafted `ExpectedArguments` value.
-  > _Achievable: one-line regex change._
-
 - [ ] **HARD-02** — Add `$script:` scope to shared vars: prefix `$WshShell`, `$apps`, `$startMenu`, `$MaxRepairDepth`, `$InitialDelaySeconds`, `$LaunchTimeoutSeconds`, `$PostLaunchPauseSeconds`, `$SettleSeconds`, and `$AllowedExeRoots` so dot-sourced Pester runs cannot leak or shadow globals.
   > _Achievable: search-and-replace on declarations and all references._
 
@@ -37,6 +34,11 @@ Move each item to **Done** after its commit lands.
 - [ ] **INT-02** — Shortcut bootstrap smoke test: create a temp `.lnk` pointing to `notepad.exe` under `$env:TEMP`, call `Initialize-Shortcut`, confirm `TargetPath` resolves, then delete. No admin rights needed.
   > _Achievable: uses real COM via `$WshShell`._
 
+### Refactor
+
+- [ ] **REF-01** — Externalize `$apps` to `apps.json`: move the inline `$apps` table from `Win11startup.ps1` into a sibling `apps.json` config file loaded via `Get-Content | ConvertFrom-Json`. Validate required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`) on load and fail closed if the file is missing or malformed. Allows adding new app entries without editing the script source. All existing security gates (allowlist, signature, publisher) remain unchanged.
+  > _Achievable: replace the inline array with a single loader block; all downstream code is field-name-based and requires no other changes._
+
 ---
 
 ## Removed (Not Achievable Portably)
@@ -56,4 +58,5 @@ Move each item to **Done** after its commit lands.
 - [x] **SEC-02** — Authenticode signature check: added `Test-ExeSignatureTrusted` using `Get-AuthenticodeSignature`; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject executables whose signature status is not `Valid`. _(v11)_
 - [x] **SEC-03** — Publisher allowlist: added optional `ExpectedPublisher` field per app entry; `Test-ExeSignatureTrusted` accepts `-ExpectedPublisher` and verifies `SignerCertificate.Subject` contains the expected string when provided. Microsoft apps use `CN=Microsoft Corporation`; Chrome uses `CN=Google LLC`. _(v12)_
 - [x] **SEC-04** — Process-name collision guard: `Test-AppAlreadyOpen` now accepts `ExpectedExe`, filters matching processes by `MainModule.FileName`, and returns false if no exact executable match remains; `Start-Win32App` passes `App.ExpectedExe`. _(v13)_
+- [x] **HARD-01** — Anchored `Repair-ShortcutArguments` regex: replaced loose PFN extraction with a fully anchored pattern `^shell:appsFolder\\(Microsoft\.[A-Za-z0-9._]+_[A-Za-z0-9]+)![A-Za-z0-9._-]+$` that constrains PFN to start with `Microsoft.` and requires the full argument string to match, blocking path injection via crafted `ExpectedArguments` values. _(v14)_
 - [x] **HARD-03** — Safer XML manifest loading: `Repair-ShortcutArguments` now uses `[xml]::new(); $manifest.Load($manifestPath)` instead of `[xml]$manifest = Get-Content` to handle BOMs and large manifests. _(v11)_
