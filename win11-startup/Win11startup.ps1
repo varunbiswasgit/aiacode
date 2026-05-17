@@ -21,6 +21,12 @@
 # - Exe allowlist  : Test-ExePathAllowed enforces that any exe accepted via user prompt or
 #                    auto-discovery during repair lives under Program Files, Program Files (x86),
 #                    or Windows. Paths outside these roots are rejected before any shortcut write.
+# - Signature gate : Test-ExeSignatureTrusted requires Get-AuthenticodeSignature status 'Valid'
+#                    before any repaired or user-supplied exe is persisted to a shortcut target.
+#                    Called after the allowlist check in both Prompt-ForExactExePath and
+#                    Repair-ShortcutTarget.
+# - XML load       : Repair-ShortcutArguments uses [xml]::new() + Load() instead of
+#                    [xml]$m = Get-Content to correctly handle BOMs and large manifest files.
 
 $startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $MaxRepairDepth         = 3
@@ -288,8 +294,7 @@ function Update-ShortcutTarget {
 }
 
 # ---------------------------------------------------------------------------
-# Security: validate an exe path against the allowlisted roots before
-# persisting it into any shortcut target field.
+# Security: validate an exe path against the allowlisted roots.
 # ---------------------------------------------------------------------------
 function Test-ExePathAllowed {
     param([string]$ExePath)
@@ -301,6 +306,23 @@ function Test-ExePathAllowed {
         }
     }
     return $false
+}
+
+# ---------------------------------------------------------------------------
+# Security: verify Authenticode signature before persisting any exe path.
+# Rejects files whose signature status is not 'Valid'.
+# ---------------------------------------------------------------------------
+function Test-ExeSignatureTrusted {
+    param([string]$ExePath)
+    try {
+        $sig = Get-AuthenticodeSignature -FilePath $ExePath -ErrorAction Stop
+        if ($sig.Status -eq 'Valid') { return $true }
+        Write-Warning "Signature status for '$ExePath' is '$($sig.Status)'. Only 'Valid' is accepted."
+        return $false
+    } catch {
+        Write-Warning "Could not verify Authenticode signature for '$ExePath'. $_"
+        return $false
+    }
 }
 
 function Prompt-ForExactExePath {
@@ -317,6 +339,10 @@ function Prompt-ForExactExePath {
         }
         if (-not (Test-ExePathAllowed -ExePath $trimmed)) {
             Write-Warning "Path is outside allowed roots ($($AllowedExeRoots -join ', ')): $trimmed"
+            continue
+        }
+        if (-not (Test-ExeSignatureTrusted -ExePath $trimmed)) {
+            Write-Warning "File does not have a valid Authenticode signature: $trimmed"
             continue
         }
         return $trimmed
@@ -380,6 +406,8 @@ function Repair-ShortcutTarget {
         if ($foundExe) {
             if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
                 Write-Warning "$($App.Name): discovered exe is outside allowed roots. Skipping auto-repair: $($foundExe.FullName)"
+            } elseif (-not (Test-ExeSignatureTrusted -ExePath $foundExe.FullName)) {
+                Write-Warning "$($App.Name): discovered exe does not have a valid Authenticode signature. Skipping auto-repair: $($foundExe.FullName)"
             } else {
                 Write-Host "$($App.Name): found replacement at $($foundExe.FullName). Updating shortcut."
                 Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $foundExe.FullName -Arguments $App.ExpectedArguments
@@ -432,7 +460,8 @@ function Repair-ShortcutArguments {
     $appId = $null
     if (Test-Path -LiteralPath $manifestPath) {
         try {
-            [xml]$manifest = Get-Content -LiteralPath $manifestPath -ErrorAction Stop
+            $manifest = [xml]::new()
+            $manifest.Load($manifestPath)
             $appIds = $manifest.Package.Applications.Application.Id
             $appId  = if ($appIds -contains 'App') { 'App' } else { $appIds | Select-Object -First 1 }
         } catch {
