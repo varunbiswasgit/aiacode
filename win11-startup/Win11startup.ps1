@@ -48,6 +48,13 @@
 # - Config file    : $script:apps is loaded from apps.json in the same folder as the script.
 #                    Required fields: Name, LaunchType, ShortcutPath, ProcessName, ExpectedExe.
 #                    Add/Delete menu flows write changes back to apps.json automatically.
+# - Add flow       : Show-AppPicker -AllowNew shows [N] for brand-new entry and returns
+#                    '__NEW__' sentinel; Add-Shortcut distinguishes re-init (real app object),
+#                    new entry ('__NEW__'), and cancel ($null). Appx entries collect
+#                    StartAppName, KnownAumid, AppxName during the add prompt.
+# - Timeout math   : Wait-ForAppReady stores actual phase-1 settle duration in $phase1Secs
+#                    and subtracts that exact value for phase-2 remaining, so the total
+#                    timeout is always honoured even when TimeoutSeconds < SettleSeconds.
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:MaxRepairDepth         = 3
@@ -84,6 +91,9 @@ function Import-AppsConfig {
         # Normalise optional fields to empty strings so downstream code never sees $null
         if ($null -eq $entry.ExpectedPublisher)  { $entry | Add-Member -NotePropertyName ExpectedPublisher  -NotePropertyValue '' -Force }
         if ($null -eq $entry.ExpectedArguments)  { $entry | Add-Member -NotePropertyName ExpectedArguments  -NotePropertyValue '' -Force }
+        if ($null -eq $entry.StartAppName)        { $entry | Add-Member -NotePropertyName StartAppName        -NotePropertyValue '' -Force }
+        if ($null -eq $entry.KnownAumid)          { $entry | Add-Member -NotePropertyName KnownAumid          -NotePropertyValue '' -Force }
+        if ($null -eq $entry.AppxName)            { $entry | Add-Member -NotePropertyName AppxName            -NotePropertyValue '' -Force }
         $validated += $entry
     }
     return $validated
@@ -150,9 +160,13 @@ function Test-AppAlreadyOpen {
 function Wait-ForAppReady {
     param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
 
-    $mode = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs ([Math]::Min($script:SettleSeconds, $TimeoutSeconds))
+    # FIX-03: capture the actual phase-1 duration so phase-2 subtracts the
+    # real elapsed settle time, not the config default (which may differ when
+    # TimeoutSeconds < $script:SettleSeconds).
+    $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
+    $mode = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
     if ($null -eq $mode) {
-        $remaining = $TimeoutSeconds - $script:SettleSeconds
+        $remaining = $TimeoutSeconds - $phase1Secs
         $elapsed   = 0
         while ($elapsed -lt $remaining) {
             if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) { return $true }
@@ -166,7 +180,7 @@ function Wait-ForAppReady {
 
     if ($mode -eq 'Tray') { return $true }
 
-    $remaining = $TimeoutSeconds - $script:SettleSeconds
+    $remaining = $TimeoutSeconds - $phase1Secs
     $elapsed   = 0
     while ($elapsed -lt $remaining) {
         $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
@@ -181,21 +195,28 @@ function Wait-ForAppReady {
 # Helper: numbered app picker
 # ---------------------------------------------------------------------------
 function Show-AppPicker {
-    param([string]$Prompt)
+    # FIX-02: -AllowNew adds an [N] option for "add new entry"; without it [0]
+    # is a plain cancel, keeping all other callers (Delete, Modify) unchanged.
+    param([string]$Prompt, [switch]$AllowNew)
     Write-Host "`n$Prompt"
     for ($i = 0; $i -lt $script:apps.Count; $i++) {
         $exists = if (Test-Path -LiteralPath $script:apps[$i].ShortcutPath -PathType Leaf) { "exists" } else { "missing" }
         Write-Host ("  [{0}] {1,-20}  {2}  ({3})" -f ($i + 1), $script:apps[$i].Name, $exists, $script:apps[$i].ShortcutPath)
     }
+    if ($AllowNew) {
+        Write-Host "  [N] Add a brand-new app entry"
+    }
     Write-Host "  [0] Cancel"
     while ($true) {
         $choice = Read-Host "Select"
+        if ($AllowNew -and $choice -imatch '^n$')  { return '__NEW__' }
         if ($choice -match '^\d+$') {
             $idx = [int]$choice
             if ($idx -eq 0)                                          { return $null }
             if ($idx -ge 1 -and $idx -le $script:apps.Count)        { return $script:apps[$idx - 1] }
         }
-        Write-Warning "Invalid selection. Enter a number between 0 and $($script:apps.Count)."
+        $hint = if ($AllowNew) { "0-$($script:apps.Count) or N" } else { "0-$($script:apps.Count)" }
+        Write-Warning "Invalid selection. Enter $hint."
     }
 }
 
@@ -203,14 +224,17 @@ function Show-AppPicker {
 # Shortcut management
 # ---------------------------------------------------------------------------
 function Add-Shortcut {
+    # FIX-01 + FIX-02: $App is either a real app object (re-init), '__NEW__'
+    # (explicit new-entry request via [N] in Show-AppPicker), or $null (cancel).
     param($App)
-    if ($App) {
-        # Called from menu with existing app — just run initialize
+    if ($null -eq $App)          { Write-Host "Add cancelled."; return }
+    if ($App -ne '__NEW__') {
+        # Called with an existing app entry — re-run bootstrap / initialize only
         Initialize-Shortcut -App $App
         return
     }
 
-    # No app passed — prompt user for a brand-new entry
+    # ── Brand-new entry flow ──────────────────────────────────────────────────
     Write-Host "`n--- Add new app entry ---"
     $name = Read-Host "App name (display label)"
     if ([string]::IsNullOrWhiteSpace($name)) { Write-Host "Cancelled."; return }
@@ -220,17 +244,37 @@ function Add-Shortcut {
         $launchType = Read-Host "Launch type [Win32 / Appx]"
     }
 
-    $number      = Read-Host "Shortcut number (e.g. 09)"
-    $lnkName     = "$number $name.lnk"
+    $number       = Read-Host "Shortcut number (e.g. 09)"
+    $lnkName      = "$number $name.lnk"
     $shortcutPath = Join-Path $script:startMenu $lnkName
 
     $processName = Read-Host "Process name (without .exe, e.g. chrome)"
-    $expectedExe = Read-Host "Expected exe filename (e.g. chrome.exe)"
+
+    # FIX-01: Appx entries use explorer.exe as host; Win32 entries need a real exe name.
+    $expectedExe = if ($launchType -eq 'Appx') { 'explorer.exe' } else {
+        Read-Host "Expected exe filename (e.g. chrome.exe)"
+    }
 
     $expectedPublisher = Read-Host "Expected publisher CN string (optional, press Enter to skip)"
-    $expectedArguments = Read-Host "Expected arguments (optional, e.g. shell:appsFolder\PFN!App, press Enter to skip)"
+    $expectedArguments = ''
 
-    # Security gates for Win32 exe-based entries
+    # FIX-01: collect Appx-specific fields
+    $startAppName = ''
+    $knownAumid   = ''
+    $appxName     = ''
+    if ($launchType -eq 'Appx') {
+        Write-Host "(Appx fields — used by AUMID resolver at launch time)"
+        $startAppName      = Read-Host "Start menu display name fragment (e.g. Your Phone)"
+        $knownAumid        = Read-Host "Known AUMID (e.g. Microsoft.YourPhone_8wekyb3d8bbwe!App, press Enter to skip)"
+        $appxName          = Read-Host "Appx package name fragment (e.g. YourPhone, press Enter to skip)"
+        $expectedArguments = if (-not [string]::IsNullOrWhiteSpace($knownAumid)) {
+                                 "shell:appsFolder\$knownAumid"
+                             } else { '' }
+    } else {
+        $expectedArguments = Read-Host "Expected arguments (optional, e.g. shell:appsFolder\PFN!App, press Enter to skip)"
+    }
+
+    # Security gate — Win32 exe-based entries (no shell: argument)
     $exePath = $null
     if ($launchType -eq 'Win32' -and [string]::IsNullOrWhiteSpace($expectedArguments)) {
         $exePath = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
@@ -245,6 +289,9 @@ function Add-Shortcut {
         ExpectedExe       = $expectedExe
         ExpectedPublisher = $expectedPublisher
         ExpectedArguments = $expectedArguments
+        StartAppName      = $startAppName
+        KnownAumid        = $knownAumid
+        AppxName          = $appxName
     }
 
     # Create the shortcut on disk
@@ -754,7 +801,7 @@ $mainChoice = Read-Host "Select"
 
 switch ($mainChoice) {
     '2' {
-        $app = Show-AppPicker -Prompt "Select app to ADD shortcut for (or [0] to add a new app entry):"
+        $app = Show-AppPicker -Prompt "Select app to re-initialise, or [N] to add a new entry:" -AllowNew
         Add-Shortcut -App $app
         exit
     }
