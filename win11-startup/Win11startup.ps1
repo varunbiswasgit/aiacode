@@ -6,9 +6,10 @@
 #                    KnownAumid used only as primary candidate, not sole source of truth
 # - Sticky Notes   : Win32 shortcut with /memoryWindow start baked into the .lnk Target field
 #                    WshShell.Run fires the shortcut as-is; no separate Arguments field needed
-# - Phone Link     : Win32 shortcut targeting explorer.exe with shell:appsFolder AUMID as Arguments
-#                    argument self-healing scans WindowsApps for the package family name fragment
-#                    and reconstructs the AUMID from the installed folder name + AppxManifest.xml
+# - Packaged apps  : Win32 entries that cannot be launched via direct .exe invocation (e.g. apps installed
+#                    under WindowsApps which is ACL-locked) are stored as .lnk targeting explorer.exe
+#                    with shell:appsFolder\<AUMID> as the Arguments field. ExpectedArguments triggers
+#                    argument self-healing when the AUMID becomes stale after a package update.
 # - Bootstrap      : before launch loop, ensures every Win32 .lnk exists at the expected path;
 #                    renames misnumbered matches found in the same folder, or creates fresh if absent
 # - Main menu      : on launch, user chooses Run / Add / Delete / Modify / Exit
@@ -36,8 +37,9 @@
 #                    false skips caused by unrelated same-named processes.
 # - Regex anchor   : Repair-ShortcutArguments uses a fully anchored regex to extract the PFN
 #                    from ExpectedArguments. Pattern requires the full value to match
-#                    ^shell:appsFolder\<PFN>!<AppId>$ and constrains PFN to start with
-#                    'Microsoft.' to block path injection via crafted argument strings.
+#                    ^shell:appsFolder\<PFN>!<AppId>$ and accepts any valid PackageFamilyName
+#                    prefix (not limited to Microsoft.) so non-Microsoft packaged apps are
+#                    handled correctly.
 # - Script scope   : All shared vars ($WshShell, $apps, $startMenu, $MaxRepairDepth,
 #                    $InitialDelaySeconds, $LaunchTimeoutSeconds, $PostLaunchPauseSeconds,
 #                    $SettleSeconds, $AllowedExeRoots) use $script: scope so dot-sourced
@@ -602,8 +604,11 @@ function Repair-ShortcutArguments {
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
     Write-Warning "$($App.Name): shortcut Arguments missing or invalid: '$($shortcut.Arguments)'"
 
+    # Accept any valid PackageFamilyName prefix — not limited to Microsoft. —
+    # so non-Microsoft packaged apps (e.g. SpotifyAB., Adobe., Google.) are
+    # handled correctly when their package version changes.
     $aumidFragment = $null
-    if ($App.ExpectedArguments -match '^shell:appsFolder\\(Microsoft\.[A-Za-z0-9._]+_[A-Za-z0-9]+)![A-Za-z0-9._-]+$') {
+    if ($App.ExpectedArguments -match '^shell:appsFolder\\([A-Za-z0-9][A-Za-z0-9._]*_[A-Za-z0-9]+)![A-Za-z0-9._-]+$') {
         $fullPfn       = $Matches[1]
         $aumidFragment = ($fullPfn -split '_', 2)[1]
     }
