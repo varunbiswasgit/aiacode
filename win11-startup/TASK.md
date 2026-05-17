@@ -1,6 +1,6 @@
 # Win11 Startup Launcher — Task Backlog
 
-Derived from the audit of v9 (runtime presence-mode detection). Tasks are ordered by risk/value.
+Tasks are ordered by risk/value within each category.
 Move each item to **Done** after its commit lands.
 
 ---
@@ -9,34 +9,57 @@ Move each item to **Done** after its commit lands.
 
 ### Security
 
-- [ ] **SEC-02** — Authenticode signature check: before persisting a repaired shortcut, call `Get-AuthenticodeSignature` and reject executables whose status is not `Valid`.
-- [ ] **SEC-03** — Publisher allowlist: for each app entry, add an optional `ExpectedPublisher` field; compare the resolved exe's signer against it before writing the shortcut.
-- [ ] **SEC-04** — Process-name collision guard: when `Test-AppAlreadyOpen` finds a running process, verify its executable path matches `ExpectedExe` so an unrelated same-named process cannot cause a false skip.
+- [ ] **SEC-03** — Publisher allowlist: add optional `ExpectedPublisher` field per app entry; after `Test-ExeSignatureTrusted` passes, compare `SignerCertificate.Subject` against the expected publisher string and reject the exe if it does not match.
+  > _Achievable: `Get-AuthenticodeSignature` already called; this adds a string compare on the cert subject._
 
-### Unit Tests (Pester)
-
-- [ ] **TEST-01** — Pester scaffold: create `Win11startup.Tests.ps1`; add `BeforeAll` that dot-sources the main script with a `$TestMode` guard so the main-menu and startup sequence do not execute on import.
-- [ ] **TEST-02** — Unit test `Get-RelativeDepth`: cases for same folder (depth 0), one level deep, two levels deep, path outside base (returns MaxValue), and empty input.
-- [ ] **TEST-03** — Unit test `Find-MisnumberedShortcut`: matching `.lnk` with wrong number prefix found, no match when name differs, empty folder, folder missing.
-- [ ] **TEST-04** — Unit test `Get-AppPresenceMode`: mock `Get-Process` to simulate window appearing on tick 2 (Window), process present but no window after settle (Tray), process never appearing ($null).
-- [ ] **TEST-05** — Unit test `Wait-ForAppReady`: mock presence-mode results and verify Phase 1 / Phase 2 branching and return values.
-- [ ] **TEST-06** — Unit test `Repair-ShortcutArguments`: mock filesystem with valid and ACL-blocked AppxManifest; verify AUMID reconstruction and fallback to ExpectedArguments AppId.
-- [ ] **TEST-07** — Unit test `Test-AppAlreadyOpen`: process not found (false), process found no window (true), process found with window (true).
-
-### Integration Tests
-
-- [ ] **INT-01** — Pester integration harness: add a second describe block `Integration` gated by `$env:RUN_INTEGRATION -eq '1'`; tests create real temp `.lnk` files under `$env:TEMP` and clean up in `AfterAll`.
-- [ ] **INT-02** — Integration test full Win32 shortcut bootstrap: create a valid `.lnk` pointing to `notepad.exe`, run `Start-Win32App`, confirm Notepad starts and is killed in cleanup.
-- [ ] **INT-03** — Integration test repair flow: create `.lnk` with broken target, run `Start-Win32App`, confirm shortcut target is updated to discovered `notepad.exe` and process starts.
+- [ ] **SEC-04** — Process-name collision guard: update `Test-AppAlreadyOpen` to compare each matching process's `.MainModule.FileName` against `ExpectedExe` so an unrelated same-named process cannot cause a false skip.
+  > _Achievable: `MainModule.FileName` available on all non-system Win32 processes; `ExpectedExe` already in every app entry._
 
 ### Hardening
 
-- [ ] **HARD-01** — Constrain `Repair-ShortcutArguments` regex: tighten the AUMID fragment extraction regex to prevent path traversal via crafted `ExpectedArguments` values.
-- [ ] **HARD-02** — Add `$script:` scope guards: ensure `$WshShell`, `$apps`, and config variables are scoped to `$script:` so dot-sourced test runs cannot leak globals.
-- [ ] **HARD-03** — Replace `[xml]$manifest = Get-Content` with `[xml]::new()` + `Load()` using a `FileStream` to avoid issues with BOMs and large manifests.
+- [ ] **HARD-01** — Tighten `Repair-ShortcutArguments` regex: replace the loose `\\([^\\!]+)!` match with an anchored pattern requiring the PFN to begin with a known publisher prefix (e.g. `Microsoft\.`) to prevent path injection via a crafted `ExpectedArguments` value.
+  > _Achievable: one-line regex change._
+
+- [ ] **HARD-02** — Add `$script:` scope to shared vars: prefix `$WshShell`, `$apps`, `$startMenu`, `$MaxRepairDepth`, `$InitialDelaySeconds`, `$LaunchTimeoutSeconds`, `$PostLaunchPauseSeconds`, `$SettleSeconds`, and `$AllowedExeRoots` so dot-sourced Pester runs cannot leak or shadow globals.
+  > _Achievable: search-and-replace on declarations and all references._
+
+### Unit Tests (Pester)
+
+- [ ] **TEST-01** — Pester scaffold: create `Win11startup.Tests.ps1`; add `BeforeAll` that sets `$env:PS_STARTUP_TESTMODE = '1'` then dot-sources the script. Add a 2-line guard in the main script that skips the menu and startup sequence when the env var is set.
+  > _Achievable: small change to main script plus new test file._
+
+- [ ] **TEST-02** — Unit test `Get-RelativeDepth`: 5 cases — same folder (0), 1 level, 2 levels, path outside base (MaxValue), empty string. Pure path math; no mocking needed.
+  > _Achievable: self-contained function._
+
+- [ ] **TEST-03** — Unit test `Find-MisnumberedShortcut`: create temp `.lnk` stubs in `$env:TEMP`; verify match, no-match, empty folder, and missing folder cases. Clean up in `AfterEach`.
+  > _Achievable: filesystem only, no COM or process dependency._
+
+- [ ] **TEST-04** — Unit test `Test-ExePathAllowed` and `Test-ExeSignatureTrusted`: allowlist check is string comparison (no mock). Signature test uses `notepad.exe` for the Valid case and a renamed `.txt` for the invalid case.
+  > _Achievable: no COM or process mocking needed._
+
+### Integration Tests
+
+- [ ] **INT-01** — Integration harness: add a `Describe 'Integration'` block gated by `$env:RUN_INTEGRATION -eq '1'`; `AfterAll` removes all temp `.lnk` files and kills any test processes.
+  > _Achievable: standard Pester pattern. Required before INT-02._
+
+- [ ] **INT-02** — Shortcut bootstrap smoke test: create a temp `.lnk` pointing to `notepad.exe` under `$env:TEMP`, call `Initialize-Shortcut`, confirm `TargetPath` resolves, then delete. No admin rights needed.
+  > _Achievable: uses real COM via `$WshShell`._
+
+---
+
+## Removed (Not Achievable Portably)
+
+| Task | Reason |
+|---|---|
+| **TEST-05** — Unit test `Wait-ForAppReady` | Requires mocking `Get-Process` and `Start-Sleep` in PS 5.1 without an external mock library; not reliable in a portable single-file context. |
+| **TEST-06** — Unit test `Repair-ShortcutArguments` | Depends on `C:\\Program Files\\WindowsApps` ACL structure; not reproducible portably without admin access on a real Windows machine. |
+| **TEST-07** — Unit test `Test-AppAlreadyOpen` | Mocking live `MainWindowHandle` requires a real running GUI process; not suitable for headless unit tests. |
+| **INT-03** — Integration test repair flow | `Repair-ShortcutTarget` auto-discovery depends on a real broken install path on the target machine; not reproducible portably. |
 
 ---
 
 ## Done
 
-- [x] **SEC-01** — Allowlist exe repair paths: added `$AllowedExeRoots` config array (`Program Files`, `Program Files (x86)`, `SystemRoot`) and `Test-ExePathAllowed` helper. Both `Prompt-ForExactExePath` (user input) and `Repair-ShortcutTarget` (auto-discovered exe) now reject paths outside the allowlist before writing any shortcut. _(v10)_
+- [x] **SEC-01** — Allowlist exe repair paths: added `$AllowedExeRoots` config array and `Test-ExePathAllowed` helper; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject paths outside allowed roots. _(v10)_
+- [x] **SEC-02** — Authenticode signature check: added `Test-ExeSignatureTrusted` using `Get-AuthenticodeSignature`; both `Prompt-ForExactExePath` and `Repair-ShortcutTarget` reject executables whose signature status is not `Valid`. _(v11)_
+- [x] **HARD-03** — Safer XML manifest loading: `Repair-ShortcutArguments` now uses `[xml]::new(); $manifest.Load($manifestPath)` instead of `[xml]$manifest = Get-Content` to handle BOMs and large manifests. _(v11)_
