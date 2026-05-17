@@ -42,6 +42,9 @@
 #                    $InitialDelaySeconds, $LaunchTimeoutSeconds, $PostLaunchPauseSeconds,
 #                    $SettleSeconds, $AllowedExeRoots) use $script: scope so dot-sourced
 #                    Pester runs cannot leak or shadow globals.
+# - Test mode      : When $env:PS_STARTUP_TESTMODE = '1', the script dot-sources cleanly
+#                    (functions and vars available) but skips the interactive menu and
+#                    startup sequence entirely. Used by Win11startup.Tests.ps1.
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:MaxRepairDepth         = 3
@@ -633,8 +636,12 @@ function Start-Win32App {
 }
 
 # ---------------------------------------------------------------------------
-# Main menu
+# Main menu + startup sequence
+# Guard: when PS_STARTUP_TESTMODE=1, functions and vars are available for
+# Pester dot-source but the interactive menu and sequence are skipped.
 # ---------------------------------------------------------------------------
+if ($env:PS_STARTUP_TESTMODE -eq '1') { return }
+
 Write-Host "`n================================================"
 Write-Host "  Win11 Startup Manager"
 Write-Host "================================================"
@@ -665,9 +672,6 @@ switch ($mainChoice) {
     '5' { exit }
 }
 
-# ---------------------------------------------------------------------------
-# Startup sequence
-# ---------------------------------------------------------------------------
 Write-Host "Waiting $script:InitialDelaySeconds seconds for system to stabilize..."
 Start-Sleep -Seconds $script:InitialDelaySeconds
 

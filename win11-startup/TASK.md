@@ -7,28 +7,6 @@ Move each item to **Done** after its commit lands.
 
 ## To Do
 
-### Unit Tests (Pester)
-
-- [ ] **TEST-01** — Pester scaffold: create `Win11startup.Tests.ps1`; add `BeforeAll` that sets `$env:PS_STARTUP_TESTMODE = '1'` then dot-sources the script. Add a 2-line guard in the main script that skips the menu and startup sequence when the env var is set.
-  > _Achievable: small change to main script plus new test file._
-
-- [ ] **TEST-02** — Unit test `Get-RelativeDepth`: 5 cases — same folder (0), 1 level, 2 levels, path outside base (MaxValue), empty string. Pure path math; no mocking needed.
-  > _Achievable: self-contained function._
-
-- [ ] **TEST-03** — Unit test `Find-MisnumberedShortcut`: create temp `.lnk` stubs in `$env:TEMP`; verify match, no-match, empty folder, and missing folder cases. Clean up in `AfterEach`.
-  > _Achievable: filesystem only, no COM or process dependency._
-
-- [ ] **TEST-04** — Unit test `Test-ExePathAllowed` and `Test-ExeSignatureTrusted`: allowlist check is string comparison (no mock). Signature test uses `notepad.exe` for the Valid case and a renamed `.txt` for the invalid case.
-  > _Achievable: no COM or process mocking needed._
-
-### Integration Tests
-
-- [ ] **INT-01** — Integration harness: add a `Describe 'Integration'` block gated by `$env:RUN_INTEGRATION -eq '1'`; `AfterAll` removes all temp `.lnk` files and kills any test processes.
-  > _Achievable: standard Pester pattern. Required before INT-02._
-
-- [ ] **INT-02** — Shortcut bootstrap smoke test: create a temp `.lnk` pointing to `notepad.exe` under `$env:TEMP`, call `Initialize-Shortcut`, confirm `TargetPath` resolves, then delete. No admin rights needed.
-  > _Achievable: uses real COM via `$WshShell`._
-
 ### Refactor
 
 - [ ] **REF-01** — Externalize `$script:apps` to `apps.json`: move the inline `$script:apps` table from `Win11startup.ps1` into a sibling `apps.json` config file loaded via `Get-Content | ConvertFrom-Json`. Validate required fields (`Name`, `LaunchType`, `ShortcutPath`, `ProcessName`, `ExpectedExe`) on load and fail closed if the file is missing or malformed. Allows adding new app entries without editing the script source. All existing security gates (allowlist, signature, publisher) remain unchanged.
@@ -61,3 +39,9 @@ Move each item to **Done** after its commit lands.
 - [x] **HARD-01** — Anchored `Repair-ShortcutArguments` regex: replaced loose PFN extraction with a fully anchored pattern `^shell:appsFolder\\(Microsoft\.[A-Za-z0-9._]+_[A-Za-z0-9]+)![A-Za-z0-9._-]+$` that constrains PFN to start with `Microsoft.` and requires the full argument string to match, blocking path injection via crafted `ExpectedArguments` values. _(v14)_
 - [x] **HARD-02** — `$script:` scope on all shared vars: prefixed `$WshShell`, `$apps`, `$startMenu`, `$MaxRepairDepth`, `$InitialDelaySeconds`, `$LaunchTimeoutSeconds`, `$PostLaunchPauseSeconds`, `$SettleSeconds`, and `$AllowedExeRoots` with `$script:` on declaration and all references; prevents variable leak or shadowing when dot-sourced by Pester. _(v15)_
 - [x] **HARD-03** — Safer XML manifest loading: `Repair-ShortcutArguments` now uses `[xml]::new(); $manifest.Load($manifestPath)` instead of `[xml]$manifest = Get-Content` to handle BOMs and large manifests. _(v11)_
+- [x] **TEST-01** — Pester scaffold: added `$env:PS_STARTUP_TESTMODE` guard at bottom of `Win11startup.ps1`; skips interactive menu and startup sequence when set to `'1'`. Created `Win11startup.Tests.ps1` with `BeforeAll` that sets the env var and dot-sources the script. _(v16)_
+- [x] **TEST-02** — Unit test `Get-RelativeDepth`: 5 cases — same folder (0), 1 level, 2 levels, outside base (MaxValue), empty candidate via outside-base check. All in `Describe Unit > Get-RelativeDepth`. _(v16)_
+- [x] **TEST-03** — Unit test `Find-MisnumberedShortcut`: 4 cases — match found, no name match, empty folder, missing folder. Uses temp `.lnk` stubs in `$env:TEMP`; cleaned up in `AfterEach`. _(v16)_
+- [x] **TEST-04** — Unit test `Test-ExePathAllowed` (4 cases: Program Files, SystemRoot, TEMP reject, Desktop reject) and `Test-ExeSignatureTrusted` (4 cases: notepad valid, correct publisher, wrong publisher, fake .exe). _(v16)_
+- [x] **INT-01** — Integration harness: `Describe Integration` gated by `$env:RUN_INTEGRATION -eq '1'`; `BeforeAll` creates temp dir, `AfterAll` removes all temp `.lnk` files and the dir. _(v16)_
+- [x] **INT-02** — Shortcut bootstrap smoke test: creates a real `.lnk` pointing to `notepad.exe`, calls `Initialize-Shortcut`, confirms shortcut exists and `TargetPath` resolves correctly, cleans up in `AfterAll`. _(v16)_
