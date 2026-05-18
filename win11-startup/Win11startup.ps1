@@ -63,6 +63,10 @@
 # - Launch wait    : Invoke-AppLaunchWait centralises the Wait-ForAppReady + ready/warning
 #                    output + PostLaunchPauseSeconds sleep shared by Start-AppxApp and
 #                    the happy path of Start-Win32App.
+# - Shortcut write : New-AppShortcut -Path -TargetPath -Arguments -WorkingDirectory is the
+#                    single place all .lnk files are written. Add-Shortcut, Edit-Shortcut,
+#                    and Initialize-Shortcut all call it; WshShell.CreateShortcut is invoked
+#                    in exactly one function.
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:InitialDelaySeconds    = 10
@@ -95,7 +99,6 @@ function Import-AppsConfig {
                 throw "apps.json entry missing required field '$field': $(ConvertTo-Json $entry -Compress)"
             }
         }
-        # Normalise optional fields to empty strings so downstream code never sees $null
         if ($null -eq $entry.ExpectedPublisher)  { $entry | Add-Member -NotePropertyName ExpectedPublisher  -NotePropertyValue '' -Force }
         if ($null -eq $entry.ExpectedArguments)  { $entry | Add-Member -NotePropertyName ExpectedArguments  -NotePropertyValue '' -Force }
         if ($null -eq $entry.StartAppName)        { $entry | Add-Member -NotePropertyName StartAppName        -NotePropertyValue '' -Force }
@@ -166,10 +169,6 @@ function Test-AppAlreadyOpen {
 
 function Wait-ForAppReady {
     param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
-
-    # FIX-03: capture the actual phase-1 duration so phase-2 subtracts the
-    # real elapsed settle time, not the config default (which may differ when
-    # TimeoutSeconds < $script:SettleSeconds).
     $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
     $mode = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
     if ($null -eq $mode) {
@@ -202,8 +201,6 @@ function Wait-ForAppReady {
 # Helper: numbered app picker
 # ---------------------------------------------------------------------------
 function Show-AppPicker {
-    # FIX-02: -AllowNew adds an [N] option for "add new entry"; without it [0]
-    # is a plain cancel, keeping all other callers (Delete, Modify) unchanged.
     param([string]$Prompt, [switch]$AllowNew)
     Write-Host "`n$Prompt"
     for ($i = 0; $i -lt $script:apps.Count; $i++) {
@@ -228,15 +225,30 @@ function Show-AppPicker {
 }
 
 # ---------------------------------------------------------------------------
+# Single shortcut writer — all .lnk creation goes through here
+# ---------------------------------------------------------------------------
+function New-AppShortcut {
+    # -Arguments and -WorkingDirectory are optional; omit for exe-only shortcuts.
+    param(
+        [string]$Path,
+        [string]$TargetPath,
+        [string]$Arguments        = "",
+        [string]$WorkingDirectory = ""
+    )
+    $sc = $script:WshShell.CreateShortcut($Path)
+    $sc.TargetPath = $TargetPath
+    if (-not [string]::IsNullOrWhiteSpace($Arguments))        { $sc.Arguments        = $Arguments }
+    if (-not [string]::IsNullOrWhiteSpace($WorkingDirectory)) { $sc.WorkingDirectory = $WorkingDirectory }
+    $sc.Save()
+}
+
+# ---------------------------------------------------------------------------
 # Shortcut management
 # ---------------------------------------------------------------------------
 function Add-Shortcut {
-    # FIX-01 + FIX-02: $App is either a real app object (re-init), '__NEW__'
-    # (explicit new-entry request via [N] in Show-AppPicker), or $null (cancel).
     param($App)
     if ($null -eq $App)          { Write-Host "Add cancelled."; return }
     if ($App -ne '__NEW__') {
-        # Called with an existing app entry — re-run bootstrap / initialize only
         Initialize-Shortcut -App $App
         return
     }
@@ -257,7 +269,6 @@ function Add-Shortcut {
 
     $processName = Read-Host "Process name (without .exe, e.g. chrome)"
 
-    # FIX-01: Appx entries use explorer.exe as host; Win32 entries need a real exe name.
     $expectedExe = if ($launchType -eq 'Appx') { 'explorer.exe' } else {
         Read-Host "Expected exe filename (e.g. chrome.exe)"
     }
@@ -265,7 +276,6 @@ function Add-Shortcut {
     $expectedPublisher = Read-Host "Expected publisher CN string (optional, press Enter to skip)"
     $expectedArguments = ''
 
-    # FIX-01: collect Appx-specific fields
     $startAppName = ''
     $knownAumid   = ''
     $appxName     = ''
@@ -281,7 +291,6 @@ function Add-Shortcut {
         $expectedArguments = Read-Host "Expected arguments (optional, e.g. shell:appsFolder\PFN!App, press Enter to skip)"
     }
 
-    # Security gate — Win32 exe-based entries (no shell: argument)
     $exePath = $null
     if ($launchType -eq 'Win32' -and [string]::IsNullOrWhiteSpace($expectedArguments)) {
         $exePath = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
@@ -301,23 +310,16 @@ function Add-Shortcut {
         AppxName          = $appxName
     }
 
-    # Create the shortcut on disk
     if ($exePath) {
-        $sc = $script:WshShell.CreateShortcut($shortcutPath)
-        $sc.TargetPath       = $exePath
-        $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
-        $sc.Save()
+        New-AppShortcut -Path $shortcutPath -TargetPath $exePath `
+                        -WorkingDirectory (Split-Path -Path $exePath -Parent)
         Write-Host "Shortcut created: $shortcutPath"
     } elseif (-not [string]::IsNullOrWhiteSpace($expectedArguments)) {
-        $sc = $script:WshShell.CreateShortcut($shortcutPath)
-        $sc.TargetPath       = "$env:SystemRoot\explorer.exe"
-        $sc.Arguments        = $expectedArguments
-        $sc.WorkingDirectory = $env:SystemRoot
-        $sc.Save()
+        New-AppShortcut -Path $shortcutPath -TargetPath "$env:SystemRoot\explorer.exe" `
+                        -Arguments $expectedArguments -WorkingDirectory $env:SystemRoot
         Write-Host "Shortcut created with arguments: $shortcutPath"
     }
 
-    # Append to in-memory array and persist
     $script:apps += $newEntry
     Export-AppsConfig
     Write-Host "'$name' added to apps.json."
@@ -338,7 +340,6 @@ function Remove-Shortcut {
         }
     }
 
-    # Remove from in-memory array and persist regardless of whether .lnk existed
     $confirm2 = Read-Host "Also remove '$($App.Name)' from apps.json? (Y/N)"
     if ($confirm2 -ieq 'Y') {
         $script:apps = $script:apps | Where-Object { $_.Name -ne $App.Name }
@@ -362,10 +363,8 @@ function Edit-Shortcut {
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($exePath) {
         if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-            $sc = $script:WshShell.CreateShortcut($App.ShortcutPath)
-            $sc.TargetPath       = $exePath
-            $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
-            $sc.Save()
+            New-AppShortcut -Path $App.ShortcutPath -TargetPath $exePath `
+                            -WorkingDirectory (Split-Path -Path $exePath -Parent)
             Write-Host "$($App.Name): shortcut created at '$($App.ShortcutPath)'."
         } else {
             Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $exePath
@@ -420,10 +419,6 @@ function Get-ShortcutObject {
 }
 
 function Get-ParentFolder {
-    # Returns the folder one level above the broken target's own folder.
-    # e.g. broken target = C:\Program Files\Foo\Bar\app.exe (missing)
-    #      target folder  = C:\Program Files\Foo\Bar
-    #      returns        = C:\Program Files\Foo
     param([string]$BrokenTargetPath)
     if ([string]::IsNullOrWhiteSpace($BrokenTargetPath)) { return $null }
     $targetFolder = Split-Path -Path $BrokenTargetPath -Parent
@@ -553,21 +548,16 @@ function Initialize-Shortcut {
     Write-Warning "$($App.Name): no shortcut found at '$($App.ShortcutPath)'. Creating..."
 
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
-        $sc = $script:WshShell.CreateShortcut($App.ShortcutPath)
-        $sc.TargetPath       = "C:\Windows\explorer.exe"
-        $sc.Arguments        = $App.ExpectedArguments
-        $sc.WorkingDirectory = "C:\Windows"
-        $sc.Save()
+        New-AppShortcut -Path $App.ShortcutPath -TargetPath "C:\Windows\explorer.exe" `
+                        -Arguments $App.ExpectedArguments -WorkingDirectory "C:\Windows"
         Write-Host "$($App.Name): shortcut created with Arguments: $($App.ExpectedArguments)"
         return
     }
 
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($exePath) {
-        $sc = $script:WshShell.CreateShortcut($App.ShortcutPath)
-        $sc.TargetPath       = $exePath
-        $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
-        $sc.Save()
+        New-AppShortcut -Path $App.ShortcutPath -TargetPath $exePath `
+                        -WorkingDirectory (Split-Path -Path $exePath -Parent)
         Write-Host "$($App.Name): shortcut created at '$($App.ShortcutPath)'."
     } else {
         Write-Warning "$($App.Name): shortcut creation skipped by user."
@@ -611,9 +601,6 @@ function Repair-ShortcutArguments {
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
     Write-Warning "$($App.Name): shortcut Arguments missing or invalid: '$($shortcut.Arguments)'"
 
-    # Accept any valid PackageFamilyName prefix — not limited to Microsoft. —
-    # so non-Microsoft packaged apps (e.g. SpotifyAB., Adobe., Google.) are
-    # handled correctly when their package version changes.
     $aumidFragment = $null
     if ($App.ExpectedArguments -match '^shell:appsFolder\\([A-Za-z0-9][A-Za-z0-9._]*_[A-Za-z0-9]+)![A-Za-z0-9._-]+$') {
         $fullPfn       = $Matches[1]

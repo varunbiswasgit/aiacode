@@ -9,12 +9,6 @@ Move each item to **Done** after its commit lands.
 
 ### Refactor
 
-- [ ] **T-04** — Centralise shortcut-creation into `New-AppShortcut`
-  `Add-Shortcut`, `Edit-Shortcut`, and `Initialize-Shortcut` each open a
-  `WshShell.CreateShortcut` block. Extract to
-  `New-AppShortcut -Path -TargetPath -Arguments -WorkingDirectory` so
-  shortcut writes happen in exactly one place.
-
 - [ ] **T-05** — Simplify `Resolve-Aumid` AppxPackage enumeration
   `Resolve-Aumid` calls `Get-AppxPackage` twice (KnownAumid verification +
   AppxName fallback). Collect the full package list once into `$pkgs` at the
@@ -49,8 +43,8 @@ Move each item to **Done** after its commit lands.
 - [ ] **T-10** — Update `Win11startup.Tests.ps1` header and function inventory
   After T-01 through T-09 land, update the Pester file's top-comment
   inventory to list `Get-ParentFolder` (added), remove
-  `Get-NearestExistingParent` (deleted), and add `Show-FailureMenu` and
-  `Invoke-AppLaunchWait` to the tested-functions table.
+  `Get-NearestExistingParent` (deleted), and add `Show-FailureMenu`,
+  `Invoke-AppLaunchWait`, and `New-AppShortcut` to the tested-functions table.
 
 ---
 
@@ -67,6 +61,7 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
+- [x] **T-04** — Extract `New-AppShortcut`; consolidate 5 `CreateShortcut` blocks _(next commit)_
 - [x] **T-03** — Extract `Invoke-AppLaunchWait`; unify launch-wait tail _(c156a5c)_
 - [x] **T-02** — Extract `Show-FailureMenu` helper _(795e918)_
 - [x] **T-01** — Replace `Get-NearestExistingParent` with `Get-ParentFolder`; remove `$MaxRepairDepth` _(76cd6b9)_
