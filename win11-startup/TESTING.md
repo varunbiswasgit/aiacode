@@ -46,18 +46,18 @@ All tests are manual. No automated Pester test file exists — core behaviour in
 **Expected:** Entry 04 launches and `ONENOTE` starts. Entry 05 logs `OneNote: already open. Skipping.`
 **Pass criteria:** One `ONENOTE` process. Sticky note window visible. Full OneNote UI not opened separately.
 
-### TC-05 — Win32: shortcut target broken, exe found within depth 3
+### TC-05 — Win32: shortcut target broken, exe found after climbing 3 levels up
 
-**Setup:** Change a shortcut's TargetPath to a non-existent path. Actual exe exists within 3 folder levels of the nearest real parent.
+**Setup:** Change a shortcut's TargetPath to a non-existent path several folders deep (e.g. `C:\Program Files\Foo\Bar\Baz\missing.exe`). The actual exe exists somewhere under the ancestor 3 levels up from `Baz` (i.e. under `C:\Program Files\Foo`).
 **Action:** Run the script.
-**Expected:** `shortcut target missing or invalid` warning, then `found replacement at <path>. Updating shortcut.` then `shortcut repaired. Proceeding with launch.` App launches via the updated `.lnk`.
-**Pass criteria:** Shortcut target updated. App running.
+**Expected:** `shortcut target missing or invalid` warning, then `searching for <exe> under <ancestor> (3 levels up, all subfolders)`, then `found replacement at <path>. Updating shortcut.` then `shortcut repaired. Proceeding with launch.` App launches via the updated `.lnk`.
+**Pass criteria:** Shortcut target updated to the real exe path. App running.
 
-### TC-06 — Win32: shortcut target broken, exe not found within depth 3, user provides valid path
+### TC-06 — Win32: shortcut target broken, exe not found after climbing 3 levels up, user provides valid path
 
-**Setup:** Shortcut target broken and exe not reachable within 3 levels.
+**Setup:** Shortcut target broken and the exe does not exist anywhere under the ancestor 3 levels up from the broken target's folder.
 **Action:** When prompted, enter the full correct path to the exe.
-**Expected:** Shortcut updated. `shortcut repaired. Proceeding with launch.` App launches.
+**Expected:** `<exe> not found under <ancestor>` warning, then user prompt appears. On valid input: shortcut updated. `shortcut repaired. Proceeding with launch.` App launches.
 **Pass criteria:** Shortcut updated. App running.
 
 ### TC-07 — Win32 prompt: invalid paths entered before correct one
@@ -161,8 +161,8 @@ All tests are manual. No automated Pester test file exists — core behaviour in
 | TC-02 | Sticky Notes via WshShell.Run | Sticky note window opens; `/memoryWindow start` honoured from .lnk |
 | TC-03 | App already running | Skipped; no second instance |
 | TC-04 | Sticky Notes then OneNote process order | OneNote skipped; one ONENOTE process |
-| TC-05 | Broken Win32 target, exe in depth 3 | Shortcut updated; app launches via repaired .lnk |
-| TC-06 | Broken Win32 target, user provides path | Shortcut updated; app launches via repaired .lnk |
+| TC-05 | Broken Win32 target, exe found after 3 levels up + full subfolder search | Shortcut updated; app launches via repaired .lnk |
+| TC-06 | Broken Win32 target, exe not found after 3-level climb, user provides path | Shortcut updated; app launches via repaired .lnk |
 | TC-07 | Invalid then valid paths at prompt | Prompt repeats; accepts correct input |
 | TC-08 | User skips prompt | App in failure list; script continues |
 | TC-09 | `.lnk` file missing | Inline failure menu shown; script continues after Skip |

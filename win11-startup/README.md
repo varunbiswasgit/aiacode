@@ -10,7 +10,7 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
   - `Appx` — AUMID resolved at runtime in three stages; `KnownAumid` is the primary candidate only, not a hardcoded dependency.
 - **Runtime presence-mode detection** — after launch, `Get-AppPresenceMode` polls `MainWindowHandle` for `$SettleSeconds` (default 5 s). Apps that produce a visible window are classified as `Window` mode; apps that run headless in the system tray are classified as `Tray` mode. No `WindowCheck` flag or per-app configuration is needed.
 - `Test-AppAlreadyOpen` skips relaunch correctly for both Window and Tray apps — a tray app already in the process list is treated as open without requiring a visible window.
-- Bounded Win32 search — depth fixed at 3 to avoid slow machine-wide crawls.
+- Win32 repair search — climbs `$MaxRepairDepth` levels up from the broken target's folder, then searches all subfolders recursively for the expected executable.
 - Prompts user for exact executable path when automated Win32 repair fails; validates path before accepting.
 - Inline failure menu appears when a shortcut is missing or an app times out — offering Add+retry, Modify, or Skip without restarting the sequence.
 - App list externalised to `apps.json`; Add/Delete menu writes changes back automatically.
@@ -71,12 +71,14 @@ A curated Windows 11 startup launcher that sequentially starts a fixed list of p
    Arguments valid? -> invoke .lnk via WshShell.Run
    Arguments wrong? -> Repair-ShortcutArguments -> invoke repaired .lnk
 5. Target broken? -> Repair-ShortcutTarget:
-     a. Climb parent folders to find nearest existing folder
-     b. Search downward max 3 levels for ExpectedExe
-     c. Found? -> update shortcut, invoke repaired .lnk
-     d. Not found? -> prompt user for exact exe path
-     e. Valid input? -> update shortcut, invoke repaired .lnk
-     f. Skipped? -> log failure, continue
+     a. From the broken target's own folder, climb up exactly $MaxRepairDepth levels
+     b. Search all subfolders recursively under that ancestor for ExpectedExe
+     c. Found? -> validate allowlist + signature -> update shortcut, invoke repaired .lnk
+     d. Not found and entry has ExpectedArguments (packaged app)?
+        -> Repair-ShortcutArguments to reconstruct shell:appsFolder AUMID
+     e. Not found and normal Win32? -> prompt user for exact exe path
+     f. Valid input? -> update shortcut, invoke repaired .lnk
+     g. Skipped? -> log failure, continue
 6. Wait-ForAppReady:
      Phase 1 (SettleSeconds): Get-AppPresenceMode polls MainWindowHandle
        -> Window mode: continue to Phase 2
@@ -124,7 +126,7 @@ This removes the need for any `WindowCheck`, `TrayApp`, or equivalent per-app fl
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `$startMenu` | System Start Menu Programs path | Base folder for all Win32 shortcut files |
-| `$MaxRepairDepth` | `3` | Maximum folder depth searched during Win32 shortcut repair |
+| `$MaxRepairDepth` | `3` | Number of folder levels to climb up from a broken shortcut target before searching all subfolders for the expected executable |
 | `$InitialDelaySeconds` | `10` | Wait time after login before starting the sequence |
 | `$LaunchTimeoutSeconds` | `30` | Maximum seconds to wait for a process to become ready after launch |
 | `$PostLaunchPauseSeconds` | `2` | Pause between apps after a successful launch |
@@ -149,7 +151,7 @@ $env:RUN_INTEGRATION = '1'; Invoke-Pester .\Win11startup.Tests.ps1
 | TEST-04a | `Test-ExePathAllowed` — allowed roots, denied paths |
 | TEST-04b | `Test-ExeSignatureTrusted` — valid sig, correct/wrong publisher, unsigned file |
 | TEST-08 | `Import-AppsConfig` — valid load, optional field normalisation, missing required field, missing file |
-| TEST-09 | `Get-NearestExistingParent` — deep path, empty string, immediate parent |
+| TEST-09 | `Get-AncestorNLevelsUp` — exact 3-level climb, boundary at filesystem root, non-existent path |
 | TEST-10 | `Show-AppPicker -AllowNew` — `__NEW__` sentinel on `N`, `$null` on `0` |
 | TEST-11 | `Add-Shortcut` dispatch — `$null` cancel, real app object re-init, `__NEW__` new-entry |
 | TEST-12 | `Wait-ForAppReady` phase-1 clamping — `TimeoutSeconds < SettleSeconds`, normal case |
@@ -198,6 +200,8 @@ To run automatically at login, add a shortcut to this script in the Windows Star
 | v18 | FIX-01: Add-menu Appx support (`StartAppName`, `KnownAumid`, `AppxName` collected and persisted); FIX-02: `Show-AppPicker -AllowNew` with `__NEW__` sentinel; FIX-03: `Wait-ForAppReady` phase-1 clamping fixes phase-2 timeout math |
 | v19 | TEST-08–12 Pester tests added (Import-AppsConfig, Get-NearestExistingParent, Show-AppPicker -AllowNew, Add-Shortcut dispatch, Wait-ForAppReady clamping); apps.json updated with Appx fields on all entries; README version history and field tables completed |
 | v20 | Generalised "Shortcut Argument Self-Healing" section — applies to any `ExpectedArguments`-bearing entry, not only Phone Link; updated `ExpectedArguments` field description accordingly |
+| v21 | Generalised `Repair-ShortcutArguments` regex to accept any valid PackageFamilyName prefix (not limited to `Microsoft.`); updated header comment accordingly |
+| v22 | Changed repair search strategy: `Get-NearestExistingParent` replaced by `Get-AncestorNLevelsUp` which climbs exactly `$MaxRepairDepth` levels up from the broken target's folder; downward search is now fully recursive (no depth cap); `$MaxRepairDepth` now controls levels climbed up, not levels searched down; TEST-09 updated to cover new function |
 
 ## License
 
