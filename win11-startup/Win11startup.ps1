@@ -40,7 +40,7 @@
 #                    ^shell:appsFolder\<PFN>!<AppId>$ and accepts any valid PackageFamilyName
 #                    prefix (not limited to Microsoft.) so non-Microsoft packaged apps are
 #                    handled correctly.
-# - Script scope   : All shared vars ($WshShell, $apps, $startMenu, $MaxRepairDepth,
+# - Script scope   : All shared vars ($WshShell, $apps, $startMenu,
 #                    $InitialDelaySeconds, $LaunchTimeoutSeconds, $PostLaunchPauseSeconds,
 #                    $SettleSeconds, $AllowedExeRoots) use $script: scope so dot-sourced
 #                    Pester runs cannot leak or shadow globals.
@@ -59,7 +59,6 @@
 #                    timeout is always honoured even when TimeoutSeconds < SettleSeconds.
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
-$script:MaxRepairDepth         = 3
 $script:InitialDelaySeconds    = 10
 $script:LaunchTimeoutSeconds   = 30
 $script:PostLaunchPauseSeconds = 2
@@ -414,17 +413,19 @@ function Get-ShortcutObject {
     return $script:WshShell.CreateShortcut($ShortcutPath)
 }
 
-function Get-NearestExistingParent {
-    param([string]$Path)
-    if ([string]::IsNullOrWhiteSpace($Path)) { return $null }
-    $current = Split-Path -Path $Path -Parent
-    while (-not [string]::IsNullOrWhiteSpace($current)) {
-        if (Test-Path -LiteralPath $current -PathType Container) { return $current }
-        $next = Split-Path -Path $current -Parent
-        if ($next -eq $current) { break }
-        $current = $next
+function Get-ParentFolder {
+    # Returns the folder one level above the broken target's own folder.
+    # e.g. broken target = C:\Program Files\Foo\Bar\app.exe (missing)
+    #      target folder  = C:\Program Files\Foo\Bar
+    #      returns        = C:\Program Files\Foo
+    param([string]$BrokenTargetPath)
+    if ([string]::IsNullOrWhiteSpace($BrokenTargetPath)) { return $null }
+    $targetFolder = Split-Path -Path $BrokenTargetPath -Parent
+    $parent       = Split-Path -Path $targetFolder -Parent
+    if ([string]::IsNullOrWhiteSpace($parent) -or -not (Test-Path -LiteralPath $parent -PathType Container)) {
+        return $null
     }
-    return $null
+    return $parent
 }
 
 function Get-RelativeDepth {
@@ -461,8 +462,8 @@ function Test-ExePathAllowed {
     param([string]$ExePath)
     $full = [System.IO.Path]::GetFullPath($ExePath)
     foreach ($root in $script:AllowedExeRoots) {
-        $rootFull = [System.IO.Path]::GetFullPath($root.TrimEnd('\\'))
-        if ($full.StartsWith($rootFull + '\\', [System.StringComparison]::OrdinalIgnoreCase)) {
+        $rootFull = [System.IO.Path]::GetFullPath($root.TrimEnd('\'))
+        if ($full.StartsWith($rootFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
             return $true
         }
     }
@@ -572,10 +573,10 @@ function Repair-ShortcutTarget {
     $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
     $targetPath = $shortcut.TargetPath
     Write-Warning "$($App.Name): shortcut target missing or invalid: $targetPath"
-    $existingParent = Get-NearestExistingParent -Path $targetPath
-    if ($existingParent) {
-        Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $existingParent (max depth $script:MaxRepairDepth)..."
-        $foundExe = Find-ExeWithinDepth -RootFolder $existingParent -ExpectedExe $App.ExpectedExe -MaxDepth $script:MaxRepairDepth
+    $searchRoot = Get-ParentFolder -BrokenTargetPath $targetPath
+    if ($searchRoot) {
+        Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $searchRoot (1 level up, all subfolders)..."
+        $foundExe = Find-ExeWithinDepth -RootFolder $searchRoot -ExpectedExe $App.ExpectedExe -MaxDepth 10
         if ($foundExe) {
             if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
                 Write-Warning "$($App.Name): discovered exe is outside allowed roots. Skipping auto-repair: $($foundExe.FullName)"
@@ -587,7 +588,7 @@ function Repair-ShortcutTarget {
                 return $foundExe.FullName
             }
         }
-        Write-Warning "$($App.Name): $($App.ExpectedExe) not found within $script:MaxRepairDepth levels of $existingParent."
+        Write-Warning "$($App.Name): $($App.ExpectedExe) not found under $searchRoot."
     } else {
         Write-Warning "$($App.Name): could not determine an existing parent folder from the broken target."
     }
