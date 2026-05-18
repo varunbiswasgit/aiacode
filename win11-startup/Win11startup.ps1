@@ -67,6 +67,10 @@
 #                    single place all .lnk files are written. Add-Shortcut, Edit-Shortcut,
 #                    and Initialize-Shortcut all call it; WshShell.CreateShortcut is invoked
 #                    in exactly one function.
+# - File search    : Get-ParentFolder walks two Split-Path levels above the broken target's
+#                    folder (grandparent). Falls back to one level up when the grandparent
+#                    path is empty or does not exist. Repair-ShortcutTarget then searches
+#                    recursively from that root with no depth cap.
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:InitialDelaySeconds    = 10
@@ -422,8 +426,15 @@ function Get-ParentFolder {
     param([string]$BrokenTargetPath)
     if ([string]::IsNullOrWhiteSpace($BrokenTargetPath)) { return $null }
     $targetFolder = Split-Path -Path $BrokenTargetPath -Parent
-    $parent       = Split-Path -Path $targetFolder -Parent
-    if ([string]::IsNullOrWhiteSpace($parent) -or -not (Test-Path -LiteralPath $parent -PathType Container)) {
+    $grandparent  = Split-Path -Path $targetFolder -Parent
+    if (-not [string]::IsNullOrWhiteSpace($grandparent) -and
+        (Test-Path -LiteralPath $grandparent -PathType Container)) {
+        return $grandparent
+    }
+    # Fall back to one level up if grandparent is unavailable
+    $parent = $targetFolder
+    if ([string]::IsNullOrWhiteSpace($parent) -or
+        -not (Test-Path -LiteralPath $parent -PathType Container)) {
         return $null
     }
     return $parent
@@ -571,7 +582,7 @@ function Repair-ShortcutTarget {
     Write-Warning "$($App.Name): shortcut target missing or invalid: $targetPath"
     $searchRoot = Get-ParentFolder -BrokenTargetPath $targetPath
     if ($searchRoot) {
-        Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $searchRoot (1 level up, all subfolders)..."
+        Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $searchRoot (2 levels up, all subfolders)..."
         $foundExe = Find-ExeWithinDepth -RootFolder $searchRoot -ExpectedExe $App.ExpectedExe -MaxDepth 10
         if ($foundExe) {
             if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
