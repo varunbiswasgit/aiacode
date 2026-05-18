@@ -9,15 +9,9 @@ Move each item to **Done** after its commit lands.
 
 ### Refactor
 
-- [ ] **T-02** — Extract `Show-FailureMenu` helper
-  Consolidate the two identical 3-option inline menus in `Start-Win32App`
-  (missing-shortcut path + launch-timeout path) into a single
-  `Show-FailureMenu -AppName -Context` function. Eliminates ~12 lines of
-  duplication; both call sites become one-liners.
-
 - [ ] **T-03** — Unify `Start-Win32App` / `Start-AppxApp` launch-wait tail
   Both functions end with identical `Wait-ForAppReady` + `PostLaunchPause`
-  + ready/warning output. Extract to `Invoke-AppLaunchWait -App -ProcessName`
+  + ready/warning output. Extract to `Invoke-AppLaunchWait -App -TimeoutSeconds`
   and call it from both. Removes ~10 duplicate lines.
 
 - [ ] **T-04** — Centralise shortcut-creation into `New-AppShortcut`
@@ -39,7 +33,7 @@ Move each item to **Done** after its commit lands.
   let `Get-ChildItem -Recurse` do unrestricted search. Keep
   `Get-RelativeDepth` in the file (used by tests) but remove the dead filter.
 
-- [ ] **T-07** — Replace manual `$elapsed` counters with `Measure-Command` / `[Diagnostics.Stopwatch]`
+- [ ] **T-07** — Replace manual `$elapsed` counters with `[Diagnostics.Stopwatch]`
   `Get-AppPresenceMode` and the phase-2 loop in `Wait-ForAppReady` both
   maintain a manual `$elapsed++` counter. Replace with
   `[System.Diagnostics.Stopwatch]::StartNew()` so elapsed time reflects wall
@@ -78,6 +72,7 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
+- [x] **T-02** — Extract `Show-FailureMenu` helper _(795e918)_
 - [x] **T-01** — Replace `Get-NearestExistingParent` with `Get-ParentFolder`; remove `$MaxRepairDepth` _(76cd6b9)_
 - [x] **SEC-01** — Allowlist exe repair paths _(v10)_
 - [x] **SEC-02** — Authenticode signature check _(v11)_

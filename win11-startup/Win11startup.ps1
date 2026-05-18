@@ -60,6 +60,9 @@
 # - Failure menu   : Show-FailureMenu centralises the 3-option inline prompt (Add+retry /
 #                    Modify / Skip) used by both the missing-shortcut and launch-timeout
 #                    paths in Start-Win32App.
+# - Launch wait    : Invoke-AppLaunchWait centralises the Wait-ForAppReady + ready/warning
+#                    output + PostLaunchPauseSeconds sleep shared by Start-AppxApp and
+#                    the happy path of Start-Win32App.
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:InitialDelaySeconds    = 10
@@ -677,6 +680,20 @@ function Show-FailureMenu {
 }
 
 # ---------------------------------------------------------------------------
+# Shared launch-wait tail (used by Start-AppxApp and Start-Win32App)
+# ---------------------------------------------------------------------------
+function Invoke-AppLaunchWait {
+    param($App, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
+    if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $TimeoutSeconds) {
+        Write-Host "$($App.Name): ready.`n"
+        Start-Sleep -Seconds $script:PostLaunchPauseSeconds
+        return $true
+    }
+    Write-Warning "$($App.Name): did not become ready within $TimeoutSeconds seconds."
+    return $false
+}
+
+# ---------------------------------------------------------------------------
 # Launch functions
 # ---------------------------------------------------------------------------
 function Start-AppxApp {
@@ -693,14 +710,7 @@ function Start-AppxApp {
     try {
         Write-Host "$($App.Name): launching via shell:appsFolder\$aumid"
         Start-Process explorer.exe "shell:appsFolder\$aumid" -ErrorAction Stop
-        if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $script:LaunchTimeoutSeconds) {
-            Write-Host "$($App.Name): ready.`n"
-            Start-Sleep -Seconds $script:PostLaunchPauseSeconds
-            return $true
-        } else {
-            Write-Warning "$($App.Name): did not become ready within $script:LaunchTimeoutSeconds seconds.`n"
-            return $false
-        }
+        return Invoke-AppLaunchWait -App $App
     } catch {
         Write-Warning "$($App.Name): launch failed. $_`n"
         return $false
@@ -766,13 +776,8 @@ function Start-Win32App {
         Write-Host "$($App.Name): launching via shortcut: $($App.ShortcutPath)"
         $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
 
-        if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $script:LaunchTimeoutSeconds) {
-            Write-Host "$($App.Name): ready.`n"
-            Start-Sleep -Seconds $script:PostLaunchPauseSeconds
-            return $true
-        }
+        if (Invoke-AppLaunchWait -App $App) { return $true }
 
-        Write-Warning "$($App.Name): did not become ready within $script:LaunchTimeoutSeconds seconds."
         $timeoutChoice = Show-FailureMenu -AppName $App.Name -Context "launch timeout"
         switch ($timeoutChoice) {
             '1' {
