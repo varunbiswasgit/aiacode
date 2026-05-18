@@ -57,6 +57,9 @@
 # - Timeout math   : Wait-ForAppReady stores actual phase-1 settle duration in $phase1Secs
 #                    and subtracts that exact value for phase-2 remaining, so the total
 #                    timeout is always honoured even when TimeoutSeconds < SettleSeconds.
+# - Failure menu   : Show-FailureMenu centralises the 3-option inline prompt (Add+retry /
+#                    Modify / Skip) used by both the missing-shortcut and launch-timeout
+#                    paths in Start-Win32App.
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:InitialDelaySeconds    = 10
@@ -663,6 +666,17 @@ function Repair-ShortcutArguments {
 }
 
 # ---------------------------------------------------------------------------
+# Inline failure menu (shared by missing-shortcut and launch-timeout paths)
+# ---------------------------------------------------------------------------
+function Show-FailureMenu {
+    param([string]$AppName, [string]$Context)
+    Write-Host "  [1] Add / fix shortcut for $AppName and retry"
+    Write-Host "  [2] Modify a different shortcut"
+    Write-Host "  [3] Skip"
+    return (Read-Host "Select ($Context)")
+}
+
+# ---------------------------------------------------------------------------
 # Launch functions
 # ---------------------------------------------------------------------------
 function Start-AppxApp {
@@ -702,10 +716,7 @@ function Start-Win32App {
 
     if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
         Write-Warning "$($App.Name): shortcut file not found: $($App.ShortcutPath)"
-        Write-Host "  [1] Add / fix shortcut now and retry launch"
-        Write-Host "  [2] Modify an existing shortcut"
-        Write-Host "  [3] Skip"
-        $failChoice = Read-Host "Select"
+        $failChoice = Show-FailureMenu -AppName $App.Name -Context "missing shortcut"
         switch ($failChoice) {
             '1' {
                 Initialize-Shortcut -App $App
@@ -762,10 +773,7 @@ function Start-Win32App {
         }
 
         Write-Warning "$($App.Name): did not become ready within $script:LaunchTimeoutSeconds seconds."
-        Write-Host "  [1] Modify shortcut for $($App.Name) and retry"
-        Write-Host "  [2] Modify a different shortcut"
-        Write-Host "  [3] Skip"
-        $timeoutChoice = Read-Host "Select"
+        $timeoutChoice = Show-FailureMenu -AppName $App.Name -Context "launch timeout"
         switch ($timeoutChoice) {
             '1' {
                 Edit-Shortcut -App $App
