@@ -9,11 +9,6 @@ Move each item to **Done** after its commit lands.
 
 ### Refactor
 
-- [ ] **T-03** — Unify `Start-Win32App` / `Start-AppxApp` launch-wait tail
-  Both functions end with identical `Wait-ForAppReady` + `PostLaunchPause`
-  + ready/warning output. Extract to `Invoke-AppLaunchWait -App -TimeoutSeconds`
-  and call it from both. Removes ~10 duplicate lines.
-
 - [ ] **T-04** — Centralise shortcut-creation into `New-AppShortcut`
   `Add-Shortcut`, `Edit-Shortcut`, and `Initialize-Shortcut` each open a
   `WshShell.CreateShortcut` block. Extract to
@@ -72,6 +67,7 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
+- [x] **T-03** — Extract `Invoke-AppLaunchWait`; unify launch-wait tail _(c156a5c)_
 - [x] **T-02** — Extract `Show-FailureMenu` helper _(795e918)_
 - [x] **T-01** — Replace `Get-NearestExistingParent` with `Get-ParentFolder`; remove `$MaxRepairDepth` _(76cd6b9)_
 - [x] **SEC-01** — Allowlist exe repair paths _(v10)_
