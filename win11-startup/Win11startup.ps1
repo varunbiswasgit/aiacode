@@ -71,6 +71,9 @@
 #                    folder (grandparent). Falls back to one level up when the grandparent
 #                    path is empty or does not exist. Repair-ShortcutTarget then searches
 #                    recursively from that root with no depth cap.
+# - Appx enum      : Resolve-Aumid calls Get-AppxPackage once, stores the result in $pkgs,
+#                    and reuses it for both KnownAumid verification and the AppxName fallback,
+#                    avoiding a second full pipeline enumeration.
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:InitialDelaySeconds    = 10
@@ -389,16 +392,18 @@ function Resolve-Aumid {
         Write-Host "$($App.Name): AUMID resolved via Get-StartApps: $($startApp.AppID)"
         return $startApp.AppID
     }
+    # Enumerate installed packages once; reuse for both KnownAumid and AppxName checks.
+    $pkgs = @(Get-AppxPackage)
     if (-not [string]::IsNullOrWhiteSpace($App.KnownAumid)) {
-        $knownPfn = ($App.KnownAumid -split '!')[0]
-        $installed = Get-AppxPackage | Where-Object { $_.PackageFamilyName -eq $knownPfn } | Select-Object -First 1
+        $knownPfn  = ($App.KnownAumid -split '!')[0]
+        $installed = $pkgs | Where-Object { $_.PackageFamilyName -eq $knownPfn } | Select-Object -First 1
         if ($installed) {
             Write-Host "$($App.Name): KnownAumid verified as installed: $($App.KnownAumid)"
             return $App.KnownAumid
         }
         Write-Warning "$($App.Name): KnownAumid package family '$knownPfn' not found on this system."
     }
-    $pkg = Get-AppxPackage | Where-Object { $_.Name -like "*$($App.AppxName)*" } | Select-Object -First 1
+    $pkg = $pkgs | Where-Object { $_.Name -like "*$($App.AppxName)*" } | Select-Object -First 1
     if ($pkg) {
         try {
             $appIds = (Get-AppxPackageManifest $pkg).Package.Applications.Application.Id
