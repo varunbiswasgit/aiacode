@@ -9,12 +9,6 @@ Move each item to **Done** after its commit lands.
 
 ### Refactor
 
-- [ ] **T-05** — Simplify `Resolve-Aumid` AppxPackage enumeration
-  `Resolve-Aumid` calls `Get-AppxPackage` twice (KnownAumid verification +
-  AppxName fallback). Collect the full package list once into `$pkgs` at the
-  top of the function and filter from that variable both times, avoiding a
-  second pipeline enumeration.
-
 - [ ] **T-06** — Remove dead `Get-RelativeDepth` depth cap in `Find-ExeWithinDepth`
   `Repair-ShortcutTarget` now passes `MaxDepth 10` (effectively unlimited),
   making the `Get-RelativeDepth` filter inside `Find-ExeWithinDepth` a
@@ -61,7 +55,8 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
-- [x] **T-04** — Extract `New-AppShortcut`; consolidate 5 `CreateShortcut` blocks _(next commit)_
+- [x] **T-05** — Single `Get-AppxPackage` pass in `Resolve-Aumid` _(349b44e)_
+- [x] **T-04** — Extract `New-AppShortcut`; consolidate 5 `CreateShortcut` blocks _(c0bcc98)_
 - [x] **T-03** — Extract `Invoke-AppLaunchWait`; unify launch-wait tail _(c156a5c)_
 - [x] **T-02** — Extract `Show-FailureMenu` helper _(795e918)_
 - [x] **T-01** — Replace `Get-NearestExistingParent` with `Get-ParentFolder`; remove `$MaxRepairDepth` _(76cd6b9)_
