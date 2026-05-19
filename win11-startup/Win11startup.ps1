@@ -48,7 +48,8 @@
 #                    startup sequence entirely. Used by Win11startup.Tests.ps1.
 # - Config file    : $script:apps is loaded from Win11startupapps.json in the same folder.
 #                    Required fields: Name, LaunchType, ShortcutPath, ExpectedExe.
-#                    ProcessName required for Win32; warn-only for Appx (cannot detect without running).
+#                    ProcessName required for Win32; warn-only for Win32-with-args entries
+#                    where Sync cannot determine it without running the app.
 #                    Add/Delete menu flows write changes back to Win11startupapps.json automatically.
 # - Add flow       : Show-AppPicker -AllowNew shows [N] for brand-new entry and returns
 #                    '__NEW__' sentinel; Add-Shortcut distinguishes re-init (real app object),
@@ -115,7 +116,12 @@
 #                    on next load. Fix: keep LaunchType=Win32 for all such entries (they are
 #                    Win32 .lnk files invoking explorer.exe with arguments, not true Appx).
 #                    Import-AppsConfig now warns instead of throws when ProcessName is empty
-#                    on an Appx entry, since ProcessName cannot be determined without running.
+#                    on a Win32-with-args entry, since Sync cannot determine it without running.
+# - BUG-06         : Start-Win32App now auto-detects ProcessName after launch when the field
+#                    is blank. After WshShell.Run fires, a brief poll scans running processes
+#                    matching by window title or StartAppName fragment; the discovered name is
+#                    written back to the entry and persisted to Win11startupapps.json so the
+#                    warning never repeats on subsequent runs.
 
 # ---------------------------------------------------------------------------
 # Error log helper
@@ -180,19 +186,19 @@ function Import-AppsConfig {
         $entries = $parsed.apps
     }
 
-    # BUG-05: ProcessName is required for Win32; warn-only for Appx (Sync cannot determine it without running the app).
     $requiredAlways = @('Name','LaunchType','ShortcutPath','ExpectedExe')
     $validated = @()
     foreach ($entry in $entries) {
-        $ok = $true
         foreach ($field in $requiredAlways) {
             if ([string]::IsNullOrWhiteSpace($entry.$field)) {
                 throw "Win11startupapps.json entry missing required field '$field': $(ConvertTo-Json $entry -Compress)"
             }
         }
+        # BUG-05/BUG-06: ProcessName may be blank after Sync for Win32-with-args entries (e.g. Phone Link).
+        # Warn only; BUG-06 auto-fills it at runtime after first successful launch.
         if ([string]::IsNullOrWhiteSpace($entry.ProcessName)) {
-            if ($entry.LaunchType -eq 'Appx') {
-                Write-Warning "$($entry.Name): ProcessName is empty. Fill it in via Menu [4] after first run."
+            if (-not [string]::IsNullOrWhiteSpace($entry.ExpectedArguments)) {
+                Write-Warning "$($entry.Name): ProcessName is empty. Will be auto-detected on first run."
             } else {
                 throw "Win11startupapps.json entry missing required field 'ProcessName': $(ConvertTo-Json $entry -Compress)"
             }
@@ -247,7 +253,6 @@ function Sync-AppsFromStartMenu {
 
         # BUG-05: explorer.exe + shell:appsFolder\... is a Win32-with-arguments entry, not a true Appx entry.
         # LaunchType stays Win32; WshShell.Run fires the .lnk and preserves the shell: arguments automatically.
-        # Appx classification is reserved for entries that must use Start-AppxApp (AUMID resolution path).
         $launchType        = 'Win32'
         $expectedExe       = $leafName
         $processName       = [System.IO.Path]::GetFileNameWithoutExtension($leafName)
@@ -257,14 +262,14 @@ function Sync-AppsFromStartMenu {
         $appxName          = ''
 
         if ($leafName -ieq 'explorer.exe' -and $scArgs -like 'shell:appsFolder\*') {
-            # Win32 packaged-app entry: launched via WshShell.Run on .lnk, argument self-healing via Repair-ShortcutArguments.
+            # Win32 packaged-app entry: ProcessName auto-detected at runtime by BUG-06 logic.
             $expectedExe       = 'explorer.exe'
-            $processName       = ''   # cannot determine without running; fill in via Menu [4]
+            $processName       = ''
             $expectedArguments = $scArgs.Trim()
             $knownAumid        = ($scArgs -replace '^shell:appsFolder\\', '').Trim()
             $startAppName      = $appName
             $appxName          = ($knownAumid -split '_')[0]
-            Write-Warning "$appName`: ProcessName unknown after sync. Fill in via Menu [4] before running."
+            Write-Warning "${appName}: ProcessName unknown after sync. Will be auto-detected on first run (BUG-06)."
         } elseif ($leafName -notlike '*.exe') {
             Write-Warning "'$($file.Name)': unexpected target '$target'. Review and fill in fields manually."
         }
@@ -385,6 +390,7 @@ function Wait-ForProcessCondition {
 
 function Wait-ForAppReady {
     param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
+    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $true }  # BUG-06: can't poll blank name; assume launched
     $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
     $mode       = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
     $remaining  = $TimeoutSeconds - $phase1Secs
@@ -399,6 +405,25 @@ function Wait-ForAppReady {
         [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
             Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
     }
+}
+
+# ---------------------------------------------------------------------------
+# BUG-06: Resolve-ProcessName — auto-detect ProcessName for blank entries
+# ---------------------------------------------------------------------------
+function Resolve-ProcessName {
+    param($App, [int]$WaitSecs = 5)
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    $searchTerms = @($App.Name, $App.StartAppName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    while ($sw.Elapsed.TotalSeconds -lt $WaitSecs) {
+        foreach ($term in $searchTerms) {
+            $match = Get-Process -ErrorAction SilentlyContinue |
+                Where-Object { $_.MainWindowTitle -like "*$term*" -or $_.ProcessName -like "*$term*" } |
+                Select-Object -First 1
+            if ($match) { return $match.ProcessName }
+        }
+        Start-Sleep -Seconds 1
+    }
+    return $null
 }
 
 # ---------------------------------------------------------------------------
@@ -826,8 +851,22 @@ function Start-Win32App {
             }
             Write-Host "$($App.Name): launching via $($App.ShortcutPath)"
             $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
+
+            # BUG-06: auto-detect ProcessName when blank (e.g. Phone Link after Sync).
+            # Runs once; persists to JSON so subsequent runs skip this block entirely.
+            if ([string]::IsNullOrWhiteSpace($App.ProcessName)) {
+                $detected = Resolve-ProcessName -App $App -WaitSecs $script:SettleSeconds
+                if ($detected) {
+                    $App.ProcessName = $detected
+                    Export-AppsConfig
+                    Write-Host "$($App.Name): ProcessName auto-detected as '$detected' and saved."
+                } else {
+                    Write-Warning "$($App.Name): ProcessName could not be auto-detected. App launched but ready-check skipped."
+                }
+            }
+
             $ready = Invoke-AppLaunchWait -App $App
-            if ($null -eq $App.PresenceMode) {
+            if ($null -eq $App.PresenceMode -and -not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
                 $resolvedMode = Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0
                 if ($resolvedMode) { $App.PresenceMode = $resolvedMode }
             }
