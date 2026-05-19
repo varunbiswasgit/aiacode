@@ -12,7 +12,7 @@
 #                    argument self-healing when the AUMID becomes stale after a package update.
 # - Bootstrap      : before launch loop, ensures every Win32 .lnk exists at the expected path;
 #                    renames misnumbered matches found in the same folder, or creates fresh if absent
-# - Main menu      : on launch, user chooses Run / Add / Delete / Modify / Exit
+# - Main menu      : on launch, user chooses Run / Add / Delete / Modify / List / Exit
 #                    inline failure menu (Add+retry / Modify / Skip) appears when a shortcut
 #                    is missing or an app fails to start during the startup sequence
 # - Presence mode  : after launch, Get-AppPresenceMode polls MainWindowHandle for $script:SettleSeconds;
@@ -110,6 +110,17 @@
 # - Picker perf    : Show-AppPicker pre-computes each entry's shortcut-existence status
 #                    before the display loop, avoiding repeated Test-Path calls per
 #                    input attempt. (QOL-01)
+# - Window switch  : Test-AppAlreadyOpen accepts -RequireWindow; when set, a process with
+#                    no MainWindowHandle is not treated as open. Startup sequence passes
+#                    -RequireWindow for Window-mode apps. (FIX-04)
+# - AUMID log      : Resolve-Aumid logs all-paths failure to startup-error.log via
+#                    Write-ErrorLog in addition to emitting Write-Warning. (QOL-02)
+# - Schema version : Import-AppsConfig checks for top-level "schemaVersion" field;
+#                    warns if absent or not 1. apps.json written by Export-AppsConfig
+#                    includes schemaVersion:1 wrapper. (QOL-03)
+# - List apps      : Main menu option [6] prints a formatted table of all configured
+#                    startup apps (name, type, shortcut status, process) then exits.
+#                    Implemented via Show-AppList. (QOL-05)
 
 # ---------------------------------------------------------------------------
 # Error log helper — writes timestamped entries to $PSScriptRoot\startup-error.log
@@ -144,6 +155,7 @@ $script:LaunchTimeoutSeconds   = 30
 $script:PostLaunchPauseSeconds = 2
 $script:SettleSeconds          = 5
 $script:AppsConfigPath         = Join-Path $PSScriptRoot "apps.json"
+$script:AppsConfigSchemaVersion = 1
 
 $script:AllowedExeRoots = @(
     $env:ProgramFiles,
@@ -153,6 +165,7 @@ $script:AllowedExeRoots = @(
 
 # ---------------------------------------------------------------------------
 # Config loader / exporter
+# QOL-03: Import-AppsConfig checks schemaVersion; Export-AppsConfig writes it.
 # ---------------------------------------------------------------------------
 function Import-AppsConfig {
     param([string]$Path = $script:AppsConfigPath)
@@ -160,7 +173,22 @@ function Import-AppsConfig {
         throw "apps.json not found at '$Path'. Cannot continue without app configuration."
     }
     $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
-    $entries = $raw | ConvertFrom-Json
+    $parsed = $raw | ConvertFrom-Json
+
+    # Accept either a bare array (legacy) or a {schemaVersion, apps} wrapper.
+    if ($parsed -is [System.Array]) {
+        Write-Warning "apps.json has no schemaVersion wrapper. Expected schemaVersion $script:AppsConfigSchemaVersion. Processing as legacy format."
+        $entries = $parsed
+    } else {
+        $sv = $parsed.schemaVersion
+        if ($null -eq $sv) {
+            Write-Warning "apps.json schemaVersion field missing. Expected $script:AppsConfigSchemaVersion."
+        } elseif ([int]$sv -ne $script:AppsConfigSchemaVersion) {
+            Write-Warning "apps.json schemaVersion is '$sv'; expected '$script:AppsConfigSchemaVersion'. Proceeding with caution."
+        }
+        $entries = $parsed.apps
+    }
+
     $required = @('Name','LaunchType','ShortcutPath','ProcessName','ExpectedExe')
     $validated = @()
     foreach ($entry in $entries) {
@@ -179,13 +207,16 @@ function Import-AppsConfig {
     return $validated
 }
 
-# ROB-01: Set-Content wrapped in try/catch; write failures are logged and
-#         reported to the console instead of silently discarding the update.
+# ROB-01 + QOL-03: writes schemaVersion wrapper; Set-Content in try/catch.
 function Export-AppsConfig {
     param([string]$Path = $script:AppsConfigPath)
     try {
-        $script:apps | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $Path -Encoding UTF8 -ErrorAction Stop
-        Write-Host "apps.json saved ($($script:apps.Count) entries)."
+        $wrapper = [PSCustomObject]@{
+            schemaVersion = $script:AppsConfigSchemaVersion
+            apps          = $script:apps
+        }
+        $wrapper | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Path -Encoding UTF8 -ErrorAction Stop
+        Write-Host "apps.json saved (schemaVersion $script:AppsConfigSchemaVersion, $($script:apps.Count) entries)."
     } catch {
         Write-ErrorLog -Message "Export-AppsConfig failed to write '$Path'" -ErrorRecord $_
         Write-Warning "apps.json could not be saved: $($_.Exception.Message)"
@@ -225,10 +256,14 @@ function Get-AppPresenceMode {
     return $null
 }
 
+# FIX-04: -RequireWindow switch added. When set, a running process with no
+#         visible MainWindowHandle is NOT considered open (returns $false).
+#         The startup launch loop passes -RequireWindow for Window-mode apps.
 function Test-AppAlreadyOpen {
     param(
         [string]$ProcessName,
-        [string]$ExpectedExe = ""
+        [string]$ExpectedExe    = "",
+        [switch]$RequireWindow
     )
     $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
     if (-not $procs) { return $false }
@@ -242,6 +277,10 @@ function Test-AppAlreadyOpen {
             }
         }
         if (-not $procs) { return $false }
+    }
+
+    if ($RequireWindow) {
+        return [bool]($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
     }
 
     if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) { return $true }
@@ -287,7 +326,6 @@ function Wait-ForAppReady {
 # ---------------------------------------------------------------------------
 function Show-AppPicker {
     param([string]$Prompt, [switch]$AllowNew)
-    # Pre-compute existence status for all entries.
     $statuses = $script:apps | ForEach-Object {
         if (Test-Path -LiteralPath $_.ShortcutPath -PathType Leaf) { 'exists' } else { 'missing' }
     }
@@ -313,10 +351,33 @@ function Show-AppPicker {
 }
 
 # ---------------------------------------------------------------------------
+# QOL-05: Show-AppList — formatted table of all configured startup apps.
+# Columns: #, Name, Type, Shortcut, Process
+# ---------------------------------------------------------------------------
+function Show-AppList {
+    Write-Host "`n================================================"
+    Write-Host "  Configured Startup Apps ($($script:apps.Count) total)"
+    Write-Host "================================================"
+    Write-Host ("{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f '#', 'Name', 'Type', 'Shortcut', 'Process')
+    Write-Host ("{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f '-'*3, '-'*21, '-'*5, '-'*8, '-'*15)
+    for ($i = 0; $i -lt $script:apps.Count; $i++) {
+        $app    = $script:apps[$i]
+        $status = if (Test-Path -LiteralPath $app.ShortcutPath -PathType Leaf) {
+            Write-Output 'OK'
+        } else {
+            Write-Output 'MISSING'
+        }
+        $color = if ($status -eq 'OK') { 'Green' } else { 'Yellow' }
+        $line  = "{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f ($i + 1), $app.Name, $app.LaunchType, $status, $app.ProcessName
+        Write-Host $line -ForegroundColor $color
+    }
+    Write-Host ""
+}
+
+# ---------------------------------------------------------------------------
 # Single shortcut writer — all .lnk creation goes through here
 # ---------------------------------------------------------------------------
 function New-AppShortcut {
-    # -Arguments and -WorkingDirectory are optional; omit for exe-only shortcuts.
     param(
         [string]$Path,
         [string]$TargetPath,
@@ -341,7 +402,6 @@ function Add-Shortcut {
         return
     }
 
-    # ── Brand-new entry flow ──────────────────────────────────────────────────
     Write-Host "`n--- Add new app entry ---"
     $name = Read-Host "App name (display label)"
     if ([string]::IsNullOrWhiteSpace($name)) { Write-Host "Cancelled."; return }
@@ -351,7 +411,7 @@ function Add-Shortcut {
         $launchType = Read-Host "Launch type [Win32 / Appx]"
     }
 
-    # HARD-05: validate shortcut number is 1-2 digits; re-prompt on blank or non-numeric.
+    # HARD-05: validate shortcut number is 1-2 digits.
     $number = ''
     while ($number -notmatch '^\d{1,2}$') {
         $number = Read-Host "Shortcut number (1-2 digits, e.g. 09)"
@@ -474,6 +534,7 @@ function Edit-Shortcut {
 # ---------------------------------------------------------------------------
 # Core helpers
 # ---------------------------------------------------------------------------
+# QOL-02: all-paths failure is logged to startup-error.log via Write-ErrorLog.
 function Resolve-Aumid {
     param($App)
     $startApp = Get-StartApps | Where-Object { $_.Name -like "*$($App.StartAppName)*" } | Select-Object -First 1
@@ -481,7 +542,6 @@ function Resolve-Aumid {
         Write-Host "$($App.Name): AUMID resolved via Get-StartApps: $($startApp.AppID)"
         return $startApp.AppID
     }
-    # Enumerate installed packages once; reuse for both KnownAumid and AppxName checks.
     $pkgs = @(Get-AppxPackage)
     if (-not [string]::IsNullOrWhiteSpace($App.KnownAumid)) {
         $knownPfn  = ($App.KnownAumid -split '!')[0]
@@ -506,7 +566,9 @@ function Resolve-Aumid {
             Write-Warning "$($App.Name): could not read AppxPackage manifest. $_"
         }
     }
-    Write-Warning "$($App.Name): AUMID could not be resolved automatically."
+    $msg = "$($App.Name): AUMID could not be resolved automatically (all paths exhausted)."
+    Write-Warning $msg
+    Write-ErrorLog -Message $msg
     return $null
 }
 
@@ -525,7 +587,6 @@ function Get-ParentFolder {
         (Test-Path -LiteralPath $grandparent -PathType Container)) {
         return $grandparent
     }
-    # Fall back to one level up if grandparent is unavailable
     $parent = $targetFolder
     if ([string]::IsNullOrWhiteSpace($parent) -or
         -not (Test-Path -LiteralPath $parent -PathType Container)) {
@@ -601,8 +662,7 @@ function Test-ExeSignatureTrusted {
     }
 }
 
-# HARD-04: max 3 attempts; returns $null after exhaustion so callers handle
-#          gracefully instead of looping indefinitely.
+# HARD-04: max 3 attempts; returns $null after exhaustion.
 function Prompt-ForExactExePath {
     param(
         [string]$AppName,
@@ -855,9 +915,13 @@ function Start-AppxApp {
 }
 
 # ROB-04 + QOL-04: bounded for-loop; both failure paths share Invoke-FailureRecovery.
+# FIX-04: passes -RequireWindow to Test-AppAlreadyOpen for Window-mode apps.
 function Start-Win32App {
     param($App)
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe) {
+    # Determine presence mode once to decide whether a window is required.
+    $requireWin = (Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0) -eq 'Window'
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe `
+            -RequireWindow:$requireWin) {
         Write-Host "$($App.Name): already open. Skipping.`n"
         return $true
     }
@@ -929,7 +993,8 @@ Write-Host "  [1] Run startup sequence"
 Write-Host "  [2] Add shortcut"
 Write-Host "  [3] Delete shortcut"
 Write-Host "  [4] Modify shortcut"
-Write-Host "  [5] Exit"
+Write-Host "  [5] List startup apps"
+Write-Host "  [6] Exit"
 Write-Host "------------------------------------------------"
 $mainChoice = Read-Host "Select"
 
@@ -949,7 +1014,11 @@ switch ($mainChoice) {
         if ($app) { Edit-Shortcut -App $app }
         exit
     }
-    '5' { exit }
+    '5' {
+        Show-AppList
+        exit
+    }
+    '6' { exit }
 }
 
 Write-Host "Waiting $script:InitialDelaySeconds seconds for system to stabilize..."

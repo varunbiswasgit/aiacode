@@ -7,21 +7,14 @@ Move each item to **Done** after its commit lands.
 
 ## To Do
 
-### Correctness
-
-- [ ] **FIX-04** — `Test-AppAlreadyOpen` returns `$true` for any running process even when it has no visible window; the final `return $true` at the bottom ignores window-vs-tray distinction. Add a `$RequireWindow` switch so callers that need a visible window can enforce it.
-
-### Quality / Clarity
-
-- [ ] **QOL-02** — `Resolve-Aumid` silently returns `$null` with only a `Write-Warning` when all three resolution paths fail. Log the failure to `startup-error.log` via `Write-ErrorLog` so it appears in the post-run diagnostic file.
-- [ ] **QOL-03** — `apps.json` schema has no version field. Add a top-level `"schemaVersion": 1` wrapper so future breaking changes can be detected at load time in `Import-AppsConfig`.
-
 ### Testing
 
-- [ ] **TEST-08** — Unit test `Test-AppAlreadyOpen` with `$RequireWindow` switch (once FIX-04 lands).
+- [ ] **TEST-08** — Unit test `Test-AppAlreadyOpen` with `-RequireWindow` switch (FIX-04).
 - [ ] **TEST-09** — Unit test `Export-AppsConfig` error path: verify `Write-ErrorLog` is called and a warning is emitted when `Set-Content` throws.
-- [ ] **TEST-10** — Unit test `Resolve-Aumid` logs to error log when all three resolution paths fail (once QOL-02 lands).
+- [ ] **TEST-10** — Unit test `Resolve-Aumid` logs to error log when all three resolution paths fail (QOL-02).
 - [ ] **TEST-11** — Unit test `Invoke-FailureRecovery`: verify each branch returns the correct value, calls `Show-FailureMenu`, invokes `PreRetryAction` only on choice `'1'`, and calls `Edit-Shortcut` / skips correctly on other choices.
+- [ ] **TEST-12** — Unit test `Show-AppList`: verify header and one row of output are emitted for a single-entry `$script:apps`.
+- [ ] **TEST-13** — Unit test `Import-AppsConfig` schemaVersion branch: verify warning on missing version, warning on wrong version, and clean load on correct version (QOL-03).
 
 ---
 
@@ -38,6 +31,10 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
+- [x] **QOL-05** — Add menu option [5] `List startup apps` — prints formatted table (Name, Type, Shortcut status, Process) via `Show-AppList` then exits
+- [x] **QOL-03** — `Import-AppsConfig` checks `schemaVersion`; warns if absent or mismatched. `Export-AppsConfig` writes `{schemaVersion:1, apps:[...]}` wrapper
+- [x] **QOL-02** — `Resolve-Aumid` logs all-paths failure to `startup-error.log` via `Write-ErrorLog`
+- [x] **FIX-04** — `Test-AppAlreadyOpen` gains `-RequireWindow` switch; `Start-Win32App` passes it for Window-mode apps
 - [x] **QOL-01** — Pre-compute shortcut-existence status in `Show-AppPicker` before display loop; eliminate repeated `Test-Path` calls per input attempt
 - [x] **HARD-05** — Validate shortcut number is 1-2 digits in `Add-Shortcut`; re-prompt on blank or non-numeric input
 - [x] **HARD-04** — Add 3-attempt cap to `Prompt-ForExactExePath`; return `$null` after exhaustion
