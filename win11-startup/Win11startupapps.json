@@ -1,0 +1,98 @@
+[
+  {
+    "Name": "Outlook",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\01 Outlook.lnk",
+    "ProcessName": "OUTLOOK",
+    "ExpectedExe": "OUTLOOK.EXE",
+    "ExpectedPublisher": "CN=Microsoft Corporation",
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
+  },
+  {
+    "Name": "Teams",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\02 Teams.lnk",
+    "ProcessName": "ms-teams",
+    "ExpectedExe": "ms-teams.exe",
+    "ExpectedPublisher": "CN=Microsoft Corporation",
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
+  },
+  {
+    "Name": "OneDrive",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\03 OneDrive.lnk",
+    "ProcessName": "OneDrive",
+    "ExpectedExe": "OneDrive.exe",
+    "ExpectedPublisher": "CN=Microsoft Corporation",
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
+  },
+  {
+    "Name": "Sticky Notes",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\04 Sticky Notes.lnk",
+    "ProcessName": "ONENOTE",
+    "ExpectedExe": "ONENOTE.EXE",
+    "ExpectedPublisher": "CN=Microsoft Corporation",
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
+  },
+  {
+    "Name": "OneNote",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\05 OneNote.lnk",
+    "ProcessName": "ONENOTE",
+    "ExpectedExe": "ONENOTE.EXE",
+    "ExpectedPublisher": "CN=Microsoft Corporation",
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
+  },
+  {
+    "Name": "Phone Link",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\06 Phone Link.lnk",
+    "ProcessName": "PhoneExperienceHost",
+    "ExpectedExe": "explorer.exe",
+    "ExpectedPublisher": "CN=Microsoft Windows",
+    "ExpectedArguments": "shell:appsFolder\\Microsoft.YourPhone_8wekyb3d8bbwe!App",
+    "StartAppName": "Phone Link",
+    "KnownAumid": "Microsoft.YourPhone_8wekyb3d8bbwe!App",
+    "AppxName": "YourPhone"
+  },
+  {
+    "Name": "Microsoft Edge",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\07 Microsoft Edge.lnk",
+    "ProcessName": "msedge",
+    "ExpectedExe": "msedge.exe",
+    "ExpectedPublisher": "CN=Microsoft Corporation",
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
+  },
+  {
+    "Name": "Google Chrome",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\08 Google Chrome.lnk",
+    "ProcessName": "chrome",
+    "ExpectedExe": "chrome.exe",
+    "ExpectedPublisher": "CN=Google LLC",
+    "ExpectedArguments": "",
+    "StartAppName": "",
+    "KnownAumid": "",
+    "AppxName": ""
+  }
+]
