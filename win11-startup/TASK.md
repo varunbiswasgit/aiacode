@@ -8,12 +8,9 @@ Move each item to **Done** after its commit lands.
 ## To Do
 
 ### Bugs
-- [ ] **BUG-03** — `Start-Win32App`: `$requireWin` is computed before the app launches via `Get-AppPresenceMode -SettleSecs 0`. On a cold start the process is absent so mode is always `$null` → `$requireWin = $false`. Fix: only pass `-RequireWindow` when a prior presence mode is known. *(Medium)*
 - [ ] **BUG-01** — `Test-AppAlreadyOpen`: the non-`RequireWindow` tail has a dead `if` branch — both paths return `$true`. Collapse to a single `return $true`. *(Low)*
 
 ### UX
-- [ ] **UX-03** — `Start-Win32App` catch block: launch exception returns `$false` immediately with no recovery offered. Offer `Invoke-FailureRecovery` before returning. *(Medium)*
-- [ ] **UX-02** — `Remove-Shortcut`: when shortcut is already missing, execution falls through to the JSON removal prompt without explicit acknowledgement. Add `return` after warning, or combine into a single prompt. *(Medium)*
 - [ ] **UX-01** — Header comment block: `# - List apps` still references `[6]` — should be `[5]`. *(Low)*
 
 ### Duplication
@@ -38,15 +35,13 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
-- [x] **INT-02** — Re-read `$shortcut` via `Get-ShortcutObject` after `Repair-ShortcutTarget` in `Start-Win32App`
-- [x] **INT-01** — Replace hardcoded `C:\Program Files\WindowsApps` with `Join-Path $env:ProgramFiles 'WindowsApps'`
-- [x] **BUG-02** — `Show-AppList`: bare string `'OK'`/`'MISSING'` replaces `Write-Output` inside `if` assignment
-- [x] **NEW-TEST-13** — `Import-AppsConfig` schemaVersion unit tests
-- [x] **NEW-TEST-12** — `Show-AppList` unit tests
-- [x] **NEW-TEST-11** — `Invoke-FailureRecovery` unit tests
-- [x] **NEW-TEST-10** — `Resolve-Aumid` error log unit test
-- [x] **NEW-TEST-09** — `Export-AppsConfig` error path unit test
-- [x] **NEW-TEST-08** — `Test-AppAlreadyOpen -RequireWindow` unit test
+- [x] **UX-03** — `Start-Win32App` catch block calls `Invoke-FailureRecovery` before returning `$false`
+- [x] **UX-02** — `Remove-Shortcut`: combined single prompt when shortcut is already missing
+- [x] **BUG-03** — `$requireWin` now uses cached `$App.PresenceMode`; cold-start defaults to `$false`
+- [x] **INT-02** — Re-read `$shortcut` after `Repair-ShortcutTarget`
+- [x] **INT-01** — `Join-Path $env:ProgramFiles 'WindowsApps'` in `Repair-ShortcutArguments`
+- [x] **BUG-02** — `Show-AppList`: bare string `'OK'`/`'MISSING'` replaces `Write-Output` in `if` assignment
+- [x] **NEW-TEST-13** through **NEW-TEST-08** — Six new Pester unit tests
 - [x] **QOL-05** — `Show-AppList` + menu option [5]; Exit to [6]
 - [x] **QOL-03** — `schemaVersion` wrapper
 - [x] **QOL-02** — `Resolve-Aumid` error log
@@ -62,6 +57,5 @@ Move each item to **Done** after its commit lands.
 - [x] **SEC-01** through **SEC-04** — All security gates
 - [x] **HARD-01** through **HARD-03** — All hardening tasks
 - [x] **TEST-01** through **TEST-04** — Pester scaffold and unit tests
-- [x] **INT-01** / **INT-02** (original) — Integration harness and bootstrap smoke test
 - [x] **REF-01** / **REF-02** — Externalize and write-back `apps.json`
 - [x] **FIX-01** through **FIX-03** — Appx add, cancel path, phase timeout math

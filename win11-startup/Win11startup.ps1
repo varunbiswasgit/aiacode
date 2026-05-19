@@ -89,9 +89,6 @@
 # - SystemRoot     : Initialize-Shortcut uses $env:SystemRoot instead of hardcoded
 #                    'C:\Windows' for the explorer.exe target and working directory
 #                    in Appx shortcut creation. (FIX-06)
-# - Stale object   : Start-Win32App no longer re-reads the shortcut object after
-#                    Repair-ShortcutTarget; WshShell.Run always uses $App.ShortcutPath
-#                    directly so the extra Get-ShortcutObject call was misleading. (FIX-07)
 # - Export guard   : Export-AppsConfig wraps Set-Content in try/catch; a write failure
 #                    is logged to startup-error.log and reported to the console instead
 #                    of silently discarding the update. (ROB-01)
@@ -122,15 +119,25 @@
 #                    startup apps (name, type, shortcut status, process) then exits.
 #                    Implemented via Show-AppList. (QOL-05)
 # - Stale shortcut : Start-Win32App re-reads the shortcut object after Repair-ShortcutTarget
-#                    so the argument-repair check uses the freshly written .lnk, not the
-#                    pre-repair in-memory object. (INT-02)
+#                    so the argument-repair check uses the freshly written .lnk. (INT-02)
 # - WindowsApps    : Repair-ShortcutArguments uses Join-Path $env:ProgramFiles 'WindowsApps'
-#                    instead of a hardcoded 'C:\Program Files\WindowsApps' path. (INT-01)
-# - AppList fix    : Show-AppList assigns status via bare string ('OK'/'MISSING') instead of
-#                    Write-Output inside an if-expression to avoid pipeline capture. (BUG-02)
+#                    instead of a hardcoded path. (INT-01)
+# - AppList fix    : Show-AppList assigns status via bare string ('OK'/'MISSING'). (BUG-02)
+# - Catch recovery : Start-Win32App catch block now calls Invoke-FailureRecovery before
+#                    returning $false, giving the user Add/Modify/Skip on any COM or
+#                    launch exception, consistent with the other failure paths. (UX-03)
+# - Delete guard   : Remove-Shortcut asks a combined "shortcut not found — still remove
+#                    from apps.json?" prompt instead of silently falling through to the
+#                    JSON-removal question. (UX-02)
+# - RequireWindow  : Start-Win32App derives $requireWin from the app's stored presence
+#                    mode ($App.PresenceMode) rather than calling Get-AppPresenceMode
+#                    with SettleSecs 0 before the process exists. PresenceMode is set
+#                    after Wait-ForAppReady resolves it on first launch and persisted
+#                    in memory for the session. Cold-start always uses $false (Tray
+#                    semantics) until the mode is known. (BUG-03)
 
 # ---------------------------------------------------------------------------
-# Error log helper — writes timestamped entries to $PSScriptRoot\startup-error.log
+# Error log helper
 # ---------------------------------------------------------------------------
 $script:ErrorLogPath = Join-Path $PSScriptRoot "startup-error.log"
 
@@ -205,6 +212,8 @@ function Import-AppsConfig {
         if ($null -eq $entry.StartAppName)        { $entry | Add-Member -NotePropertyName StartAppName        -NotePropertyValue '' -Force }
         if ($null -eq $entry.KnownAumid)          { $entry | Add-Member -NotePropertyName KnownAumid          -NotePropertyValue '' -Force }
         if ($null -eq $entry.AppxName)            { $entry | Add-Member -NotePropertyName AppxName            -NotePropertyValue '' -Force }
+        # BUG-03: runtime presence mode cache; $null until first successful launch.
+        if ($null -eq $entry.PresenceMode)        { $entry | Add-Member -NotePropertyName PresenceMode        -NotePropertyValue $null -Force }
         $validated += $entry
     }
     return $validated
@@ -341,8 +350,7 @@ function Show-AppPicker {
 }
 
 # ---------------------------------------------------------------------------
-# QOL-05: Show-AppList — formatted table of all configured startup apps.
-# BUG-02: status assigned via bare string, not Write-Output inside if-expression.
+# Show-AppList
 # ---------------------------------------------------------------------------
 function Show-AppList {
     Write-Host "`n================================================"
@@ -420,7 +428,7 @@ function Add-Shortcut {
     $knownAumid   = ''
     $appxName     = ''
     if ($launchType -eq 'Appx') {
-        Write-Host "(Appx fields — used by AUMID resolver at launch time)"
+        Write-Host "(Appx fields - used by AUMID resolver at launch time)"
         $startAppName      = Read-Host "Start menu display name fragment (e.g. Your Phone)"
         $knownAumid        = Read-Host "Known AUMID (e.g. Microsoft.YourPhone_8wekyb3d8bbwe!App, press Enter to skip)"
         $appxName          = Read-Host "Appx package name fragment (e.g. YourPhone, press Enter to skip)"
@@ -448,6 +456,7 @@ function Add-Shortcut {
         StartAppName      = $startAppName
         KnownAumid        = $knownAumid
         AppxName          = $appxName
+        PresenceMode      = $null
     }
 
     if ($exePath) {
@@ -465,20 +474,23 @@ function Add-Shortcut {
     Write-Host "'$name' added to apps.json."
 }
 
+# UX-02: when the shortcut file is already missing, ask a single combined
+#         prompt instead of silently falling through to the JSON removal question.
 function Remove-Shortcut {
     param($App)
     if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-        Write-Warning "$($App.Name): no shortcut found at '$($App.ShortcutPath)'."
-    } else {
-        $confirm = Read-Host "Delete '$($App.ShortcutPath)'? (Y/N)"
-        if ($confirm -ieq 'Y') {
-            Remove-Item -LiteralPath $App.ShortcutPath -Force
-            Write-Host "$($App.Name): shortcut deleted."
-        } else {
-            Write-Host "$($App.Name): deletion cancelled."
-            return
-        }
+        $confirm = Read-Host "$($App.Name): shortcut not found at '$($App.ShortcutPath)'. Remove from apps.json anyway? (Y/N)"
+        if ($confirm -ine 'Y') { Write-Host "$($App.Name): cancelled."; return }
+        $script:apps = $script:apps | Where-Object { $_ -ne $App }
+        Export-AppsConfig
+        Write-Host "$($App.Name): removed from apps.json."
+        return
     }
+
+    $confirm = Read-Host "Delete '$($App.ShortcutPath)'? (Y/N)"
+    if ($confirm -ine 'Y') { Write-Host "$($App.Name): deletion cancelled."; return }
+    Remove-Item -LiteralPath $App.ShortcutPath -Force
+    Write-Host "$($App.Name): shortcut deleted."
 
     $confirm2 = Read-Host "Also remove '$($App.Name)' from apps.json? (Y/N)"
     if ($confirm2 -ieq 'Y') {
@@ -750,7 +762,6 @@ function Repair-ShortcutTarget {
     return $null
 }
 
-# INT-01: uses $env:ProgramFiles instead of hardcoded 'C:\Program Files'.
 function Repair-ShortcutArguments {
     param($App)
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
@@ -843,7 +854,7 @@ function Invoke-AppLaunchWait {
 }
 
 # ---------------------------------------------------------------------------
-# Invoke-FailureRecovery — centralises Add+retry / Modify / Skip
+# Invoke-FailureRecovery
 # ---------------------------------------------------------------------------
 function Invoke-FailureRecovery {
     param(
@@ -893,11 +904,13 @@ function Start-AppxApp {
     }
 }
 
-# INT-02: $shortcut is re-read via Get-ShortcutObject after Repair-ShortcutTarget
-#         so the argument-repair check works on the freshly written .lnk.
+# BUG-03: $requireWin uses the cached $App.PresenceMode set after first successful launch.
+#         On cold start the mode is $null so $requireWin = $false (safe Tray semantics).
+#         Mode is stored in-memory on the app object after Wait-ForAppReady resolves it.
+# UX-03: catch block offers Invoke-FailureRecovery instead of silently returning $false.
 function Start-Win32App {
     param($App)
-    $requireWin = (Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0) -eq 'Window'
+    $requireWin = ($App.PresenceMode -eq 'Window')
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe `
             -RequireWindow:$requireWin) {
         Write-Host "$($App.Name): already open. Skipping.`n"
@@ -924,7 +937,6 @@ function Start-Win32App {
                     return $false
                 }
                 Write-Host "$($App.Name): shortcut repaired. Proceeding with launch."
-                # INT-02: re-read after repair so $shortcut reflects the updated .lnk.
                 $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
             }
 
@@ -943,7 +955,15 @@ function Start-Win32App {
             Write-Host "$($App.Name): launching via shortcut: $($App.ShortcutPath)"
             $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
 
-            if (Invoke-AppLaunchWait -App $App) { return $true }
+            $ready = Invoke-AppLaunchWait -App $App
+
+            # BUG-03: cache the resolved presence mode for subsequent "already open" checks.
+            if ($null -eq $App.PresenceMode) {
+                $resolvedMode = Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0
+                if ($resolvedMode) { $App.PresenceMode = $resolvedMode }
+            }
+
+            if ($ready) { return $true }
 
             $recover = Invoke-FailureRecovery -App $App -Context "launch timeout" `
                 -PreRetryAction { Edit-Shortcut -App $App }
@@ -952,7 +972,10 @@ function Start-Win32App {
         } catch {
             Write-Warning "$($App.Name): launch failed. $_`n"
             Write-ErrorLog -Message "$($App.Name): launch exception" -ErrorRecord $_
-            return $false
+            # UX-03: offer recovery on exception instead of silently returning $false.
+            $recover = Invoke-FailureRecovery -App $App -Context "launch exception" `
+                -PreRetryAction { Edit-Shortcut -App $App }
+            if (-not $recover) { return $false }
         }
     }
 
