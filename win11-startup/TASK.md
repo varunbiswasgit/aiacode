@@ -11,32 +11,24 @@ Move each item to **Done** after its commit lands.
 
 - [ ] **FIX-04** — `Test-AppAlreadyOpen` returns `$true` for any running process even when it has no visible window; the final `return $true` at the bottom ignores window-vs-tray distinction. Add a `$RequireWindow` switch so callers that need a visible window can enforce it.
 
-### Robustness
-
-- [ ] **ROB-01** — `Export-AppsConfig` calls `Set-Content` with no `-ErrorAction`; a write failure (locked file, read-only share) silently discards the update. Wrap in `try/catch` and call `Write-ErrorLog` on failure.
-- [ ] **ROB-02** — `Get-ShortcutObject` throws a terminating error if the shortcut is missing. Every caller already guards with `Test-Path` except `Edit-Shortcut` (argument-repair branch), which calls it without a prior existence check. Add the guard.
-- [ ] **ROB-03** — `Wait-ForAppReady` phase-2 Stopwatch placement is correct but subtle. The inline comment added in FIX-07 commit documents the intent; no code change needed — verify comment is clear on next review.
-- [ ] **ROB-04** — `Start-Win32App` recurses into itself on failure-menu choice `'1'` (missing shortcut) and `'1'` (launch timeout). Deep recursion is unlikely but unbounded. Replace with a `for` loop (max 2 retries) and `break`/`continue` instead.
-
 ### Hardening
 
 - [ ] **HARD-04** — `Prompt-ForExactExePath` loops forever with no escape except an empty Enter. Add a max-attempt counter (e.g. 3) and return `$null` after exhausting retries so the caller can handle it gracefully.
 - [ ] **HARD-05** — `Add-Shortcut` (new-entry flow) does not validate that the shortcut number entered by the user is numeric or padded correctly (e.g. `09`). A blank or non-numeric number produces a malformed `.lnk` filename silently. Add validation with a re-prompt.
-- [ ] **HARD-06** — `Remove-Shortcut` compares by `$_.Name -ne $App.Name` when filtering `$script:apps` after deletion. If two entries share the same `Name`, both are removed. Switch to filtering by object identity (`$_ -ne $App`) or a unique key.
+- [ ] **HARD-06** — `Remove-Shortcut` now filters `$script:apps` by object identity (`$_ -ne $App`). No action needed unless Pester test coverage is added for the exact-match case.
 
 ### Quality / Clarity
 
-- [ ] **QOL-01** — `Show-AppPicker` re-formats the shortcut path in every loop iteration via `Test-Path` inside `Write-Host`. Extract the status string before the loop to avoid repeated filesystem calls when the list is long. Also change `$failedApps` in the startup sequence to store only `Name` + `ProcessName` strings instead of full PSCustomObjects — the summary loop only uses those two fields.
+- [ ] **QOL-01** — `Show-AppPicker` re-evaluates `Test-Path` inside `Write-Host` on every loop iteration. Extract the status string before the loop to avoid repeated filesystem calls when the list is long.
 - [ ] **QOL-02** — `Resolve-Aumid` silently returns `$null` with only a `Write-Warning` when all three resolution paths fail. Log the failure to `startup-error.log` via `Write-ErrorLog` so it appears in the post-run diagnostic file.
 - [ ] **QOL-03** — `apps.json` schema has no version field. Add a top-level `"schemaVersion": 1` wrapper so future breaking changes can be detected at load time in `Import-AppsConfig`.
-- [ ] **QOL-04** — `Start-Win32App` contains two near-identical `switch ($failChoice)` blocks (missing-shortcut path and launch-timeout path). Extract into a single `Invoke-FailureRecovery` helper that accepts the app, context label, and an optional pre-retry action scriptblock. This shrinks `Start-Win32App`, removes the duplicated `Show-AppPicker` + `Edit-Shortcut` calls, and keeps the failure-handling logic in one place. Coordinate with ROB-04 (recursion guard) — both touch the same switch blocks and should land in the same commit.
 
 ### Testing
 
 - [ ] **TEST-08** — Unit test `Test-AppAlreadyOpen` with `$RequireWindow` switch (once FIX-04 lands).
-- [ ] **TEST-09** — Unit test `Export-AppsConfig` error path (once ROB-01 lands): verify `Write-ErrorLog` is called when `Set-Content` throws.
+- [ ] **TEST-09** — Unit test `Export-AppsConfig` error path (ROB-01 landed): verify `Write-ErrorLog` is called and a warning is emitted when `Set-Content` throws.
 - [ ] **TEST-10** — Unit test `Resolve-Aumid` logs to error log when all three resolution paths fail (once QOL-02 lands).
-- [ ] **TEST-11** — Unit test `Invoke-FailureRecovery` (once QOL-04 lands): verify each branch returns the correct value and calls the right helpers.
+- [ ] **TEST-11** — Unit test `Invoke-FailureRecovery`: verify each branch returns the correct value, calls `Show-FailureMenu`, invokes `PreRetryAction` only on choice `'1'`, and calls `Edit-Shortcut` / skips correctly on other choices.
 
 ---
 
@@ -53,6 +45,10 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
+- [x] **QOL-04** — Extract `Invoke-FailureRecovery`; eliminate duplicated switch blocks in `Start-Win32App` (landed with ROB-04)
+- [x] **ROB-04** — Replace unbounded self-recursion in `Start-Win32App` with bounded for-loop (max 2 retries) via `Invoke-FailureRecovery`
+- [x] **ROB-02** — Guard `Edit-Shortcut` argument-repair branch with `Test-Path` before `Get-ShortcutObject`
+- [x] **ROB-01** — Wrap `Export-AppsConfig` `Set-Content` in `try/catch`; log and warn on write failure
 - [x] **FIX-07** — Remove redundant `Get-ShortcutObject` call after `Repair-ShortcutTarget` in `Start-Win32App`
 - [x] **FIX-06** — Replace hardcoded `C:\Windows` with `$env:SystemRoot` in `Initialize-Shortcut`
 - [x] **FIX-05** — Use `$pkg.PackageFamilyName` from `Get-AppxPackage` in `Repair-ShortcutArguments`; remove fragile regex PFN reconstruction

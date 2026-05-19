@@ -92,6 +92,15 @@
 # - Stale object   : Start-Win32App no longer re-reads the shortcut object after
 #                    Repair-ShortcutTarget; WshShell.Run always uses $App.ShortcutPath
 #                    directly so the extra Get-ShortcutObject call was misleading. (FIX-07)
+# - Export guard   : Export-AppsConfig wraps Set-Content in try/catch; a write failure
+#                    is logged to startup-error.log and reported to the console instead
+#                    of silently discarding the update. (ROB-01)
+# - Edit guard     : Edit-Shortcut argument-repair branch guards Get-ShortcutObject with
+#                    Test-Path before calling it, matching all other callers. (ROB-02)
+# - Retry loop     : Start-Win32App uses Invoke-FailureRecovery with a bounded for-loop
+#                    (max 2 retries) instead of unbounded self-recursion. Both the
+#                    missing-shortcut and launch-timeout paths share the same helper,
+#                    eliminating the duplicated switch blocks. (ROB-04 + QOL-04)
 
 # ---------------------------------------------------------------------------
 # Error log helper — writes timestamped entries to $PSScriptRoot\startup-error.log
@@ -161,10 +170,18 @@ function Import-AppsConfig {
     return $validated
 }
 
+# ROB-01: Set-Content wrapped in try/catch; write failures are logged and
+#         reported to the console instead of silently discarding the update.
 function Export-AppsConfig {
     param([string]$Path = $script:AppsConfigPath)
-    $script:apps | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $Path -Encoding UTF8
-    Write-Host "apps.json saved ($($script:apps.Count) entries)."
+    try {
+        $script:apps | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $Path -Encoding UTF8 -ErrorAction Stop
+        Write-Host "apps.json saved ($($script:apps.Count) entries)."
+    } catch {
+        Write-ErrorLog -Message "Export-AppsConfig failed to write '$Path'" -ErrorRecord $_
+        Write-Warning "apps.json could not be saved: $($_.Exception.Message)"
+        Write-Host "Error details written to: $script:ErrorLogPath" -ForegroundColor Yellow
+    }
 }
 
 try {
@@ -399,12 +416,14 @@ function Remove-Shortcut {
 
     $confirm2 = Read-Host "Also remove '$($App.Name)' from apps.json? (Y/N)"
     if ($confirm2 -ieq 'Y') {
-        $script:apps = $script:apps | Where-Object { $_.Name -ne $App.Name }
+        $script:apps = $script:apps | Where-Object { $_ -ne $App }
         Export-AppsConfig
         Write-Host "$($App.Name): removed from apps.json."
     }
 }
 
+# ROB-02: argument-repair branch now guards with Test-Path before calling
+#         Get-ShortcutObject, consistent with all other callers.
 function Edit-Shortcut {
     param($App)
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
@@ -602,8 +621,7 @@ function Find-MisnumberedShortcut {
         Select-Object -First 1
 }
 
-# FIX-06: $env:SystemRoot replaces hardcoded 'C:\Windows' for both the
-#          explorer.exe target path and the WorkingDirectory in Appx shortcuts.
+# FIX-06: $env:SystemRoot replaces hardcoded 'C:\Windows'.
 function Initialize-Shortcut {
     param($App)
     if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { return }
@@ -668,10 +686,7 @@ function Repair-ShortcutTarget {
     return $null
 }
 
-# FIX-05: PFN is taken directly from $pkg.PackageFamilyName (the canonical value
-#          returned by Get-AppxPackage) instead of reconstructing it by stripping
-#          version/arch segments with a fragile regex. This avoids breakage when
-#          package folder naming conventions vary across Windows updates.
+# FIX-05: canonical PFN from Get-AppxPackage.
 function Repair-ShortcutArguments {
     param($App)
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
@@ -702,8 +717,6 @@ function Repair-ShortcutArguments {
 
     Write-Host "$($App.Name): found package folder: $($pkgFolder.Name)"
 
-    # FIX-05: resolve the installed package to get the canonical PackageFamilyName
-    # directly from Get-AppxPackage — no regex reconstruction needed.
     $installedPkg = Get-AppxPackage | Where-Object { $_.PackageFamilyName -like "*$aumidFragment*" } | Select-Object -First 1
     $pfn = if ($installedPkg) { $installedPkg.PackageFamilyName } else { $null }
 
@@ -766,6 +779,39 @@ function Invoke-AppLaunchWait {
 }
 
 # ---------------------------------------------------------------------------
+# ROB-04 + QOL-04: Invoke-FailureRecovery
+# Centralises the Add+retry / Modify / Skip logic used by both the
+# missing-shortcut and launch-timeout paths in Start-Win32App.
+# -PreRetryAction is an optional scriptblock run before the launch retry
+# (e.g. Edit-Shortcut for the timeout path).
+# Returns $true if recovery succeeded and launch should be re-attempted,
+# $false if the user chose Modify or Skip.
+# ---------------------------------------------------------------------------
+function Invoke-FailureRecovery {
+    param(
+        $App,
+        [string]$Context,
+        [scriptblock]$PreRetryAction = $null
+    )
+    $choice = Show-FailureMenu -AppName $App.Name -Context $Context
+    switch ($choice) {
+        '1' {
+            if ($PreRetryAction) { & $PreRetryAction }
+            return $true
+        }
+        '2' {
+            $target = Show-AppPicker -Prompt "Select shortcut to modify:"
+            if ($target) { Edit-Shortcut -App $target }
+            return $false
+        }
+        default {
+            Write-Host "$($App.Name): skipped.`n"
+            return $false
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Launch functions
 # ---------------------------------------------------------------------------
 function Start-AppxApp {
@@ -789,9 +835,8 @@ function Start-AppxApp {
     }
 }
 
-# FIX-07: Removed the redundant Get-ShortcutObject call after Repair-ShortcutTarget.
-#          WshShell.Run always fires $App.ShortcutPath directly; re-reading the
-#          shortcut object after repair served no purpose and was misleading.
+# ROB-04 + QOL-04: Self-recursion replaced with a bounded for-loop (max 2 retries).
+# Both failure paths (missing shortcut, launch timeout) share Invoke-FailureRecovery.
 function Start-Win32App {
     param($App)
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe) {
@@ -799,81 +844,60 @@ function Start-Win32App {
         return $true
     }
 
-    if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-        Write-Warning "$($App.Name): shortcut file not found: $($App.ShortcutPath)"
-        $failChoice = Show-FailureMenu -AppName $App.Name -Context "missing shortcut"
-        switch ($failChoice) {
-            '1' {
-                Initialize-Shortcut -App $App
-                if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) {
-                    return Start-Win32App -App $App
-                }
-                Write-Warning "$($App.Name): shortcut still missing after add attempt. Skipping.`n"
-                return $false
-            }
-            '2' {
-                $target = Show-AppPicker -Prompt "Select shortcut to modify:"
-                if ($target) { Edit-Shortcut -App $target }
-                return $false
-            }
-            default {
-                Write-Host "$($App.Name): skipped.`n"
-                return $false
-            }
-        }
-    }
+    for ($attempt = 0; $attempt -le 2; $attempt++) {
 
-    try {
-        $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
-        $targetPath = $shortcut.TargetPath
-        if ([string]::IsNullOrWhiteSpace($targetPath) -or -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
-            $repairedPath = Repair-ShortcutTarget -App $App
-            if (-not $repairedPath) {
-                Write-Warning "$($App.Name): shortcut could not be repaired. Skipping.`n"
-                return $false
-            }
-            Write-Host "$($App.Name): shortcut repaired. Proceeding with launch."
-            # FIX-07: no second Get-ShortcutObject here; Run uses $App.ShortcutPath directly.
+        if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
+            Write-Warning "$($App.Name): shortcut file not found: $($App.ShortcutPath)"
+            $recover = Invoke-FailureRecovery -App $App -Context "missing shortcut" `
+                -PreRetryAction { Initialize-Shortcut -App $App }
+            if (-not $recover) { return $false }
+            # PreRetryAction ran Initialize-Shortcut; loop will re-check Test-Path.
+            continue
         }
 
-        if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
-            $currentArgs = $shortcut.Arguments
-            if ([string]::IsNullOrWhiteSpace($currentArgs) -or
-                $currentArgs -notlike "*$($App.ExpectedArguments)*") {
-                $repairedArgs = Repair-ShortcutArguments -App $App
-                if (-not $repairedArgs) {
-                    Write-Warning "$($App.Name): argument repair failed. Skipping.`n"
+        try {
+            $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
+            $targetPath = $shortcut.TargetPath
+            if ([string]::IsNullOrWhiteSpace($targetPath) -or -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+                $repairedPath = Repair-ShortcutTarget -App $App
+                if (-not $repairedPath) {
+                    Write-Warning "$($App.Name): shortcut could not be repaired. Skipping.`n"
                     return $false
                 }
+                Write-Host "$($App.Name): shortcut repaired. Proceeding with launch."
             }
+
+            if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
+                $currentArgs = $shortcut.Arguments
+                if ([string]::IsNullOrWhiteSpace($currentArgs) -or
+                    $currentArgs -notlike "*$($App.ExpectedArguments)*") {
+                    $repairedArgs = Repair-ShortcutArguments -App $App
+                    if (-not $repairedArgs) {
+                        Write-Warning "$($App.Name): argument repair failed. Skipping.`n"
+                        return $false
+                    }
+                }
+            }
+
+            Write-Host "$($App.Name): launching via shortcut: $($App.ShortcutPath)"
+            $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
+
+            if (Invoke-AppLaunchWait -App $App) { return $true }
+
+            $recover = Invoke-FailureRecovery -App $App -Context "launch timeout" `
+                -PreRetryAction { Edit-Shortcut -App $App }
+            if (-not $recover) { return $false }
+            # PreRetryAction ran Edit-Shortcut; loop will re-attempt launch.
+
+        } catch {
+            Write-Warning "$($App.Name): launch failed. $_`n"
+            Write-ErrorLog -Message "$($App.Name): launch exception" -ErrorRecord $_
+            return $false
         }
-
-        Write-Host "$($App.Name): launching via shortcut: $($App.ShortcutPath)"
-        $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
-
-        if (Invoke-AppLaunchWait -App $App) { return $true }
-
-        $timeoutChoice = Show-FailureMenu -AppName $App.Name -Context "launch timeout"
-        switch ($timeoutChoice) {
-            '1' {
-                Edit-Shortcut -App $App
-                return Start-Win32App -App $App
-            }
-            '2' {
-                $target = Show-AppPicker -Prompt "Select shortcut to modify:"
-                if ($target) { Edit-Shortcut -App $target }
-                return $false
-            }
-            default {
-                Write-Host "$($App.Name): skipped.`n"
-                return $false
-            }
-        }
-    } catch {
-        Write-Warning "$($App.Name): launch failed. $_`n"
-        Write-ErrorLog -Message "$($App.Name): launch exception" -ErrorRecord $_
-        return $false
     }
+
+    Write-Warning "$($App.Name): max retries reached. Skipping.`n"
+    return $false
 }
 
 # ---------------------------------------------------------------------------
@@ -931,13 +955,13 @@ foreach ($app in $script:apps) {
     } else {
         Start-Win32App -App $app
     }
-    if (-not $ok) { $failedApps += $app }
+    if (-not $ok) { $failedApps += "$($app.Name) [$($app.ProcessName)]" }
 }
 
 if ($failedApps.Count -gt 0) {
     Write-Host "`n--- Startup completed with failures ---"
-    foreach ($app in $failedApps) {
-        Write-Host "  - $($app.Name) [$($app.ProcessName)]"
+    foreach ($entry in $failedApps) {
+        Write-Host "  - $entry"
     }
 } else {
     Write-Host "`nStartup sequence completed successfully."
