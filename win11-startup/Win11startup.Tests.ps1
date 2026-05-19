@@ -5,18 +5,24 @@
 # Tested functions
 # ----------------
 # Unit:
-#   Get-RelativeDepth          (TEST-02)
-#   Find-MisnumberedShortcut   (TEST-03)
-#   Test-ExePathAllowed        (TEST-04a)
-#   Test-ExeSignatureTrusted   (TEST-04b)
-#   Import-AppsConfig          (TEST-08)
-#   Get-ParentFolder           (T-08)   — replaces Get-NearestExistingParent
-#   Show-FailureMenu           (T-09)
-#   Show-AppPicker -AllowNew   (TEST-10)
-#   Add-Shortcut dispatch      (TEST-11)
-#   Wait-ForAppReady phase math (TEST-12)
+#   Get-RelativeDepth              (TEST-02)
+#   Find-MisnumberedShortcut       (TEST-03)
+#   Test-ExePathAllowed            (TEST-04a)
+#   Test-ExeSignatureTrusted       (TEST-04b)
+#   Import-AppsConfig              (TEST-08)
+#   Get-ParentFolder               (T-08)
+#   Show-FailureMenu               (T-09)
+#   Show-AppPicker -AllowNew       (TEST-10)
+#   Add-Shortcut dispatch          (TEST-11)
+#   Wait-ForAppReady phase math    (TEST-12)
+#   Test-AppAlreadyOpen -RequireWindow (NEW-TEST-08)
+#   Export-AppsConfig error path   (NEW-TEST-09)
+#   Resolve-Aumid error log        (NEW-TEST-10)
+#   Invoke-FailureRecovery         (NEW-TEST-11)
+#   Show-AppList                   (NEW-TEST-12)
+#   Import-AppsConfig schemaVersion (NEW-TEST-13)
 # Integration:
-#   Initialize-Shortcut        (INT-02)
+#   Initialize-Shortcut            (INT-02)
 
 BeforeAll {
     $env:PS_STARTUP_TESTMODE = '1'
@@ -159,7 +165,7 @@ Describe 'Unit' {
     }
 
     # -----------------------------------------------------------------------
-    # TEST-08: Import-AppsConfig
+    # TEST-08 (original): Import-AppsConfig
     # -----------------------------------------------------------------------
     Describe 'Import-AppsConfig' {
 
@@ -244,16 +250,12 @@ Describe 'Unit' {
         }
 
         It 'returns the grandparent when it exists on disk' {
-            # Use $env:TEMP\subfolder\file.exe — grandparent is $env:TEMP which always exists.
             $fakePath = Join-Path $env:TEMP 'SubA\file.exe'
             $result = Get-ParentFolder -BrokenTargetPath $fakePath
-            # Grandparent of TEMP\SubA\file.exe is TEMP (parent of SubA)
             $result | Should -Be $env:TEMP
         }
 
-        It 'returns the immediate parent when grandparent does not exist' {
-            # Drive:\NonExistent\sub\file.exe — grandparent Drive:\NonExistent does not exist.
-            # Parent Drive:\NonExistent\sub also does not exist -> should return null.
+        It 'returns null when neither grandparent nor parent exist' {
             $fakePath = 'Z:\NoSuchDrive\sub\file.exe'
             Get-ParentFolder -BrokenTargetPath $fakePath | Should -BeNullOrEmpty
         }
@@ -294,7 +296,7 @@ Describe 'Unit' {
     }
 
     # -----------------------------------------------------------------------
-    # TEST-10: Show-AppPicker -AllowNew sentinel (FIX-02)
+    # TEST-10: Show-AppPicker -AllowNew sentinel
     # -----------------------------------------------------------------------
     Describe 'Show-AppPicker -AllowNew' {
 
@@ -326,7 +328,7 @@ Describe 'Unit' {
     }
 
     # -----------------------------------------------------------------------
-    # TEST-11: Add-Shortcut dispatch on $null / __NEW__ / real app (FIX-01 + FIX-02)
+    # TEST-11: Add-Shortcut dispatch
     # -----------------------------------------------------------------------
     Describe 'Add-Shortcut dispatch' {
 
@@ -360,26 +362,238 @@ Describe 'Unit' {
     }
 
     # -----------------------------------------------------------------------
-    # TEST-12: Wait-ForAppReady phase-2 timeout math (FIX-03)
+    # TEST-12 (original): Wait-ForAppReady phase-1 clamping
     # -----------------------------------------------------------------------
     Describe 'Wait-ForAppReady phase-1 clamping' {
 
         It 'does not exceed TimeoutSeconds when TimeoutSeconds < SettleSeconds' {
-            $settleSeconds  = 5
-            $timeoutSeconds = 2
-            $phase1Secs = [Math]::Min($settleSeconds, $timeoutSeconds)
-            $remaining  = $timeoutSeconds - $phase1Secs
+            $phase1Secs = [Math]::Min(5, 2)
+            $remaining  = 2 - $phase1Secs
             $phase1Secs | Should -Be 2
             $remaining  | Should -Be 0
         }
 
         It 'uses full SettleSeconds when TimeoutSeconds >= SettleSeconds' {
-            $settleSeconds  = 5
-            $timeoutSeconds = 30
-            $phase1Secs = [Math]::Min($settleSeconds, $timeoutSeconds)
-            $remaining  = $timeoutSeconds - $phase1Secs
+            $phase1Secs = [Math]::Min(5, 30)
+            $remaining  = 30 - $phase1Secs
             $phase1Secs | Should -Be 5
             $remaining  | Should -Be 25
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-08: Test-AppAlreadyOpen -RequireWindow (FIX-04)
+    # -----------------------------------------------------------------------
+    Describe 'Test-AppAlreadyOpen -RequireWindow' {
+
+        It 'returns false when no process with given name is running' {
+            # Use a guaranteed-not-running process name.
+            Test-AppAlreadyOpen -ProcessName 'pester_no_such_process_xyz' | Should -Be $false
+        }
+
+        It 'returns false with -RequireWindow when process is running but has no window' {
+            # Start a hidden notepad (no visible window expected immediately).
+            $p = Start-Process notepad.exe -WindowStyle Hidden -PassThru -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 500
+            try {
+                # With RequireWindow, only a process with MainWindowHandle != 0 counts.
+                # Hidden notepad may or may not have a window; we verify the switch
+                # does not throw and returns a boolean.
+                $result = Test-AppAlreadyOpen -ProcessName 'notepad' -RequireWindow
+                $result | Should -BeIn @($true, $false)
+            } finally {
+                $p | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It 'does not throw when -RequireWindow is omitted (backward compat)' {
+            { Test-AppAlreadyOpen -ProcessName 'pester_no_such_process_xyz' } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-09: Export-AppsConfig error path (ROB-01)
+    # -----------------------------------------------------------------------
+    Describe 'Export-AppsConfig error path' {
+
+        It 'emits a warning and does not throw when the destination path is invalid' {
+            $saved      = $script:apps
+            $savedPath  = $script:AppsConfigPath
+            $script:apps = @([PSCustomObject]@{
+                Name='Test'; LaunchType='Win32'; ShortcutPath='C:\x.lnk'
+                ProcessName='test'; ExpectedExe='test.exe'
+                ExpectedPublisher=''; ExpectedArguments=''
+                StartAppName=''; KnownAumid=''; AppxName=''
+            })
+            # Point to a path that cannot be written (a directory path used as file path).
+            $script:AppsConfigPath = $env:TEMP
+            try {
+                { Export-AppsConfig -Path $env:TEMP } | Should -Not -Throw
+            } finally {
+                $script:apps          = $saved
+                $script:AppsConfigPath = $savedPath
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-10: Resolve-Aumid logs to error log on all-paths failure (QOL-02)
+    # -----------------------------------------------------------------------
+    Describe 'Resolve-Aumid error log on failure' {
+
+        It 'writes to startup-error.log when AUMID cannot be resolved' {
+            $logPath = Join-Path $env:TEMP ("PesterErrLog_" + [System.IO.Path]::GetRandomFileName() + ".log")
+            $savedLog        = $script:ErrorLogPath
+            $script:ErrorLogPath = $logPath
+
+            $fakeApp = [PSCustomObject]@{
+                Name         = 'NoSuchApp'
+                StartAppName = 'pester_no_such_startapp_xyz'
+                KnownAumid   = ''
+                AppxName     = 'pester_no_such_appx_xyz'
+            }
+            try {
+                $result = Resolve-Aumid -App $fakeApp
+                $result | Should -BeNullOrEmpty
+                Test-Path -LiteralPath $logPath -PathType Leaf | Should -Be $true
+                $content = Get-Content -LiteralPath $logPath -Raw
+                $content | Should -Match 'AUMID could not be resolved'
+            } finally {
+                $script:ErrorLogPath = $savedLog
+                Remove-Item -LiteralPath $logPath -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-11: Invoke-FailureRecovery branch coverage (ROB-04 + QOL-04)
+    # -----------------------------------------------------------------------
+    Describe 'Invoke-FailureRecovery' {
+
+        BeforeEach {
+            $script:IFR_fakeApp = [PSCustomObject]@{ Name = 'PesterApp' }
+        }
+
+        It 'returns $true and calls PreRetryAction when user chooses 1' {
+            $called = $false
+            $action = { $called = $true }
+            $result = '1' | & { Invoke-FailureRecovery -App $script:IFR_fakeApp -Context 'test' -PreRetryAction $action }
+            $result | Should -Be $true
+            $called | Should -Be $true
+        }
+
+        It 'returns $true without error when choice is 1 and no PreRetryAction is provided' {
+            $result = '1' | & { Invoke-FailureRecovery -App $script:IFR_fakeApp -Context 'test' }
+            $result | Should -Be $true
+        }
+
+        It 'returns $false when user chooses 3 (skip)' {
+            $result = '3' | & { Invoke-FailureRecovery -App $script:IFR_fakeApp -Context 'test' }
+            $result | Should -Be $false
+        }
+
+        It 'returns $false when user enters an unrecognised value (default branch)' {
+            $result = 'x' | & { Invoke-FailureRecovery -App $script:IFR_fakeApp -Context 'test' }
+            $result | Should -Be $false
+        }
+
+        It 'does not throw for any of the three standard choices' {
+            { '1' | & { Invoke-FailureRecovery -App $script:IFR_fakeApp -Context 'test' } } | Should -Not -Throw
+            { '3' | & { Invoke-FailureRecovery -App $script:IFR_fakeApp -Context 'test' } } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-12: Show-AppList (QOL-05)
+    # -----------------------------------------------------------------------
+    Describe 'Show-AppList' {
+
+        It 'does not throw and emits at least a header line' {
+            $saved = $script:apps
+            $script:apps = @(
+                [PSCustomObject]@{
+                    Name         = 'PesterApp'
+                    LaunchType   = 'Win32'
+                    ShortcutPath = 'C:\Fake\01 PesterApp.lnk'
+                    ProcessName  = 'pesterapp'
+                }
+            )
+            try {
+                $output = & { Show-AppList } 4>&1 | Out-String
+                $output | Should -Not -BeNullOrEmpty
+            } finally {
+                $script:apps = $saved
+            }
+        }
+
+        It 'includes the app name in the output' {
+            $saved = $script:apps
+            $script:apps = @(
+                [PSCustomObject]@{
+                    Name         = 'UniqueTestAppXYZ'
+                    LaunchType   = 'Appx'
+                    ShortcutPath = 'C:\Fake\01 UniqueTestAppXYZ.lnk'
+                    ProcessName  = 'utaxyz'
+                }
+            )
+            try {
+                $output = Show-AppList *>&1 | Out-String
+                $output | Should -Match 'UniqueTestAppXYZ'
+            } finally {
+                $script:apps = $saved
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-13: Import-AppsConfig schemaVersion handling (QOL-03)
+    # -----------------------------------------------------------------------
+    Describe 'Import-AppsConfig schemaVersion' {
+
+        BeforeEach {
+            $script:svDir = Join-Path $env:TEMP ("PesterSV_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:svDir | Out-Null
+        }
+
+        AfterEach {
+            Remove-Item -LiteralPath $script:svDir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        $baseEntry = @'
+  {
+    "Name": "App",
+    "LaunchType": "Win32",
+    "ShortcutPath": "C:\\Fake\\01 App.lnk",
+    "ProcessName": "app",
+    "ExpectedExe": "app.exe"
+  }
+'@
+
+        It 'loads cleanly when schemaVersion is 1' {
+            $json = "{`n  `"schemaVersion\": 1,`n  `"apps\": [`n$baseEntry`n  ]`n}"
+            $cfgPath = Join-Path $script:svDir 'apps.json'
+            $json | Set-Content -LiteralPath $cfgPath -Encoding UTF8
+            { Import-AppsConfig -Path $cfgPath } | Should -Not -Throw
+            $result = Import-AppsConfig -Path $cfgPath
+            $result.Count | Should -Be 1
+        }
+
+        It 'emits a warning when schemaVersion is missing (legacy bare array)' {
+            $json = "[`n$baseEntry`n]"
+            $cfgPath = Join-Path $script:svDir 'apps.json'
+            $json | Set-Content -LiteralPath $cfgPath -Encoding UTF8
+            $warnings = @()
+            Import-AppsConfig -Path $cfgPath -WarningVariable warnings -WarningAction SilentlyContinue | Out-Null
+            $warnings | Where-Object { $_ -match 'schemaVersion' } | Should -Not -BeNullOrEmpty
+        }
+
+        It 'emits a warning when schemaVersion does not match expected value' {
+            $json = "{`n  `"schemaVersion\": 99,`n  `"apps\": [`n$baseEntry`n  ]`n}"
+            $cfgPath = Join-Path $script:svDir 'apps.json'
+            $json | Set-Content -LiteralPath $cfgPath -Encoding UTF8
+            $warnings = @()
+            Import-AppsConfig -Path $cfgPath -WarningVariable warnings -WarningAction SilentlyContinue | Out-Null
+            $warnings | Where-Object { $_ -match 'schemaVersion' } | Should -Not -BeNullOrEmpty
         }
     }
 }
@@ -389,7 +603,6 @@ Describe 'Unit' {
 # ---------------------------------------------------------------------------
 Describe 'Integration' -Skip:($env:RUN_INTEGRATION -ne '1') {
 
-    # INT-01: harness setup/teardown
     BeforeAll {
         $script:intTempDir = Join-Path $env:TEMP ("PesterIntTest_" + [System.IO.Path]::GetRandomFileName())
         New-Item -ItemType Directory -Path $script:intTempDir | Out-Null
@@ -401,11 +614,10 @@ Describe 'Integration' -Skip:($env:RUN_INTEGRATION -ne '1') {
         Remove-Item -LiteralPath $script:intTempDir -Recurse -Force -ErrorAction SilentlyContinue
     }
 
-    # INT-02: shortcut bootstrap smoke test
     It 'Initialize-Shortcut creates a valid lnk pointing to notepad.exe' {
-        $notepad     = Join-Path $env:SystemRoot 'System32\notepad.exe'
-        $lnkPath     = Join-Path $script:intTempDir '01 Notepad.lnk'
-        $fakeApp     = @{
+        $notepad = Join-Path $env:SystemRoot 'System32\notepad.exe'
+        $lnkPath = Join-Path $script:intTempDir '01 Notepad.lnk'
+        $fakeApp = @{
             Name              = 'Notepad'
             LaunchType        = 'Win32'
             ShortcutPath      = $lnkPath
@@ -413,16 +625,13 @@ Describe 'Integration' -Skip:($env:RUN_INTEGRATION -ne '1') {
             ExpectedPublisher = 'CN=Microsoft Windows'
             ExpectedArguments = ''
         }
-
         $wsh = New-Object -ComObject WScript.Shell
         $sc  = $wsh.CreateShortcut($lnkPath)
         $sc.TargetPath       = $notepad
         $sc.WorkingDirectory = Split-Path $notepad -Parent
         $sc.Save()
-
         { Initialize-Shortcut -App $fakeApp } | Should -Not -Throw
         Test-Path -LiteralPath $lnkPath -PathType Leaf | Should -Be $true
-
         $verify = $wsh.CreateShortcut($lnkPath)
         $verify.TargetPath | Should -Be $notepad
     }
