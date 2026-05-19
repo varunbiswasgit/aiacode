@@ -12,7 +12,7 @@
 #                    argument self-healing when the AUMID becomes stale after a package update.
 # - Bootstrap      : before launch loop, ensures every Win32 .lnk exists at the expected path;
 #                    renames misnumbered matches found in the same folder, or creates fresh if absent
-# - Main menu      : on launch, user chooses Run / Add / Delete / Modify / List / Exit
+# - Main menu      : on launch, user chooses Run / Add / Delete / Modify / List / Sync / Exit
 #                    inline failure menu (Add+retry / Modify / Skip) appears when a shortcut
 #                    is missing or an app fails to start during the startup sequence
 # - Presence mode  : after launch, Get-AppPresenceMode polls MainWindowHandle for $script:SettleSeconds;
@@ -47,9 +47,9 @@
 # - Test mode      : When $env:PS_STARTUP_TESTMODE = '1', the script dot-sources cleanly
 #                    (functions and vars available) but skips the interactive menu and
 #                    startup sequence entirely. Used by Win11startup.Tests.ps1.
-# - Config file    : $script:apps is loaded from apps.json in the same folder as the script.
+# - Config file    : $script:apps is loaded from Win11startupapps.json in the same folder.
 #                    Required fields: Name, LaunchType, ShortcutPath, ProcessName, ExpectedExe.
-#                    Add/Delete menu flows write changes back to apps.json automatically.
+#                    Add/Delete menu flows write changes back to Win11startupapps.json automatically.
 # - Add flow       : Show-AppPicker -AllowNew shows [N] for brand-new entry and returns
 #                    '__NEW__' sentinel; Add-Shortcut distinguishes re-init (real app object),
 #                    new entry ('__NEW__'), and cancel ($null). Appx entries collect
@@ -84,38 +84,32 @@
 #                    [System.Diagnostics.Stopwatch] instead of manual $elapsed++ counters
 #                    so elapsed time reflects wall clock even when Get-Process is slow. (T-07)
 # - PFN source     : Repair-ShortcutArguments uses $pkg.PackageFamilyName directly from
-#                    Get-AppxPackage instead of reconstructing it via regex, avoiding
-#                    breakage when version/arch segments vary. (FIX-05)
-# - SystemRoot     : Initialize-Shortcut uses $env:SystemRoot instead of hardcoded
-#                    'C:\Windows' for the explorer.exe target and working directory
-#                    in Appx shortcut creation. (FIX-06)
-# - Export guard   : Export-AppsConfig wraps Set-Content in try/catch; a write failure
-#                    is logged to startup-error.log and reported to the console instead
-#                    of silently discarding the update. (ROB-01)
-# - Edit guard     : Edit-Shortcut argument-repair branch guards Get-ShortcutObject with
-#                    Test-Path before calling it, matching all other callers. (ROB-02)
-# - Retry loop     : Start-Win32App uses Invoke-FailureRecovery with a bounded for-loop
-#                    (max 2 retries) instead of unbounded self-recursion. (ROB-04 + QOL-04)
-# - Path attempts  : Prompt-ForExactExePath limits validation retries to 3 attempts. (HARD-04)
-# - Number valid   : Add-Shortcut validates the shortcut number is 1-2 digits. (HARD-05)
-# - Picker perf    : Show-AppPicker pre-computes shortcut-existence before the display loop. (QOL-01)
+#                    Get-AppxPackage instead of reconstructing it via regex. (FIX-05)
+# - SystemRoot     : Initialize-Shortcut uses $env:SystemRoot for Appx shortcut creation. (FIX-06)
+# - Export guard   : Export-AppsConfig wraps Set-Content in try/catch. (ROB-01)
+# - Edit guard     : Edit-Shortcut argument-repair branch guards Get-ShortcutObject. (ROB-02)
+# - Retry loop     : Start-Win32App uses Invoke-FailureRecovery with bounded for-loop. (ROB-04+QOL-04)
+# - Path attempts  : Prompt-ForExactExePath limits retries to 3 attempts. (HARD-04)
+# - Number valid   : Add-Shortcut validates shortcut number is 1-2 digits. (HARD-05)
+# - Picker perf    : Show-AppPicker pre-computes shortcut-existence before display loop. (QOL-01)
 # - Window switch  : Test-AppAlreadyOpen accepts -RequireWindow. (FIX-04)
-# - AUMID log      : Resolve-Aumid logs all-paths failure to startup-error.log. (QOL-02)
+# - AUMID log      : Resolve-Aumid logs all-paths failure. (QOL-02)
 # - Schema version : Import-AppsConfig checks for top-level schemaVersion field. (QOL-03)
-# - List apps      : Main menu option [5] prints a formatted table of all configured
-#                    startup apps (name, type, shortcut status, process) then exits.
-#                    Implemented via Show-AppList. (QOL-05)
+# - List apps      : Main menu option [5] prints formatted table via Show-AppList. (QOL-05)
 # - Stale shortcut : Start-Win32App re-reads shortcut after Repair-ShortcutTarget. (INT-02)
 # - WindowsApps    : Repair-ShortcutArguments uses Join-Path $env:ProgramFiles. (INT-01)
 # - AppList fix    : Show-AppList uses bare string for status assignment. (BUG-02)
 # - Catch recovery : Start-Win32App catch block calls Invoke-FailureRecovery. (UX-03)
 # - Delete guard   : Remove-Shortcut uses combined prompt when shortcut is missing. (UX-02)
 # - RequireWindow  : Start-Win32App derives $requireWin from cached $App.PresenceMode. (BUG-03)
-# - Dead branch    : Test-AppAlreadyOpen non-RequireWindow tail collapsed to single
-#                    return $true; redundant if-branch removed. (BUG-01)
-# - Header comment : '# - List apps' corrected from [6] to [5]. (UX-01)
-# - Poll helper    : Wait-ForAppReady phase-2 Stopwatch loop extracted into private
-#                    Wait-ForProcessCondition helper, removing ~12 lines of duplication. (DUP-01)
+# - Dead branch    : Test-AppAlreadyOpen non-RequireWindow tail collapsed to single return $true. (BUG-01)
+# - Header comment : corrected menu references. (UX-01)
+# - Poll helper    : Wait-ForProcessCondition extracted from Wait-ForAppReady. (DUP-01)
+# - Sync menu      : Main menu [7] calls Sync-AppsFromStartMenu; also auto-triggered when
+#                    Win11startupapps.json is missing (first-run / broken-path scenario).
+#                    Scans Start Menu Programs for numbered .lnk files (1-2 digit prefix),
+#                    classifies each as Win32 or Appx, writes Win11startupapps.json, then
+#                    reloads $script:apps so the session continues without restart. (SYNC-01)
 
 # ---------------------------------------------------------------------------
 # Error log helper
@@ -142,12 +136,12 @@ trap {
     break
 }
 
-$script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
-$script:InitialDelaySeconds    = 10
-$script:LaunchTimeoutSeconds   = 30
-$script:PostLaunchPauseSeconds = 2
-$script:SettleSeconds          = 5
-$script:AppsConfigPath         = Join-Path $PSScriptRoot "apps.json"
+$script:startMenu               = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
+$script:InitialDelaySeconds     = 10
+$script:LaunchTimeoutSeconds    = 30
+$script:PostLaunchPauseSeconds  = 2
+$script:SettleSeconds           = 5
+$script:AppsConfigPath          = Join-Path $PSScriptRoot "Win11startupapps.json"
 $script:AppsConfigSchemaVersion = 1
 
 $script:AllowedExeRoots = @(
@@ -162,20 +156,20 @@ $script:AllowedExeRoots = @(
 function Import-AppsConfig {
     param([string]$Path = $script:AppsConfigPath)
     if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        throw "apps.json not found at '$Path'. Cannot continue without app configuration."
+        throw "Win11startupapps.json not found at '$Path'. Cannot continue without app configuration."
     }
-    $raw     = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
-    $parsed  = $raw | ConvertFrom-Json
+    $raw    = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
+    $parsed = $raw | ConvertFrom-Json
 
     if ($parsed -is [System.Array]) {
-        Write-Warning "apps.json has no schemaVersion wrapper. Expected schemaVersion $script:AppsConfigSchemaVersion. Processing as legacy format."
+        Write-Warning "Win11startupapps.json has no schemaVersion wrapper. Expected schemaVersion $script:AppsConfigSchemaVersion. Processing as legacy format."
         $entries = $parsed
     } else {
         $sv = $parsed.schemaVersion
         if ($null -eq $sv) {
-            Write-Warning "apps.json schemaVersion field missing. Expected $script:AppsConfigSchemaVersion."
+            Write-Warning "Win11startupapps.json schemaVersion field missing. Expected $script:AppsConfigSchemaVersion."
         } elseif ([int]$sv -ne $script:AppsConfigSchemaVersion) {
-            Write-Warning "apps.json schemaVersion is '$sv'; expected '$script:AppsConfigSchemaVersion'. Proceeding with caution."
+            Write-Warning "Win11startupapps.json schemaVersion is '$sv'; expected '$script:AppsConfigSchemaVersion'. Proceeding with caution."
         }
         $entries = $parsed.apps
     }
@@ -185,7 +179,7 @@ function Import-AppsConfig {
     foreach ($entry in $entries) {
         foreach ($field in $required) {
             if ([string]::IsNullOrWhiteSpace($entry.$field)) {
-                throw "apps.json entry missing required field '$field': $(ConvertTo-Json $entry -Compress)"
+                throw "Win11startupapps.json entry missing required field '$field': $(ConvertTo-Json $entry -Compress)"
             }
         }
         if ($null -eq $entry.ExpectedPublisher) { $entry | Add-Member -NotePropertyName ExpectedPublisher -NotePropertyValue '' -Force }
@@ -207,24 +201,116 @@ function Export-AppsConfig {
             apps          = $script:apps
         }
         $wrapper | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Path -Encoding UTF8 -ErrorAction Stop
-        Write-Host "apps.json saved (schemaVersion $script:AppsConfigSchemaVersion, $($script:apps.Count) entries)."
+        Write-Host "Win11startupapps.json saved (schemaVersion $script:AppsConfigSchemaVersion, $($script:apps.Count) entries)."
     } catch {
         Write-ErrorLog -Message "Export-AppsConfig failed to write '$Path'" -ErrorRecord $_
-        Write-Warning "apps.json could not be saved: $($_.Exception.Message)"
+        Write-Warning "Win11startupapps.json could not be saved: $($_.Exception.Message)"
         Write-Host "Error details written to: $script:ErrorLogPath" -ForegroundColor Yellow
     }
 }
 
-try {
-    $script:apps = Import-AppsConfig
-} catch {
-    Write-ErrorLog -Message "FATAL: Import-AppsConfig failed" -ErrorRecord $_
-    Write-Error $_
-    Write-Host "Error details written to: $script:ErrorLogPath" -ForegroundColor Yellow
-    exit 1
+# ---------------------------------------------------------------------------
+# SYNC-01: Sync-AppsFromStartMenu
+# Scans Start Menu Programs for numbered .lnk files, classifies each as
+# Win32 or Appx, writes Win11startupapps.json, and reloads $script:apps.
+# Called from menu [7] and auto-triggered when the config file is missing.
+# ---------------------------------------------------------------------------
+function Sync-AppsFromStartMenu {
+    Write-Host "`n--- Sync from Start Menu ---"
+    $lnkFiles = Get-ChildItem -LiteralPath $script:startMenu -Filter '*.lnk' -ErrorAction SilentlyContinue |
+        Where-Object { $_.BaseName -match '^\d{1,2}\s' } |
+        Sort-Object Name
+
+    if ($lnkFiles.Count -eq 0) {
+        Write-Warning "No numbered .lnk files found in '$script:startMenu'. Nothing to sync."
+        return $false
+    }
+
+    Write-Host "Found $($lnkFiles.Count) numbered shortcut(s). Scanning..."
+    $entries = @()
+
+    foreach ($file in $lnkFiles) {
+        $sc       = $script:WshShell.CreateShortcut($file.FullName)
+        $target   = $sc.TargetPath
+        $args     = $sc.Arguments
+        $appName  = ($file.BaseName -replace '^\d{1,2}\s+', '')
+        $leafName = if ($target) { [System.IO.Path]::GetFileName($target) } else { '' }
+
+        $launchType        = 'Win32'
+        $expectedExe       = ''
+        $processName       = ''
+        $expectedArguments = ''
+        $startAppName      = ''
+        $knownAumid        = ''
+        $appxName          = ''
+
+        if ($leafName -ieq 'explorer.exe' -and $args -like 'shell:appsFolder\*') {
+            $launchType        = 'Appx'
+            $expectedExe       = 'explorer.exe'
+            $expectedArguments = $args.Trim()
+            $knownAumid        = ($args -replace '^shell:appsFolder\\', '').Trim()
+            $startAppName      = $appName
+            $appxName          = ($knownAumid -split '_')[0]
+            $processName       = ''   # cannot determine without running; fill in via Modify menu
+        } elseif ($leafName -like '*.exe') {
+            $launchType        = 'Win32'
+            $expectedExe       = $leafName
+            $processName       = [System.IO.Path]::GetFileNameWithoutExtension($leafName)
+            $expectedArguments = if (-not [string]::IsNullOrWhiteSpace($args)) { $args.Trim() } else { '' }
+        } else {
+            $launchType  = 'Win32'
+            $expectedExe = $leafName
+            $processName = [System.IO.Path]::GetFileNameWithoutExtension($leafName)
+            Write-Warning "'$($file.Name)': unexpected target '$target'. Review and fill in fields manually."
+        }
+
+        $entries += [PSCustomObject]@{
+            Name              = $appName
+            LaunchType        = $launchType
+            ShortcutPath      = $file.FullName
+            ProcessName       = $processName
+            ExpectedExe       = $expectedExe
+            ExpectedPublisher = ''
+            ExpectedArguments = $expectedArguments
+            StartAppName      = $startAppName
+            KnownAumid        = $knownAumid
+            AppxName          = $appxName
+            PresenceMode      = $null
+        }
+
+        Write-Host ("  [{0}] {1,-28} {2}" -f $launchType, $appName, $file.Name)
+    }
+
+    $script:apps = $entries
+    Export-AppsConfig
+    Write-Host "--- Sync complete: $($entries.Count) entries written to Win11startupapps.json ---`n"
+    return $true
 }
 
-$script:WshShell = New-Object -ComObject WScript.Shell
+# ---------------------------------------------------------------------------
+# Boot: load config or auto-sync if missing
+# ---------------------------------------------------------------------------
+if (-not (Test-Path -LiteralPath $script:AppsConfigPath -PathType Leaf)) {
+    Write-Host "`n[FIRST RUN] Win11startupapps.json not found. Running sync from Start Menu..." -ForegroundColor Yellow
+    $script:WshShell = New-Object -ComObject WScript.Shell
+    $synced = Sync-AppsFromStartMenu
+    if (-not $synced) {
+        Write-Host "[ERROR] Sync produced no entries. Create Win11startupapps.json manually or add apps via menu [2]." -ForegroundColor Red
+        Write-ErrorLog -Message "FATAL: config missing and sync found no numbered shortcuts."
+        exit 1
+    }
+} else {
+    try {
+        $script:apps = Import-AppsConfig
+    } catch {
+        Write-ErrorLog -Message "FATAL: Import-AppsConfig failed" -ErrorRecord $_
+        Write-Error $_
+        Write-Host "Error details written to: $script:ErrorLogPath" -ForegroundColor Yellow
+        exit 1
+    }
+}
+
+if (-not $script:WshShell) { $script:WshShell = New-Object -ComObject WScript.Shell }
 
 # ---------------------------------------------------------------------------
 # Presence mode detection
@@ -241,7 +327,6 @@ function Get-AppPresenceMode {
     return $null
 }
 
-# BUG-01: non-RequireWindow tail is a single return $true; dead if-branch removed.
 function Test-AppAlreadyOpen {
     param(
         [string]$ProcessName,
@@ -250,7 +335,6 @@ function Test-AppAlreadyOpen {
     )
     $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
     if (-not $procs) { return $false }
-
     if (-not [string]::IsNullOrWhiteSpace($ExpectedExe)) {
         $procs = $procs | Where-Object {
             try   { [System.IO.Path]::GetFileName($_.MainModule.FileName) -ieq $ExpectedExe }
@@ -258,15 +342,10 @@ function Test-AppAlreadyOpen {
         }
         if (-not $procs) { return $false }
     }
-
-    if ($RequireWindow) {
-        return [bool]($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
-    }
+    if ($RequireWindow) { return [bool]($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) }
     return $true
 }
 
-# DUP-01: private helper eliminates duplicated Stopwatch+poll loop in Wait-ForAppReady.
-# Polls $Condition scriptblock every second until it returns $true or $Remaining expires.
 function Wait-ForProcessCondition {
     param([scriptblock]$Condition, [int]$Remaining)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -282,16 +361,13 @@ function Wait-ForAppReady {
     $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
     $mode       = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
     $remaining  = $TimeoutSeconds - $phase1Secs
-
     if ($null -eq $mode) {
         return Wait-ForProcessCondition -Remaining $remaining -Condition {
             [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)
         }
     }
-
     Write-Host "  (presence mode: $mode)"
     if ($mode -eq 'Tray') { return $true }
-
     return Wait-ForProcessCondition -Remaining $remaining -Condition {
         [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
             Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
@@ -308,7 +384,7 @@ function Show-AppPicker {
     }
     Write-Host "`n$Prompt"
     for ($i = 0; $i -lt $script:apps.Count; $i++) {
-        Write-Host ("  [{0}] {1,-20}  {2}  ({3})" -f ($i + 1), $script:apps[$i].Name, $statuses[$i], $script:apps[$i].ShortcutPath)
+        Write-Host ("  [{0}] {1,-20}  {2}  ({3})" -f ($i+1), $script:apps[$i].Name, $statuses[$i], $script:apps[$i].ShortcutPath)
     }
     if ($AllowNew) { Write-Host "  [N] Add a brand-new app entry" }
     Write-Host "  [0] Cancel"
@@ -325,9 +401,6 @@ function Show-AppPicker {
     }
 }
 
-# ---------------------------------------------------------------------------
-# Show-AppList
-# ---------------------------------------------------------------------------
 function Show-AppList {
     Write-Host "`n================================================"
     Write-Host "  Configured Startup Apps ($($script:apps.Count) total)"
@@ -347,12 +420,7 @@ function Show-AppList {
 # Single shortcut writer
 # ---------------------------------------------------------------------------
 function New-AppShortcut {
-    param(
-        [string]$Path,
-        [string]$TargetPath,
-        [string]$Arguments        = "",
-        [string]$WorkingDirectory = ""
-    )
+    param([string]$Path, [string]$TargetPath, [string]$Arguments = "", [string]$WorkingDirectory = "")
     $sc = $script:WshShell.CreateShortcut($Path)
     $sc.TargetPath = $TargetPath
     if (-not [string]::IsNullOrWhiteSpace($Arguments))        { $sc.Arguments        = $Arguments }
@@ -365,7 +433,7 @@ function New-AppShortcut {
 # ---------------------------------------------------------------------------
 function Add-Shortcut {
     param($App)
-    if ($null -eq $App)    { Write-Host "Add cancelled."; return }
+    if ($null -eq $App)     { Write-Host "Add cancelled."; return }
     if ($App -ne '__NEW__') { Initialize-Shortcut -App $App; return }
 
     Write-Host "`n--- Add new app entry ---"
@@ -380,9 +448,9 @@ function Add-Shortcut {
         $number = Read-Host "Shortcut number (1-2 digits, e.g. 09)"
         if ($number -notmatch '^\d{1,2}$') { Write-Warning "Shortcut number must be 1-2 digits. Try again." }
     }
-    $shortcutPath = Join-Path $script:startMenu "$number $name.lnk"
-    $processName  = Read-Host "Process name (without .exe, e.g. chrome)"
-    $expectedExe  = if ($launchType -eq 'Appx') { 'explorer.exe' } else { Read-Host "Expected exe filename (e.g. chrome.exe)" }
+    $shortcutPath      = Join-Path $script:startMenu "$number $name.lnk"
+    $processName       = Read-Host "Process name (without .exe, e.g. chrome)"
+    $expectedExe       = if ($launchType -eq 'Appx') { 'explorer.exe' } else { Read-Host "Expected exe filename (e.g. chrome.exe)" }
     $expectedPublisher = Read-Host "Expected publisher CN string (optional, press Enter to skip)"
     $expectedArguments = ''
     $startAppName = ''; $knownAumid = ''; $appxName = ''
@@ -404,17 +472,11 @@ function Add-Shortcut {
     }
 
     $newEntry = [PSCustomObject]@{
-        Name              = $name
-        LaunchType        = $launchType
-        ShortcutPath      = $shortcutPath
-        ProcessName       = $processName
-        ExpectedExe       = $expectedExe
-        ExpectedPublisher = $expectedPublisher
-        ExpectedArguments = $expectedArguments
-        StartAppName      = $startAppName
-        KnownAumid        = $knownAumid
-        AppxName          = $appxName
-        PresenceMode      = $null
+        Name = $name; LaunchType = $launchType; ShortcutPath = $shortcutPath
+        ProcessName = $processName; ExpectedExe = $expectedExe
+        ExpectedPublisher = $expectedPublisher; ExpectedArguments = $expectedArguments
+        StartAppName = $startAppName; KnownAumid = $knownAumid
+        AppxName = $appxName; PresenceMode = $null
     }
 
     if ($exePath) {
@@ -427,28 +489,26 @@ function Add-Shortcut {
 
     $script:apps += $newEntry
     Export-AppsConfig
-    Write-Host "'$name' added to apps.json."
+    Write-Host "'$name' added to Win11startupapps.json."
 }
 
 function Remove-Shortcut {
     param($App)
     if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-        $confirm = Read-Host "$($App.Name): shortcut not found at '$($App.ShortcutPath)'. Remove from apps.json anyway? (Y/N)"
+        $confirm = Read-Host "$($App.Name): shortcut not found at '$($App.ShortcutPath)'. Remove from Win11startupapps.json anyway? (Y/N)"
         if ($confirm -ine 'Y') { Write-Host "$($App.Name): cancelled."; return }
         $script:apps = $script:apps | Where-Object { $_ -ne $App }
-        Export-AppsConfig
-        Write-Host "$($App.Name): removed from apps.json."
+        Export-AppsConfig; Write-Host "$($App.Name): removed from Win11startupapps.json."
         return
     }
     $confirm = Read-Host "Delete '$($App.ShortcutPath)'? (Y/N)"
     if ($confirm -ine 'Y') { Write-Host "$($App.Name): deletion cancelled."; return }
     Remove-Item -LiteralPath $App.ShortcutPath -Force
     Write-Host "$($App.Name): shortcut deleted."
-    $confirm2 = Read-Host "Also remove '$($App.Name)' from apps.json? (Y/N)"
+    $confirm2 = Read-Host "Also remove '$($App.Name)' from Win11startupapps.json? (Y/N)"
     if ($confirm2 -ieq 'Y') {
         $script:apps = $script:apps | Where-Object { $_ -ne $App }
-        Export-AppsConfig
-        Write-Host "$($App.Name): removed from apps.json."
+        Export-AppsConfig; Write-Host "$($App.Name): removed from Win11startupapps.json."
     }
 }
 
@@ -457,12 +517,10 @@ function Edit-Shortcut {
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
         if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
             Write-Warning "$($App.Name): shortcut does not exist. Creating it first."
-            Initialize-Shortcut -App $App
-            return
+            Initialize-Shortcut -App $App; return
         }
         Write-Host "$($App.Name): re-running argument repair..."
-        Repair-ShortcutArguments -App $App
-        return
+        Repair-ShortcutArguments -App $App; return
     }
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($exePath) {
@@ -473,9 +531,7 @@ function Edit-Shortcut {
             Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $exePath
             Write-Host "$($App.Name): shortcut updated to '$exePath'."
         }
-    } else {
-        Write-Host "$($App.Name): modify cancelled."
-    }
+    } else { Write-Host "$($App.Name): modify cancelled." }
 }
 
 # ---------------------------------------------------------------------------
@@ -489,24 +545,19 @@ function Resolve-Aumid {
     if (-not [string]::IsNullOrWhiteSpace($App.KnownAumid)) {
         $knownPfn  = ($App.KnownAumid -split '!')[0]
         $installed = $pkgs | Where-Object { $_.PackageFamilyName -eq $knownPfn } | Select-Object -First 1
-        if ($installed) { Write-Host "$($App.Name): KnownAumid verified as installed: $($App.KnownAumid)"; return $App.KnownAumid }
-        Write-Warning "$($App.Name): KnownAumid package family '$knownPfn' not found on this system."
+        if ($installed) { Write-Host "$($App.Name): KnownAumid verified: $($App.KnownAumid)"; return $App.KnownAumid }
+        Write-Warning "$($App.Name): KnownAumid PFN '$knownPfn' not found."
     }
     $pkg = $pkgs | Where-Object { $_.Name -like "*$($App.AppxName)*" } | Select-Object -First 1
     if ($pkg) {
         try {
             $appIds = (Get-AppxPackageManifest $pkg).Package.Applications.Application.Id
             $appId  = if ($appIds -contains 'App') { 'App' } else { $appIds | Select-Object -First 1 }
-            if ($appId) {
-                $aumid = "$($pkg.PackageFamilyName)!$appId"
-                Write-Host "$($App.Name): AUMID discovered via AppxPackage manifest: $aumid"
-                return $aumid
-            }
+            if ($appId) { $aumid = "$($pkg.PackageFamilyName)!$appId"; Write-Host "$($App.Name): AUMID via manifest: $aumid"; return $aumid }
         } catch { Write-Warning "$($App.Name): could not read AppxPackage manifest. $_" }
     }
-    $msg = "$($App.Name): AUMID could not be resolved automatically (all paths exhausted)."
-    Write-Warning $msg
-    Write-ErrorLog -Message $msg
+    $msg = "$($App.Name): AUMID could not be resolved (all paths exhausted)."
+    Write-Warning $msg; Write-ErrorLog -Message $msg
     return $null
 }
 
@@ -537,7 +588,6 @@ function Get-RelativeDepth {
     return ($relative -split '[\\//]').Count
 }
 
-# T-06: depth cap removed; Get-RelativeDepth kept for test coverage only.
 function Find-ExeWithinDepth {
     param([string]$RootFolder, [string]$ExpectedExe)
     if (-not (Test-Path -LiteralPath $RootFolder -PathType Container)) { return $null }
@@ -548,8 +598,7 @@ function Find-ExeWithinDepth {
 function Update-ShortcutTarget {
     param([string]$ShortcutPath, [string]$ExePath, [string]$Arguments = "")
     $shortcut = Get-ShortcutObject -ShortcutPath $ShortcutPath
-    $shortcut.TargetPath       = $ExePath
-    $shortcut.WorkingDirectory = Split-Path -Path $ExePath -Parent
+    $shortcut.TargetPath = $ExePath; $shortcut.WorkingDirectory = Split-Path -Path $ExePath -Parent
     if (-not [string]::IsNullOrWhiteSpace($Arguments)) { $shortcut.Arguments = $Arguments }
     $shortcut.Save()
 }
@@ -568,37 +617,29 @@ function Test-ExeSignatureTrusted {
     param([string]$ExePath, [string]$ExpectedPublisher = "")
     try {
         $sig = Get-AuthenticodeSignature -FilePath $ExePath -ErrorAction Stop
-        if ($sig.Status -ne 'Valid') {
-            Write-Warning "Signature status for '$ExePath' is '$($sig.Status)'. Only 'Valid' is accepted."
-            return $false
-        }
+        if ($sig.Status -ne 'Valid') { Write-Warning "Signature '$($sig.Status)' for '$ExePath'."; return $false }
         if (-not [string]::IsNullOrWhiteSpace($ExpectedPublisher)) {
-            $subject = $sig.SignerCertificate.Subject
-            if ($subject -notlike "*$ExpectedPublisher*") {
-                Write-Warning "Publisher mismatch for '$ExePath'. Expected '$ExpectedPublisher', got '$subject'."
-                return $false
+            if ($sig.SignerCertificate.Subject -notlike "*$ExpectedPublisher*") {
+                Write-Warning "Publisher mismatch for '$ExePath'. Expected '$ExpectedPublisher'."; return $false
             }
         }
         return $true
-    } catch {
-        Write-Warning "Could not verify Authenticode signature for '$ExePath'. $_"
-        return $false
-    }
+    } catch { Write-Warning "Cannot verify signature for '$ExePath'. $_"; return $false }
 }
 
 function Prompt-ForExactExePath {
     param([string]$AppName, [string]$ExpectedExe, [string]$ExpectedPublisher = "", [int]$MaxAttempts = 3)
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
-        $inputPath = Read-Host "Enter the full path for $AppName ($ExpectedExe), or press Enter to skip (attempt $attempt of $MaxAttempts)"
+        $inputPath = Read-Host "Enter full path for $AppName ($ExpectedExe), or Enter to skip (attempt $attempt of $MaxAttempts)"
         if ([string]::IsNullOrWhiteSpace($inputPath)) { return $null }
         $trimmed = $inputPath.Trim('"').Trim()
-        if (-not (Test-Path -LiteralPath $trimmed -PathType Leaf))                            { Write-Warning "Path does not exist: $trimmed"; continue }
-        if ([System.IO.Path]::GetFileName($trimmed) -ine $ExpectedExe)                        { Write-Warning "File name must be exactly $ExpectedExe"; continue }
-        if (-not (Test-ExePathAllowed -ExePath $trimmed))                                     { Write-Warning "Path outside allowed roots: $trimmed"; continue }
-        if (-not (Test-ExeSignatureTrusted -ExePath $trimmed -ExpectedPublisher $ExpectedPublisher)) { Write-Warning "Failed signature/publisher check: $trimmed"; continue }
+        if (-not (Test-Path -LiteralPath $trimmed -PathType Leaf))                                      { Write-Warning "Path does not exist: $trimmed"; continue }
+        if ([System.IO.Path]::GetFileName($trimmed) -ine $ExpectedExe)                                 { Write-Warning "File name must be exactly $ExpectedExe"; continue }
+        if (-not (Test-ExePathAllowed -ExePath $trimmed))                                              { Write-Warning "Path outside allowed roots: $trimmed"; continue }
+        if (-not (Test-ExeSignatureTrusted -ExePath $trimmed -ExpectedPublisher $ExpectedPublisher))   { Write-Warning "Failed signature/publisher check: $trimmed"; continue }
         return $trimmed
     }
-    Write-Warning "$AppName: maximum path attempts ($MaxAttempts) reached. Skipping."
+    Write-Warning "$AppName: max path attempts reached. Skipping."
     return $null
 }
 
@@ -617,106 +658,82 @@ function Initialize-Shortcut {
     if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { return }
     $misnumbered = Find-MisnumberedShortcut -ExpectedPath $App.ShortcutPath -AppName $App.Name
     if ($misnumbered) {
-        Write-Host "$($App.Name): misnumbered shortcut found ('$($misnumbered.Name)'). Renaming."
-        Rename-Item -LiteralPath $misnumbered.FullName -NewName ([System.IO.Path]::GetFileName($App.ShortcutPath))
-        return
+        Write-Host "$($App.Name): renaming misnumbered shortcut '$($misnumbered.Name)'."
+        Rename-Item -LiteralPath $misnumbered.FullName -NewName ([System.IO.Path]::GetFileName($App.ShortcutPath)); return
     }
-    Write-Warning "$($App.Name): no shortcut found at '$($App.ShortcutPath)'. Creating..."
+    Write-Warning "$($App.Name): no shortcut at '$($App.ShortcutPath)'. Creating..."
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
-        New-AppShortcut -Path $App.ShortcutPath -TargetPath "$env:SystemRoot\explorer.exe" `
-                        -Arguments $App.ExpectedArguments -WorkingDirectory $env:SystemRoot
-        Write-Host "$($App.Name): shortcut created with Arguments: $($App.ExpectedArguments)"
-        return
+        New-AppShortcut -Path $App.ShortcutPath -TargetPath "$env:SystemRoot\explorer.exe" -Arguments $App.ExpectedArguments -WorkingDirectory $env:SystemRoot
+        Write-Host "$($App.Name): shortcut created with Arguments: $($App.ExpectedArguments)"; return
     }
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($exePath) {
         New-AppShortcut -Path $App.ShortcutPath -TargetPath $exePath -WorkingDirectory (Split-Path $exePath -Parent)
         Write-Host "$($App.Name): shortcut created at '$($App.ShortcutPath)'."
-    } else {
-        Write-Warning "$($App.Name): shortcut creation skipped by user."
-    }
+    } else { Write-Warning "$($App.Name): shortcut creation skipped." }
 }
 
 function Repair-ShortcutTarget {
     param($App)
     $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
     $targetPath = $shortcut.TargetPath
-    Write-Warning "$($App.Name): shortcut target missing or invalid: $targetPath"
+    Write-Warning "$($App.Name): shortcut target missing/invalid: $targetPath"
     $searchRoot = Get-ParentFolder -BrokenTargetPath $targetPath
     if ($searchRoot) {
         Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $searchRoot..."
         $foundExe = Find-ExeWithinDepth -RootFolder $searchRoot -ExpectedExe $App.ExpectedExe
         if ($foundExe) {
-            if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
-                Write-Warning "$($App.Name): discovered exe outside allowed roots. Skipping auto-repair."
-            } elseif (-not (Test-ExeSignatureTrusted -ExePath $foundExe.FullName -ExpectedPublisher $App.ExpectedPublisher)) {
-                Write-Warning "$($App.Name): discovered exe failed signature check. Skipping auto-repair."
-            } else {
-                Write-Host "$($App.Name): found replacement at $($foundExe.FullName). Updating shortcut."
+            if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName))                                   { Write-Warning "$($App.Name): exe outside allowed roots. Skipping." }
+            elseif (-not (Test-ExeSignatureTrusted -ExePath $foundExe.FullName -ExpectedPublisher $App.ExpectedPublisher)) { Write-Warning "$($App.Name): exe failed signature check. Skipping." }
+            else {
+                Write-Host "$($App.Name): found replacement at $($foundExe.FullName)."
                 Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $foundExe.FullName -Arguments $App.ExpectedArguments
                 return $foundExe.FullName
             }
         }
         Write-Warning "$($App.Name): $($App.ExpectedExe) not found under $searchRoot."
-    } else {
-        Write-Warning "$($App.Name): could not determine an existing parent folder from the broken target."
-    }
+    } else { Write-Warning "$($App.Name): could not determine parent folder from broken target." }
     $manualPath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
-    if ($manualPath) {
-        Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $manualPath -Arguments $App.ExpectedArguments
-        return $manualPath
-    }
+    if ($manualPath) { Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $manualPath -Arguments $App.ExpectedArguments; return $manualPath }
     return $null
 }
 
 function Repair-ShortcutArguments {
     param($App)
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
-    Write-Warning "$($App.Name): shortcut Arguments missing or invalid: '$($shortcut.Arguments)'"
+    Write-Warning "$($App.Name): shortcut Arguments invalid: '$($shortcut.Arguments)'"
     $aumidFragment = $null
     if ($App.ExpectedArguments -match '^shell:appsFolder\\([A-Za-z0-9][A-Za-z0-9._]*_[A-Za-z0-9]+)![A-Za-z0-9._-]+$') {
-        $fullPfn       = $Matches[1]
-        $aumidFragment = ($fullPfn -split '_', 2)[1]
+        $aumidFragment = (($Matches[1]) -split '_', 2)[1]
     }
-    if ([string]::IsNullOrWhiteSpace($aumidFragment)) {
-        Write-Warning "$($App.Name): cannot extract AUMID fragment from ExpectedArguments. Skipping."
-        return $null
-    }
+    if ([string]::IsNullOrWhiteSpace($aumidFragment)) { Write-Warning "$($App.Name): cannot extract AUMID fragment. Skipping."; return $null }
     $windowsApps = Join-Path $env:ProgramFiles 'WindowsApps'
-    Write-Host "$($App.Name): scanning $windowsApps for '*$aumidFragment*'..."
     $pkgFolder = Get-ChildItem -LiteralPath $windowsApps -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -like "*$aumidFragment*" } | Sort-Object Name -Descending | Select-Object -First 1
     if (-not $pkgFolder) { Write-Warning "$($App.Name): no matching folder in WindowsApps."; return $null }
-    Write-Host "$($App.Name): found package folder: $($pkgFolder.Name)"
-    $installedPkg = Get-AppxPackage | Where-Object { $_.PackageFamilyName -like "*$aumidFragment*" } | Select-Object -First 1
-    $pfn          = if ($installedPkg) { $installedPkg.PackageFamilyName } else { $null }
+    $pfn   = (Get-AppxPackage | Where-Object { $_.PackageFamilyName -like "*$aumidFragment*" } | Select-Object -First 1).PackageFamilyName
+    $appId = $null
     $manifestPath = Join-Path $pkgFolder.FullName "AppxManifest.xml"
-    $appId        = $null
     if (Test-Path -LiteralPath $manifestPath) {
         try {
             $manifest = [xml]::new(); $manifest.Load($manifestPath)
             $appIds = $manifest.Package.Applications.Application.Id
             $appId  = if ($appIds -contains 'App') { 'App' } else { $appIds | Select-Object -First 1 }
-        } catch { Write-Warning "$($App.Name): could not read AppxManifest.xml. $_" }
+        } catch { Write-Warning "$($App.Name): cannot read manifest. $_" }
     }
     if ([string]::IsNullOrWhiteSpace($appId)) {
         Write-Warning "$($App.Name): manifest unreadable. Falling back to ExpectedArguments AppId."
         $appId = ($App.ExpectedArguments -split '!') | Select-Object -Last 1
     }
-    if ([string]::IsNullOrWhiteSpace($pfn)) {
-        Write-Warning "$($App.Name): installed package not found for '$aumidFragment'. Cannot repair."
-        return $null
-    }
+    if ([string]::IsNullOrWhiteSpace($pfn)) { Write-Warning "$($App.Name): package not found for '$aumidFragment'."; return $null }
     $repairedArgs = "shell:appsFolder\$pfn!$appId"
-    Write-Host "$($App.Name): reconstructed AUMID: $pfn!$appId. Updating shortcut Arguments."
-    $shortcut.Arguments        = $repairedArgs
-    $shortcut.WorkingDirectory = Split-Path -Path $shortcut.TargetPath -Parent
-    $shortcut.Save()
+    Write-Host "$($App.Name): AUMID repaired to $pfn!$appId."
+    $shortcut.Arguments = $repairedArgs; $shortcut.WorkingDirectory = Split-Path -Path $shortcut.TargetPath -Parent; $shortcut.Save()
     return $repairedArgs
 }
 
 # ---------------------------------------------------------------------------
-# Inline failure menu / recovery
+# Failure menu / recovery
 # ---------------------------------------------------------------------------
 function Show-FailureMenu {
     param([string]$AppName, [string]$Context)
@@ -729,9 +746,7 @@ function Show-FailureMenu {
 function Invoke-AppLaunchWait {
     param($App, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
     if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $TimeoutSeconds) {
-        Write-Host "$($App.Name): ready.`n"
-        Start-Sleep -Seconds $script:PostLaunchPauseSeconds
-        return $true
+        Write-Host "$($App.Name): ready.`n"; Start-Sleep -Seconds $script:PostLaunchPauseSeconds; return $true
     }
     Write-Warning "$($App.Name): did not become ready within $TimeoutSeconds seconds."
     return $false
@@ -752,19 +767,14 @@ function Invoke-FailureRecovery {
 # ---------------------------------------------------------------------------
 function Start-AppxApp {
     param($App)
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) {
-        Write-Host "$($App.Name): already open. Skipping.`n"; return $true
-    }
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) { Write-Host "$($App.Name): already open. Skipping.`n"; return $true }
     $aumid = Resolve-Aumid -App $App
     if (-not $aumid) { Write-Warning "$($App.Name): no AUMID found. Skipping.`n"; return $false }
     try {
         Write-Host "$($App.Name): launching via shell:appsFolder\$aumid"
         Start-Process explorer.exe "shell:appsFolder\$aumid" -ErrorAction Stop
         return Invoke-AppLaunchWait -App $App
-    } catch {
-        Write-Warning "$($App.Name): launch failed. $_`n"
-        return $false
-    }
+    } catch { Write-Warning "$($App.Name): launch failed. $_`n"; return $false }
 }
 
 function Start-Win32App {
@@ -773,21 +783,18 @@ function Start-Win32App {
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe -RequireWindow:$requireWin) {
         Write-Host "$($App.Name): already open. Skipping.`n"; return $true
     }
-
     for ($attempt = 0; $attempt -le 2; $attempt++) {
         if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-            Write-Warning "$($App.Name): shortcut file not found: $($App.ShortcutPath)"
+            Write-Warning "$($App.Name): shortcut not found: $($App.ShortcutPath)"
             $recover = Invoke-FailureRecovery -App $App -Context "missing shortcut" -PreRetryAction { Initialize-Shortcut -App $App }
-            if (-not $recover) { return $false }
-            continue
+            if (-not $recover) { return $false }; continue
         }
         try {
             $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
             $targetPath = $shortcut.TargetPath
             if ([string]::IsNullOrWhiteSpace($targetPath) -or -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
                 $repairedPath = Repair-ShortcutTarget -App $App
-                if (-not $repairedPath) { Write-Warning "$($App.Name): shortcut could not be repaired. Skipping.`n"; return $false }
-                Write-Host "$($App.Name): shortcut repaired. Proceeding with launch."
+                if (-not $repairedPath) { Write-Warning "$($App.Name): repair failed. Skipping.`n"; return $false }
                 $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
             }
             if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
@@ -797,7 +804,7 @@ function Start-Win32App {
                     if (-not $repairedArgs) { Write-Warning "$($App.Name): argument repair failed. Skipping.`n"; return $false }
                 }
             }
-            Write-Host "$($App.Name): launching via shortcut: $($App.ShortcutPath)"
+            Write-Host "$($App.Name): launching via $($App.ShortcutPath)"
             $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
             $ready = Invoke-AppLaunchWait -App $App
             if ($null -eq $App.PresenceMode) {
@@ -808,7 +815,7 @@ function Start-Win32App {
             $recover = Invoke-FailureRecovery -App $App -Context "launch timeout" -PreRetryAction { Edit-Shortcut -App $App }
             if (-not $recover) { return $false }
         } catch {
-            Write-Warning "$($App.Name): launch failed. $_`n"
+            Write-Warning "$($App.Name): launch exception. $_`n"
             Write-ErrorLog -Message "$($App.Name): launch exception" -ErrorRecord $_
             $recover = Invoke-FailureRecovery -App $App -Context "launch exception" -PreRetryAction { Edit-Shortcut -App $App }
             if (-not $recover) { return $false }
@@ -831,7 +838,8 @@ Write-Host "  [2] Add shortcut"
 Write-Host "  [3] Delete shortcut"
 Write-Host "  [4] Modify shortcut"
 Write-Host "  [5] List startup apps"
-Write-Host "  [6] Exit"
+Write-Host "  [6] Sync from Start Menu"
+Write-Host "  [7] Exit"
 Write-Host "------------------------------------------------"
 $mainChoice = Read-Host "Select"
 
@@ -840,7 +848,8 @@ switch ($mainChoice) {
     '3' { $app = Show-AppPicker -Prompt "Select app to DELETE shortcut for:"; if ($app) { Remove-Shortcut -App $app }; exit }
     '4' { $app = Show-AppPicker -Prompt "Select app to MODIFY shortcut for:"; if ($app) { Edit-Shortcut -App $app }; exit }
     '5' { Show-AppList; exit }
-    '6' { exit }
+    '6' { Sync-AppsFromStartMenu; exit }
+    '7' { exit }
 }
 
 Write-Host "Waiting $script:InitialDelaySeconds seconds for system to stabilize..."

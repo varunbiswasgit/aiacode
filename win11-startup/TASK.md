@@ -19,16 +19,16 @@ All backlog items resolved. No open tasks.
 
 ## Done
 
-- [x] **BUG-01** — `Test-AppAlreadyOpen`: dead `if` branch removed; collapsed to single `return $true`
-- [x] **UX-01** — Header comment: `# - List apps` corrected from [6] to [5]
-- [x] **DUP-01** — `Wait-ForAppReady`: phase-2 loop extracted into `Wait-ForProcessCondition` private helper
-- [x] **UX-03** — `Start-Win32App` catch block calls `Invoke-FailureRecovery`
-- [x] **UX-02** — `Remove-Shortcut`: combined single prompt when shortcut is missing
-- [x] **BUG-03** — `$requireWin` uses cached `$App.PresenceMode`; cold-start defaults `$false`
-- [x] **INT-02** — Re-read `$shortcut` after `Repair-ShortcutTarget`
-- [x] **INT-01** — `Join-Path $env:ProgramFiles 'WindowsApps'`
-- [x] **BUG-02** — `Show-AppList` bare string status assignment
-- [x] **NEW-TEST-13** through **NEW-TEST-08** — Six new Pester unit tests
+- [x] **SYNC-01** — `Sync-AppsFromStartMenu` inlined into `Win11startup.ps1`; menu `[6]`; auto-triggers on missing `Win11startupapps.json`; `Sync-AppsJson.ps1` retired
+- [x] Config file renamed from `apps.json` to `Win11startupapps.json` throughout
+- [x] **BUG-01** — `Test-AppAlreadyOpen` dead branch removed
+- [x] **UX-01** — Header comment menu references corrected
+- [x] **DUP-01** — `Wait-ForProcessCondition` extracted
+- [x] **UX-03** — catch block recovery in `Start-Win32App`
+- [x] **UX-02** — `Remove-Shortcut` combined missing-shortcut prompt
+- [x] **BUG-03** — `$requireWin` from cached `$App.PresenceMode`
+- [x] **INT-02** / **INT-01** — Stale shortcut re-read; WindowsApps path fix
+- [x] **BUG-02** — `Show-AppList` bare string status
 - [x] **QOL-05** / **QOL-03** / **QOL-02** / **QOL-01** — Show-AppList, schemaVersion, AUMID log, picker perf
 - [x] **FIX-04** through **FIX-07** — RequireWindow, SystemRoot, PFN source, stale object
 - [x] **ROB-01** / **ROB-02** / **ROB-04** — Export guard, Edit guard, bounded retry
@@ -37,5 +37,5 @@ All backlog items resolved. No open tasks.
 - [x] **SEC-01** through **SEC-04** — All security gates
 - [x] **HARD-01** through **HARD-03** — All hardening tasks
 - [x] **TEST-01** through **TEST-04** — Pester scaffold and unit tests
-- [x] **REF-01** / **REF-02** — Externalize and write-back `apps.json`
+- [x] **REF-01** / **REF-02** — Externalize and write-back config
 - [x] **FIX-01** through **FIX-03** — Appx add, cancel path, phase timeout math
