@@ -1,24 +1,6 @@
 # Win11 Startup Launcher — Task Backlog
 
-Tasks are ordered by severity within each category.
-Move each item to **Done** after its commit lands.
-
----
-
-## To Do
-
-### Bugs
-- [ ] **BUG-01** — `Test-AppAlreadyOpen`: the non-`RequireWindow` tail has a dead `if` branch — both paths return `$true`. Collapse to a single `return $true`. *(Low)*
-
-### UX
-- [ ] **UX-01** — Header comment block: `# - List apps` still references `[6]` — should be `[5]`. *(Low)*
-
-### Duplication
-- [ ] **DUP-01** — `Wait-ForAppReady`: phase-2 Stopwatch + poll loop duplicated in `$null` mode and `Window` mode branches. Extract a private `Wait-ForProcessCondition` helper. *(Low)*
-- [ ] **DUP-02** — `New-AppShortcut -WorkingDirectory (Split-Path ...)` repeated in 4 callers. Optional: default derivation inside `New-AppShortcut`. *(Low / optional)*
-
-### Dead Code
-- [ ] **DEAD-01** — `Get-RelativeDepth` not called in production (retained for test coverage per T-06). Remove only if strict zero-dead-code policy is desired. *(Info)*
+All backlog items resolved. No open tasks.
 
 ---
 
@@ -30,29 +12,27 @@ Move each item to **Done** after its commit lands.
 | **TEST-06** | Depends on `WindowsApps` ACL structure; not reproducible portably. |
 | **TEST-07** | Mocking live `MainWindowHandle` requires a real GUI process. |
 | **INT-03** | `Repair-ShortcutTarget` auto-discovery depends on a real broken install path. |
+| **DUP-02** | Optional — `WorkingDirectory` derivation pattern; deferred by design. |
+| **DEAD-01** | `Get-RelativeDepth` retained for test coverage per T-06; acceptable as-is. |
 
 ---
 
 ## Done
 
-- [x] **UX-03** — `Start-Win32App` catch block calls `Invoke-FailureRecovery` before returning `$false`
-- [x] **UX-02** — `Remove-Shortcut`: combined single prompt when shortcut is already missing
-- [x] **BUG-03** — `$requireWin` now uses cached `$App.PresenceMode`; cold-start defaults to `$false`
+- [x] **BUG-01** — `Test-AppAlreadyOpen`: dead `if` branch removed; collapsed to single `return $true`
+- [x] **UX-01** — Header comment: `# - List apps` corrected from [6] to [5]
+- [x] **DUP-01** — `Wait-ForAppReady`: phase-2 loop extracted into `Wait-ForProcessCondition` private helper
+- [x] **UX-03** — `Start-Win32App` catch block calls `Invoke-FailureRecovery`
+- [x] **UX-02** — `Remove-Shortcut`: combined single prompt when shortcut is missing
+- [x] **BUG-03** — `$requireWin` uses cached `$App.PresenceMode`; cold-start defaults `$false`
 - [x] **INT-02** — Re-read `$shortcut` after `Repair-ShortcutTarget`
-- [x] **INT-01** — `Join-Path $env:ProgramFiles 'WindowsApps'` in `Repair-ShortcutArguments`
-- [x] **BUG-02** — `Show-AppList`: bare string `'OK'`/`'MISSING'` replaces `Write-Output` in `if` assignment
+- [x] **INT-01** — `Join-Path $env:ProgramFiles 'WindowsApps'`
+- [x] **BUG-02** — `Show-AppList` bare string status assignment
 - [x] **NEW-TEST-13** through **NEW-TEST-08** — Six new Pester unit tests
-- [x] **QOL-05** — `Show-AppList` + menu option [5]; Exit to [6]
-- [x] **QOL-03** — `schemaVersion` wrapper
-- [x] **QOL-02** — `Resolve-Aumid` error log
-- [x] **FIX-04** — `Test-AppAlreadyOpen -RequireWindow`
-- [x] **QOL-01** — Pre-compute shortcut-existence in `Show-AppPicker`
-- [x] **HARD-05** — Shortcut number validation
-- [x] **HARD-04** — 3-attempt cap in `Prompt-ForExactExePath`
-- [x] **QOL-04** / **ROB-04** — `Invoke-FailureRecovery` + bounded retry loop
-- [x] **ROB-02** — `Test-Path` guard in `Edit-Shortcut`
-- [x] **ROB-01** — `try/catch` on `Export-AppsConfig`
-- [x] **FIX-07** / **FIX-06** / **FIX-05** — Stale object, SystemRoot, PFN source
+- [x] **QOL-05** / **QOL-03** / **QOL-02** / **QOL-01** — Show-AppList, schemaVersion, AUMID log, picker perf
+- [x] **FIX-04** through **FIX-07** — RequireWindow, SystemRoot, PFN source, stale object
+- [x] **ROB-01** / **ROB-02** / **ROB-04** — Export guard, Edit guard, bounded retry
+- [x] **HARD-04** / **HARD-05** — Path attempts cap, shortcut number validation
 - [x] **T-10** through **T-01** — All refactor tasks
 - [x] **SEC-01** through **SEC-04** — All security gates
 - [x] **HARD-01** through **HARD-03** — All hardening tasks
