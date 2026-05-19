@@ -11,22 +11,15 @@ Move each item to **Done** after its commit lands.
 
 - [ ] **FIX-04** — `Test-AppAlreadyOpen` returns `$true` for any running process even when it has no visible window; the final `return $true` at the bottom ignores window-vs-tray distinction. Add a `$RequireWindow` switch so callers that need a visible window can enforce it.
 
-### Hardening
-
-- [ ] **HARD-04** — `Prompt-ForExactExePath` loops forever with no escape except an empty Enter. Add a max-attempt counter (e.g. 3) and return `$null` after exhausting retries so the caller can handle it gracefully.
-- [ ] **HARD-05** — `Add-Shortcut` (new-entry flow) does not validate that the shortcut number entered by the user is numeric or padded correctly (e.g. `09`). A blank or non-numeric number produces a malformed `.lnk` filename silently. Add validation with a re-prompt.
-- [ ] **HARD-06** — `Remove-Shortcut` now filters `$script:apps` by object identity (`$_ -ne $App`). No action needed unless Pester test coverage is added for the exact-match case.
-
 ### Quality / Clarity
 
-- [ ] **QOL-01** — `Show-AppPicker` re-evaluates `Test-Path` inside `Write-Host` on every loop iteration. Extract the status string before the loop to avoid repeated filesystem calls when the list is long.
 - [ ] **QOL-02** — `Resolve-Aumid` silently returns `$null` with only a `Write-Warning` when all three resolution paths fail. Log the failure to `startup-error.log` via `Write-ErrorLog` so it appears in the post-run diagnostic file.
 - [ ] **QOL-03** — `apps.json` schema has no version field. Add a top-level `"schemaVersion": 1` wrapper so future breaking changes can be detected at load time in `Import-AppsConfig`.
 
 ### Testing
 
 - [ ] **TEST-08** — Unit test `Test-AppAlreadyOpen` with `$RequireWindow` switch (once FIX-04 lands).
-- [ ] **TEST-09** — Unit test `Export-AppsConfig` error path (ROB-01 landed): verify `Write-ErrorLog` is called and a warning is emitted when `Set-Content` throws.
+- [ ] **TEST-09** — Unit test `Export-AppsConfig` error path: verify `Write-ErrorLog` is called and a warning is emitted when `Set-Content` throws.
 - [ ] **TEST-10** — Unit test `Resolve-Aumid` logs to error log when all three resolution paths fail (once QOL-02 lands).
 - [ ] **TEST-11** — Unit test `Invoke-FailureRecovery`: verify each branch returns the correct value, calls `Show-FailureMenu`, invokes `PreRetryAction` only on choice `'1'`, and calls `Edit-Shortcut` / skips correctly on other choices.
 
@@ -45,6 +38,9 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
+- [x] **QOL-01** — Pre-compute shortcut-existence status in `Show-AppPicker` before display loop; eliminate repeated `Test-Path` calls per input attempt
+- [x] **HARD-05** — Validate shortcut number is 1-2 digits in `Add-Shortcut`; re-prompt on blank or non-numeric input
+- [x] **HARD-04** — Add 3-attempt cap to `Prompt-ForExactExePath`; return `$null` after exhaustion
 - [x] **QOL-04** — Extract `Invoke-FailureRecovery`; eliminate duplicated switch blocks in `Start-Win32App` (landed with ROB-04)
 - [x] **ROB-04** — Replace unbounded self-recursion in `Start-Win32App` with bounded for-loop (max 2 retries) via `Invoke-FailureRecovery`
 - [x] **ROB-02** — Guard `Edit-Shortcut` argument-repair branch with `Test-Path` before `Get-ShortcutObject`

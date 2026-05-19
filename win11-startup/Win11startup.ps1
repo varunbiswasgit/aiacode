@@ -101,6 +101,15 @@
 #                    (max 2 retries) instead of unbounded self-recursion. Both the
 #                    missing-shortcut and launch-timeout paths share the same helper,
 #                    eliminating the duplicated switch blocks. (ROB-04 + QOL-04)
+# - Path attempts  : Prompt-ForExactExePath limits validation retries to 3 attempts;
+#                    returns $null after exhaustion so the caller handles it gracefully
+#                    instead of looping forever. (HARD-04)
+# - Number valid   : Add-Shortcut validates the shortcut number is 1-2 digits (re-prompts
+#                    on blank or non-numeric input) before constructing the .lnk filename.
+#                    (HARD-05)
+# - Picker perf    : Show-AppPicker pre-computes each entry's shortcut-existence status
+#                    before the display loop, avoiding repeated Test-Path calls per
+#                    input attempt. (QOL-01)
 
 # ---------------------------------------------------------------------------
 # Error log helper — writes timestamped entries to $PSScriptRoot\startup-error.log
@@ -273,13 +282,18 @@ function Wait-ForAppReady {
 
 # ---------------------------------------------------------------------------
 # Helper: numbered app picker
+# QOL-01: shortcut-existence status is pre-computed once before the display
+#         loop, avoiding a Test-Path call per input attempt on long lists.
 # ---------------------------------------------------------------------------
 function Show-AppPicker {
     param([string]$Prompt, [switch]$AllowNew)
+    # Pre-compute existence status for all entries.
+    $statuses = $script:apps | ForEach-Object {
+        if (Test-Path -LiteralPath $_.ShortcutPath -PathType Leaf) { 'exists' } else { 'missing' }
+    }
     Write-Host "`n$Prompt"
     for ($i = 0; $i -lt $script:apps.Count; $i++) {
-        $exists = if (Test-Path -LiteralPath $script:apps[$i].ShortcutPath -PathType Leaf) { "exists" } else { "missing" }
-        Write-Host ("  [{0}] {1,-20}  {2}  ({3})" -f ($i + 1), $script:apps[$i].Name, $exists, $script:apps[$i].ShortcutPath)
+        Write-Host ("  [{0}] {1,-20}  {2}  ({3})" -f ($i + 1), $script:apps[$i].Name, $statuses[$i], $script:apps[$i].ShortcutPath)
     }
     if ($AllowNew) {
         Write-Host "  [N] Add a brand-new app entry"
@@ -337,7 +351,14 @@ function Add-Shortcut {
         $launchType = Read-Host "Launch type [Win32 / Appx]"
     }
 
-    $number       = Read-Host "Shortcut number (e.g. 09)"
+    # HARD-05: validate shortcut number is 1-2 digits; re-prompt on blank or non-numeric.
+    $number = ''
+    while ($number -notmatch '^\d{1,2}$') {
+        $number = Read-Host "Shortcut number (1-2 digits, e.g. 09)"
+        if ($number -notmatch '^\d{1,2}$') {
+            Write-Warning "Shortcut number must be 1-2 digits (e.g. 01, 9). Try again."
+        }
+    }
     $lnkName      = "$number $name.lnk"
     $shortcutPath = Join-Path $script:startMenu $lnkName
 
@@ -422,8 +443,7 @@ function Remove-Shortcut {
     }
 }
 
-# ROB-02: argument-repair branch now guards with Test-Path before calling
-#         Get-ShortcutObject, consistent with all other callers.
+# ROB-02: argument-repair branch guards with Test-Path before Get-ShortcutObject.
 function Edit-Shortcut {
     param($App)
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
@@ -524,9 +544,7 @@ function Get-RelativeDepth {
     return ($relative -split '[\\//]').Count
 }
 
-# T-06: -MaxDepth parameter and Get-RelativeDepth filter removed.
-# Get-ChildItem -Recurse searches freely; depth is no longer capped.
-# Get-RelativeDepth is kept in the file for test coverage.
+# T-06: depth cap removed; Get-RelativeDepth kept for test coverage only.
 function Find-ExeWithinDepth {
     param([string]$RootFolder, [string]$ExpectedExe)
     if (-not (Test-Path -LiteralPath $RootFolder -PathType Container)) { return $null }
@@ -583,14 +601,17 @@ function Test-ExeSignatureTrusted {
     }
 }
 
+# HARD-04: max 3 attempts; returns $null after exhaustion so callers handle
+#          gracefully instead of looping indefinitely.
 function Prompt-ForExactExePath {
     param(
         [string]$AppName,
         [string]$ExpectedExe,
-        [string]$ExpectedPublisher = ""
+        [string]$ExpectedPublisher = "",
+        [int]$MaxAttempts = 3
     )
-    while ($true) {
-        $inputPath = Read-Host "Enter the full path for $AppName ($ExpectedExe), or press Enter to skip"
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        $inputPath = Read-Host "Enter the full path for $AppName ($ExpectedExe), or press Enter to skip (attempt $attempt of $MaxAttempts)"
         if ([string]::IsNullOrWhiteSpace($inputPath)) { return $null }
         $trimmed = $inputPath.Trim('"').Trim()
         if (-not (Test-Path -LiteralPath $trimmed -PathType Leaf)) {
@@ -609,6 +630,8 @@ function Prompt-ForExactExePath {
         }
         return $trimmed
     }
+    Write-Warning "$AppName: maximum path attempts ($MaxAttempts) reached. Skipping."
+    return $null
 }
 
 function Find-MisnumberedShortcut {
@@ -780,12 +803,8 @@ function Invoke-AppLaunchWait {
 
 # ---------------------------------------------------------------------------
 # ROB-04 + QOL-04: Invoke-FailureRecovery
-# Centralises the Add+retry / Modify / Skip logic used by both the
-# missing-shortcut and launch-timeout paths in Start-Win32App.
-# -PreRetryAction is an optional scriptblock run before the launch retry
-# (e.g. Edit-Shortcut for the timeout path).
-# Returns $true if recovery succeeded and launch should be re-attempted,
-# $false if the user chose Modify or Skip.
+# Centralises Add+retry / Modify / Skip. -PreRetryAction runs before retry.
+# Returns $true to retry, $false to abort.
 # ---------------------------------------------------------------------------
 function Invoke-FailureRecovery {
     param(
@@ -835,8 +854,7 @@ function Start-AppxApp {
     }
 }
 
-# ROB-04 + QOL-04: Self-recursion replaced with a bounded for-loop (max 2 retries).
-# Both failure paths (missing shortcut, launch timeout) share Invoke-FailureRecovery.
+# ROB-04 + QOL-04: bounded for-loop; both failure paths share Invoke-FailureRecovery.
 function Start-Win32App {
     param($App)
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe) {
@@ -851,7 +869,6 @@ function Start-Win32App {
             $recover = Invoke-FailureRecovery -App $App -Context "missing shortcut" `
                 -PreRetryAction { Initialize-Shortcut -App $App }
             if (-not $recover) { return $false }
-            # PreRetryAction ran Initialize-Shortcut; loop will re-check Test-Path.
             continue
         }
 
@@ -887,7 +904,6 @@ function Start-Win32App {
             $recover = Invoke-FailureRecovery -App $App -Context "launch timeout" `
                 -PreRetryAction { Edit-Shortcut -App $App }
             if (-not $recover) { return $false }
-            # PreRetryAction ran Edit-Shortcut; loop will re-attempt launch.
 
         } catch {
             Write-Warning "$($App.Name): launch failed. $_`n"
@@ -902,8 +918,7 @@ function Start-Win32App {
 
 # ---------------------------------------------------------------------------
 # Main menu + startup sequence
-# Guard: when PS_STARTUP_TESTMODE=1, functions and vars are available for
-# Pester dot-source but the interactive menu and sequence are skipped.
+# Guard: when PS_STARTUP_TESTMODE=1, dot-source only (no interactive menu).
 # ---------------------------------------------------------------------------
 if ($env:PS_STARTUP_TESTMODE -eq '1') { return }
 
