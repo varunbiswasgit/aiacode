@@ -74,6 +74,36 @@
 # - Appx enum      : Resolve-Aumid calls Get-AppxPackage once, stores the result in $pkgs,
 #                    and reuses it for both KnownAumid verification and the AppxName fallback,
 #                    avoiding a second full pipeline enumeration.
+# - Error logging  : All unhandled errors and terminating exceptions are written to
+#                    startup-error.log in the same folder as the script, with timestamps,
+#                    so crashes can be diagnosed after PowerShell has closed.
+
+# ---------------------------------------------------------------------------
+# Error log helper — writes timestamped entries to $PSScriptRoot\startup-error.log
+# ---------------------------------------------------------------------------
+$script:ErrorLogPath = Join-Path $PSScriptRoot "startup-error.log"
+
+function Write-ErrorLog {
+    param([string]$Message, [System.Management.Automation.ErrorRecord]$ErrorRecord = $null)
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    $lines = @("[$timestamp] $Message")
+    if ($ErrorRecord) {
+        $lines += "  Exception : $($ErrorRecord.Exception.Message)"
+        $lines += "  Category  : $($ErrorRecord.CategoryInfo)"
+        $lines += "  ScriptLine: $($ErrorRecord.InvocationInfo.ScriptLineNumber) - $($ErrorRecord.InvocationInfo.Line.Trim())"
+        $lines += "  StackTrace: $($ErrorRecord.ScriptStackTrace)"
+    }
+    $lines | Add-Content -LiteralPath $script:ErrorLogPath -Encoding UTF8
+}
+
+# Trap catches all terminating errors anywhere in the script and logs them
+# before PowerShell exits, so the window closing does not swallow the error.
+trap {
+    Write-ErrorLog -Message "UNHANDLED TERMINATING ERROR" -ErrorRecord $_
+    Write-Host "`n[ERROR] $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Full details written to: $script:ErrorLogPath" -ForegroundColor Yellow
+    break
+}
 
 $script:startMenu              = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:InitialDelaySeconds    = 10
@@ -125,7 +155,9 @@ function Export-AppsConfig {
 try {
     $script:apps = Import-AppsConfig
 } catch {
+    Write-ErrorLog -Message "FATAL: Import-AppsConfig failed" -ErrorRecord $_
     Write-Error $_
+    Write-Host "Error details written to: $script:ErrorLogPath" -ForegroundColor Yellow
     exit 1
 }
 
@@ -799,6 +831,7 @@ function Start-Win32App {
         }
     } catch {
         Write-Warning "$($App.Name): launch failed. $_`n"
+        Write-ErrorLog -Message "$($App.Name): launch exception" -ErrorRecord $_
         return $false
     }
 }
