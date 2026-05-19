@@ -29,15 +29,17 @@ Move each item to **Done** after its commit lands.
 
 ### Quality / Clarity
 
-- [ ] **QOL-01** — `Show-AppPicker` re-formats the shortcut path in every loop iteration via `Test-Path` inside `Write-Host`. Extract the status string before the loop to avoid repeated filesystem calls when the list is long.
+- [ ] **QOL-01** — `Show-AppPicker` re-formats the shortcut path in every loop iteration via `Test-Path` inside `Write-Host`. Extract the status string before the loop to avoid repeated filesystem calls when the list is long. Also change `$failedApps` in the startup sequence to store only `Name` + `ProcessName` strings instead of full PSCustomObjects — the summary loop only uses those two fields.
 - [ ] **QOL-02** — `Resolve-Aumid` silently returns `$null` with only a `Write-Warning` when all three resolution paths fail. Log the failure to `startup-error.log` via `Write-ErrorLog` so it appears in the post-run diagnostic file.
 - [ ] **QOL-03** — `apps.json` schema has no version field. Add a top-level `"schemaVersion": 1` wrapper so future breaking changes can be detected at load time in `Import-AppsConfig`.
+- [ ] **QOL-04** — `Start-Win32App` contains two near-identical `switch ($failChoice)` blocks (missing-shortcut path and launch-timeout path). Extract into a single `Invoke-FailureRecovery` helper that accepts the app, context label, and an optional pre-retry action scriptblock. This shrinks `Start-Win32App`, removes the duplicated `Show-AppPicker` + `Edit-Shortcut` calls, and keeps the failure-handling logic in one place. Coordinate with ROB-04 (recursion guard) — both touch the same switch blocks and should land in the same commit.
 
 ### Testing
 
 - [ ] **TEST-08** — Unit test `Test-AppAlreadyOpen` with `$RequireWindow` switch (once FIX-04 lands).
 - [ ] **TEST-09** — Unit test `Export-AppsConfig` error path (once ROB-01 lands): verify `Write-ErrorLog` is called when `Set-Content` throws.
 - [ ] **TEST-10** — Unit test `Resolve-Aumid` logs to error log when all three resolution paths fail (once QOL-02 lands).
+- [ ] **TEST-11** — Unit test `Invoke-FailureRecovery` (once QOL-04 lands): verify each branch returns the correct value and calls the right helpers.
 
 ---
 
