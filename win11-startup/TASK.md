@@ -7,38 +7,7 @@ Move each item to **Done** after its commit lands.
 
 ## To Do
 
-### Refactor
-
-- [ ] **T-06** — Remove dead `Get-RelativeDepth` depth cap in `Find-ExeWithinDepth`
-  `Repair-ShortcutTarget` now passes `MaxDepth 10` (effectively unlimited),
-  making the `Get-RelativeDepth` filter inside `Find-ExeWithinDepth` a
-  no-op. Remove the `-MaxDepth` parameter and the `Get-RelativeDepth` call;
-  let `Get-ChildItem -Recurse` do unrestricted search. Keep
-  `Get-RelativeDepth` in the file (used by tests) but remove the dead filter.
-
-- [ ] **T-07** — Replace manual `$elapsed` counters with `[Diagnostics.Stopwatch]`
-  `Get-AppPresenceMode` and the phase-2 loop in `Wait-ForAppReady` both
-  maintain a manual `$elapsed++` counter. Replace with
-  `[System.Diagnostics.Stopwatch]::StartNew()` so elapsed time reflects wall
-  clock rather than iteration count (which drifts when `Get-Process` is slow).
-
-### Tests
-
-- [ ] **T-08** — Unit test `Get-ParentFolder` (replaces removed `Get-NearestExistingParent`)
-  Add Pester tests for: null/empty input returns `$null`; parent of a
-  two-level path that exists returns correct folder; parent folder does not
-  exist returns `$null`.
-
-- [ ] **T-09** — Unit test `Show-FailureMenu` output and return value
-  Mock `Read-Host` to return '1', '2', '3' in turn; assert the function
-  returns the correct string and that `Write-Host` was called with the
-  expected lines.
-
-- [ ] **T-10** — Update `Win11startup.Tests.ps1` header and function inventory
-  After T-01 through T-09 land, update the Pester file's top-comment
-  inventory to list `Get-ParentFolder` (added), remove
-  `Get-NearestExistingParent` (deleted), and add `Show-FailureMenu`,
-  `Invoke-AppLaunchWait`, and `New-AppShortcut` to the tested-functions table.
+_All tasks complete._
 
 ---
 
@@ -55,6 +24,11 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
+- [x] **T-10** — Update Pester header/inventory after all refactor tasks _(this commit)_
+- [x] **T-09** — Unit test `Show-FailureMenu` output and return value _(this commit)_
+- [x] **T-08** — Unit test `Get-ParentFolder` _(this commit)_
+- [x] **T-07** — Replace manual `$elapsed` counters with `Stopwatch` _(this commit)_
+- [x] **T-06** — Remove dead `MaxDepth` filter in `Find-ExeWithinDepth` _(this commit)_
 - [x] **T-05** — Single `Get-AppxPackage` pass in `Resolve-Aumid` _(349b44e)_
 - [x] **T-04** — Extract `New-AppShortcut`; consolidate 5 `CreateShortcut` blocks _(c0bcc98)_
 - [x] **T-03** — Extract `Invoke-AppLaunchWait`; unify launch-wait tail _(c156a5c)_

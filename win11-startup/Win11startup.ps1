@@ -77,6 +77,12 @@
 # - Error logging  : All unhandled errors and terminating exceptions are written to
 #                    startup-error.log in the same folder as the script, with timestamps,
 #                    so crashes can be diagnosed after PowerShell has closed.
+# - Depth filter   : Find-ExeWithinDepth no longer applies a Get-RelativeDepth depth cap.
+#                    Get-ChildItem -Recurse searches freely; Get-RelativeDepth is kept for
+#                    test coverage but is no longer called in the main search path. (T-06)
+# - Stopwatch      : Get-AppPresenceMode and Wait-ForAppReady use
+#                    [System.Diagnostics.Stopwatch] instead of manual $elapsed++ counters
+#                    so elapsed time reflects wall clock even when Get-Process is slow. (T-07)
 
 # ---------------------------------------------------------------------------
 # Error log helper — writes timestamped entries to $PSScriptRoot\startup-error.log
@@ -165,17 +171,18 @@ $script:WshShell = New-Object -ComObject WScript.Shell
 
 # ---------------------------------------------------------------------------
 # Presence mode detection
+# T-07: uses Stopwatch instead of manual $elapsed++ so wall-clock time is
+#       accurate even when Get-Process calls are slow.
 # ---------------------------------------------------------------------------
 function Get-AppPresenceMode {
     param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds)
-    $elapsed = 0
-    while ($elapsed -lt $SettleSecs) {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $SettleSecs) {
         $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
         if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) {
             return 'Window'
         }
         Start-Sleep -Seconds 1
-        $elapsed++
     }
     if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) {
         return 'Tray'
@@ -212,11 +219,11 @@ function Wait-ForAppReady {
     $mode = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
     if ($null -eq $mode) {
         $remaining = $TimeoutSeconds - $phase1Secs
-        $elapsed   = 0
-        while ($elapsed -lt $remaining) {
+        # T-07: Stopwatch for accurate wall-clock remaining time.
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($sw.Elapsed.TotalSeconds -lt $remaining) {
             if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) { return $true }
             Start-Sleep -Seconds 1
-            $elapsed++
         }
         return $false
     }
@@ -226,12 +233,11 @@ function Wait-ForAppReady {
     if ($mode -eq 'Tray') { return $true }
 
     $remaining = $TimeoutSeconds - $phase1Secs
-    $elapsed   = 0
-    while ($elapsed -lt $remaining) {
+    $sw = [System.Diagnostics.Stopwatch]::StartNew()
+    while ($sw.Elapsed.TotalSeconds -lt $remaining) {
         $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
         if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) { return $true }
         Start-Sleep -Seconds 1
-        $elapsed++
     }
     return $false
 }
@@ -487,11 +493,13 @@ function Get-RelativeDepth {
     return ($relative -split '[\\//]').Count
 }
 
+# T-06: -MaxDepth parameter and Get-RelativeDepth filter removed.
+# Get-ChildItem -Recurse searches freely; depth is no longer capped.
+# Get-RelativeDepth is kept in the file for test coverage.
 function Find-ExeWithinDepth {
-    param([string]$RootFolder, [string]$ExpectedExe, [int]$MaxDepth = 3)
+    param([string]$RootFolder, [string]$ExpectedExe)
     if (-not (Test-Path -LiteralPath $RootFolder -PathType Container)) { return $null }
     $results = Get-ChildItem -LiteralPath $RootFolder -Filter $ExpectedExe -File -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { (Get-RelativeDepth -BasePath $RootFolder -CandidatePath $_.FullName) -le $MaxDepth } |
         Sort-Object FullName
     return $results | Select-Object -First 1
 }
@@ -619,8 +627,8 @@ function Repair-ShortcutTarget {
     Write-Warning "$($App.Name): shortcut target missing or invalid: $targetPath"
     $searchRoot = Get-ParentFolder -BrokenTargetPath $targetPath
     if ($searchRoot) {
-        Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $searchRoot (2 levels up, all subfolders)..."
-        $foundExe = Find-ExeWithinDepth -RootFolder $searchRoot -ExpectedExe $App.ExpectedExe -MaxDepth 10
+        Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $searchRoot (all subfolders)..."
+        $foundExe = Find-ExeWithinDepth -RootFolder $searchRoot -ExpectedExe $App.ExpectedExe
         if ($foundExe) {
             if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
                 Write-Warning "$($App.Name): discovered exe is outside allowed roots. Skipping auto-repair: $($foundExe.FullName)"

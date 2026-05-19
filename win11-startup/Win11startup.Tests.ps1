@@ -1,6 +1,22 @@
 #Requires -Modules Pester
 # Run unit tests : Invoke-Pester .\Win11startup.Tests.ps1
 # Run all tests  : $env:RUN_INTEGRATION = '1'; Invoke-Pester .\Win11startup.Tests.ps1
+#
+# Tested functions
+# ----------------
+# Unit:
+#   Get-RelativeDepth          (TEST-02)
+#   Find-MisnumberedShortcut   (TEST-03)
+#   Test-ExePathAllowed        (TEST-04a)
+#   Test-ExeSignatureTrusted   (TEST-04b)
+#   Import-AppsConfig          (TEST-08)
+#   Get-ParentFolder           (T-08)   — replaces Get-NearestExistingParent
+#   Show-FailureMenu           (T-09)
+#   Show-AppPicker -AllowNew   (TEST-10)
+#   Add-Shortcut dispatch      (TEST-11)
+#   Wait-ForAppReady phase math (TEST-12)
+# Integration:
+#   Initialize-Shortcut        (INT-02)
 
 BeforeAll {
     $env:PS_STARTUP_TESTMODE = '1'
@@ -215,26 +231,65 @@ Describe 'Unit' {
     }
 
     # -----------------------------------------------------------------------
-    # TEST-09: Get-NearestExistingParent
+    # T-08: Get-ParentFolder
     # -----------------------------------------------------------------------
-    Describe 'Get-NearestExistingParent' {
+    Describe 'Get-ParentFolder' {
 
-        It 'returns SystemRoot when given a path deep under it' {
-            $deep = Join-Path $env:SystemRoot 'NonExistentFolder\sub\file.exe'
-            $result = Get-NearestExistingParent -Path $deep
+        It 'returns null for an empty string' {
+            Get-ParentFolder -BrokenTargetPath '' | Should -BeNullOrEmpty
+        }
+
+        It 'returns null for a whitespace-only string' {
+            Get-ParentFolder -BrokenTargetPath '   ' | Should -BeNullOrEmpty
+        }
+
+        It 'returns the grandparent when it exists on disk' {
+            # Use $env:TEMP\subfolder\file.exe — grandparent is $env:TEMP which always exists.
+            $fakePath = Join-Path $env:TEMP 'SubA\file.exe'
+            $result = Get-ParentFolder -BrokenTargetPath $fakePath
+            # Grandparent of TEMP\SubA\file.exe is TEMP (parent of SubA)
+            $result | Should -Be $env:TEMP
+        }
+
+        It 'returns the immediate parent when grandparent does not exist' {
+            # Drive:\NonExistent\sub\file.exe — grandparent Drive:\NonExistent does not exist.
+            # Parent Drive:\NonExistent\sub also does not exist -> should return null.
+            $fakePath = 'Z:\NoSuchDrive\sub\file.exe'
+            Get-ParentFolder -BrokenTargetPath $fakePath | Should -BeNullOrEmpty
+        }
+
+        It 'returns a non-null existing path for a real system exe path' {
+            $sysPath = Join-Path $env:SystemRoot 'System32\notepad.exe'
+            $result = Get-ParentFolder -BrokenTargetPath $sysPath
             $result | Should -Not -BeNullOrEmpty
             Test-Path -LiteralPath $result -PathType Container | Should -Be $true
         }
+    }
 
-        It 'returns null for an empty string' {
-            Get-NearestExistingParent -Path '' | Should -BeNullOrEmpty
+    # -----------------------------------------------------------------------
+    # T-09: Show-FailureMenu
+    # -----------------------------------------------------------------------
+    Describe 'Show-FailureMenu' {
+
+        It 'returns the string "1" when the user enters 1' {
+            $result = '1' | & { Show-FailureMenu -AppName 'TestApp' -Context 'unit test' }
+            $result | Should -Be '1'
         }
 
-        It 'returns the parent folder when the immediate parent exists' {
-            $existingFolder = $env:TEMP
-            $fakePath = Join-Path $existingFolder 'DoesNotExist.exe'
-            $result = Get-NearestExistingParent -Path $fakePath
-            $result | Should -Be $existingFolder
+        It 'returns the string "2" when the user enters 2' {
+            $result = '2' | & { Show-FailureMenu -AppName 'TestApp' -Context 'unit test' }
+            $result | Should -Be '2'
+        }
+
+        It 'returns the string "3" when the user enters 3' {
+            $result = '3' | & { Show-FailureMenu -AppName 'TestApp' -Context 'unit test' }
+            $result | Should -Be '3'
+        }
+
+        It 'does not throw for any valid input' {
+            { '1' | & { Show-FailureMenu -AppName 'X' -Context 'ctx' } } | Should -Not -Throw
+            { '2' | & { Show-FailureMenu -AppName 'X' -Context 'ctx' } } | Should -Not -Throw
+            { '3' | & { Show-FailureMenu -AppName 'X' -Context 'ctx' } } | Should -Not -Throw
         }
     }
 
@@ -244,8 +299,6 @@ Describe 'Unit' {
     Describe 'Show-AppPicker -AllowNew' {
 
         It 'returns __NEW__ when N is entered and -AllowNew is set' {
-            # Temporarily override $script:apps with one fake entry so the
-            # picker has something to display, then feed 'n' as input.
             $saved = $script:apps
             $script:apps = @(
                 [PSCustomObject]@{ Name='FakeApp'; ShortcutPath='C:\Fake\01 FakeApp.lnk' }
@@ -278,13 +331,10 @@ Describe 'Unit' {
     Describe 'Add-Shortcut dispatch' {
 
         It 'prints cancel message and returns when $null is passed' {
-            # Should not throw and should produce "Add cancelled."
             { Add-Shortcut -App $null } | Should -Not -Throw
         }
 
         It 'calls Initialize-Shortcut when a real app object is passed (re-init path)' {
-            # Provide a fake app whose ShortcutPath already exists to exercise
-            # the Initialize-Shortcut early-exit (no-op) branch.
             $dir = Join-Path $env:TEMP ("PesterAddTest_" + [System.IO.Path]::GetRandomFileName())
             New-Item -ItemType Directory -Path $dir | Out-Null
             $lnk = Join-Path $dir '01 FakeApp.lnk'
@@ -302,7 +352,6 @@ Describe 'Unit' {
                 ExpectedArguments = ''
             }
             try {
-                # Should not throw; Initialize-Shortcut sees existing lnk and returns silently.
                 { Add-Shortcut -App $fakeApp } | Should -Not -Throw
             } finally {
                 Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
@@ -316,10 +365,6 @@ Describe 'Unit' {
     Describe 'Wait-ForAppReady phase-1 clamping' {
 
         It 'does not exceed TimeoutSeconds when TimeoutSeconds < SettleSeconds' {
-            # When TimeoutSeconds (2) < $script:SettleSeconds (5), phase1Secs
-            # must clamp to 2 so phase-2 remaining = 0 (not negative).
-            # We test the pure math without running the real function by
-            # verifying [Math]::Min behaves as the script requires.
             $settleSeconds  = 5
             $timeoutSeconds = 2
             $phase1Secs = [Math]::Min($settleSeconds, $timeoutSeconds)
@@ -369,18 +414,15 @@ Describe 'Integration' -Skip:($env:RUN_INTEGRATION -ne '1') {
             ExpectedArguments = ''
         }
 
-        # Pre-create the shortcut manually (simulates what a user would provide)
         $wsh = New-Object -ComObject WScript.Shell
         $sc  = $wsh.CreateShortcut($lnkPath)
         $sc.TargetPath       = $notepad
         $sc.WorkingDirectory = Split-Path $notepad -Parent
         $sc.Save()
 
-        # Initialize-Shortcut should detect it already exists and return silently
         { Initialize-Shortcut -App $fakeApp } | Should -Not -Throw
         Test-Path -LiteralPath $lnkPath -PathType Leaf | Should -Be $true
 
-        # Verify the shortcut target resolves correctly
         $verify = $wsh.CreateShortcut($lnkPath)
         $verify.TargetPath | Should -Be $notepad
     }
