@@ -1,6 +1,19 @@
 # Win11 Startup Launcher — Task Backlog
 
-All backlog items resolved. No open tasks.
+---
+
+## Open
+
+| ID | Category | Description |
+|---|---|---|
+| **AUD-01** | Dead code | `Get-RelativeDepth` is never called in the startup sequence — only exists for Pester. Move into test file or remove; update `Find-ExeWithinDepth` comment |
+| **AUD-02** | Bug | `Repair-ShortcutTarget` allowlist/signature failure inner block falls through without `return $null` after writing the warning — subsequent code may attempt a manual prompt unnecessarily |
+| **AUD-03** | Fluff | `Sync-AppsFromStartMenu` sets `$launchType = 'Win32'` in both the `elseif` and the catch-all `else` branch — redundant; set once as default before the `if` block |
+| **AUD-04** | Fluff | `Sync-AppsFromStartMenu` `else` catch-all duplicates `$processName` and `$expectedExe` derivation from the `elseif` Win32 branch — merge the two branches |
+| **AUD-05** | Comment | `Start-Win32App` retry loop comment says "max 2 retries" but `for ($attempt = 0; $attempt -le 2)` is 3 iterations — clarify comment to say "up to 3 attempts" |
+| **AUD-06** | Reusability | `Add-Shortcut` new-entry block and `Sync-AppsFromStartMenu` both construct a `[PSCustomObject]` app entry with identical field sets — extract `New-AppEntry` private helper |
+| **AUD-07** | Line reduction | Minor one-liner opportunities in `Export-AppsConfig` and `Import-AppsConfig` success/warning messages — consolidate without losing clarity |
+| **README-01** | Docs | README outdated: references `apps.json` and `$MaxRepairDepth`; missing menu `[6] Sync` workflow; missing all user menu scenario / workflow descriptions |
 
 ---
 
@@ -13,13 +26,13 @@ All backlog items resolved. No open tasks.
 | **TEST-07** | Mocking live `MainWindowHandle` requires a real GUI process. |
 | **INT-03** | `Repair-ShortcutTarget` auto-discovery depends on a real broken install path. |
 | **DUP-02** | Optional — `WorkingDirectory` derivation pattern; deferred by design. |
-| **DEAD-01** | `Get-RelativeDepth` retained for test coverage per T-06; acceptable as-is. |
+| **DEAD-01** | `Get-RelativeDepth` superseded by AUD-01 — now tracked as open. |
 
 ---
 
 ## Done
 
-- [x] **SYNC-01** — `Sync-AppsFromStartMenu` inlined into `Win11startup.ps1`; menu `[6]`; auto-triggers on missing `Win11startupapps.json`; `Sync-AppsJson.ps1` retired
+- [x] **SYNC-01** — `Sync-AppsFromStartMenu` inlined into `Win11startup.ps1`; menu `[6]`; auto-triggers on missing `Win11startupapps.json`; `Sync-AppsJson.ps1` deleted
 - [x] Config file renamed from `apps.json` to `Win11startupapps.json` throughout
 - [x] **BUG-01** — `Test-AppAlreadyOpen` dead branch removed
 - [x] **UX-01** — Header comment menu references corrected
