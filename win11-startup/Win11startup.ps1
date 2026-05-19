@@ -107,6 +107,8 @@
 #                    classifies each as Win32 or Appx, writes Win11startupapps.json. (SYNC-01)
 # - Dead code      : Get-RelativeDepth removed from main script; never called in startup
 #                    sequence. Retained only in Win11startup.Tests.ps1 for unit test coverage. (AUD-01)
+# - BUG-04         : Prompt-ForExactExePath max-attempts warning used $AppName: which PS
+#                    parsed as a drive-scoped variable reference; fixed to ${AppName}.
 
 # ---------------------------------------------------------------------------
 # Error log helper
@@ -205,9 +207,6 @@ function Export-AppsConfig {
 
 # ---------------------------------------------------------------------------
 # SYNC-01: Sync-AppsFromStartMenu
-# Scans Start Menu Programs for numbered .lnk files, classifies each as
-# Win32 or Appx, writes Win11startupapps.json, and reloads $script:apps.
-# Called from menu [6] and auto-triggered when the config file is missing.
 # ---------------------------------------------------------------------------
 function Sync-AppsFromStartMenu {
     Write-Host "`n--- Sync from Start Menu ---"
@@ -230,7 +229,6 @@ function Sync-AppsFromStartMenu {
         $appName  = ($file.BaseName -replace '^\d{1,2}\s+', '')
         $leafName = if ($target) { [System.IO.Path]::GetFileName($target) } else { '' }
 
-        # AUD-03/04: set Win32 as default; only one branch needed for non-Appx
         $launchType        = 'Win32'
         $expectedExe       = $leafName
         $processName       = [System.IO.Path]::GetFileNameWithoutExtension($leafName)
@@ -246,7 +244,7 @@ function Sync-AppsFromStartMenu {
             $knownAumid        = ($scArgs -replace '^shell:appsFolder\\', '').Trim()
             $startAppName      = $appName
             $appxName          = ($knownAumid -split '_')[0]
-            $processName       = ''   # cannot determine without running; fill in via Modify menu
+            $processName       = ''
         } elseif ($leafName -notlike '*.exe') {
             Write-Warning "'$($file.Name)': unexpected target '$target'. Review and fill in fields manually."
         }
@@ -265,8 +263,7 @@ function Sync-AppsFromStartMenu {
 }
 
 # ---------------------------------------------------------------------------
-# AUD-06: New-AppEntry — single place that constructs a PSCustomObject app entry.
-# Used by Add-Shortcut (new entry flow) and Sync-AppsFromStartMenu.
+# New-AppEntry — single constructor for all app entry objects
 # ---------------------------------------------------------------------------
 function New-AppEntry {
     param(
@@ -584,8 +581,7 @@ function Get-ParentFolder {
     return $parent
 }
 
-# AUD-01: Get-RelativeDepth removed; never called in startup sequence.
-# Retained in Win11startup.Tests.ps1 for unit test coverage only.
+# AUD-01: Get-RelativeDepth removed; retained in Win11startup.Tests.ps1 only.
 
 function Find-ExeWithinDepth {
     param([string]$RootFolder, [string]$ExpectedExe)
@@ -638,7 +634,7 @@ function Prompt-ForExactExePath {
         if (-not (Test-ExeSignatureTrusted -ExePath $trimmed -ExpectedPublisher $ExpectedPublisher)) { Write-Warning "Failed signature/publisher check: $trimmed"; continue }
         return $trimmed
     }
-    Write-Warning "$AppName: max path attempts reached. Skipping."
+    Write-Warning "${AppName}: max path attempts reached. Skipping."
     return $null
 }
 
@@ -684,11 +680,11 @@ function Repair-ShortcutTarget {
         if ($foundExe) {
             if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
                 Write-Warning "$($App.Name): exe outside allowed roots. Skipping."
-                return $null  # AUD-02: explicit return after allowlist failure
+                return $null
             }
             if (-not (Test-ExeSignatureTrusted -ExePath $foundExe.FullName -ExpectedPublisher $App.ExpectedPublisher)) {
                 Write-Warning "$($App.Name): exe failed signature check. Skipping."
-                return $null  # AUD-02: explicit return after signature failure
+                return $null
             }
             Write-Host "$($App.Name): found replacement at $($foundExe.FullName)."
             Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $foundExe.FullName -Arguments $App.ExpectedArguments
@@ -786,7 +782,6 @@ function Start-Win32App {
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe -RequireWindow:$requireWin) {
         Write-Host "$($App.Name): already open. Skipping.`n"; return $true
     }
-    # AUD-05: loop runs attempts 0-2 = up to 3 total attempts
     for ($attempt = 0; $attempt -le 2; $attempt++) {
         if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
             Write-Warning "$($App.Name): shortcut not found: $($App.ShortcutPath)"
