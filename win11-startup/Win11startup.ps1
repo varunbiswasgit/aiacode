@@ -118,9 +118,16 @@
 # - Schema version : Import-AppsConfig checks for top-level "schemaVersion" field;
 #                    warns if absent or not 1. apps.json written by Export-AppsConfig
 #                    includes schemaVersion:1 wrapper. (QOL-03)
-# - List apps      : Main menu option [6] prints a formatted table of all configured
+# - List apps      : Main menu option [5] prints a formatted table of all configured
 #                    startup apps (name, type, shortcut status, process) then exits.
 #                    Implemented via Show-AppList. (QOL-05)
+# - Stale shortcut : Start-Win32App re-reads the shortcut object after Repair-ShortcutTarget
+#                    so the argument-repair check uses the freshly written .lnk, not the
+#                    pre-repair in-memory object. (INT-02)
+# - WindowsApps    : Repair-ShortcutArguments uses Join-Path $env:ProgramFiles 'WindowsApps'
+#                    instead of a hardcoded 'C:\Program Files\WindowsApps' path. (INT-01)
+# - AppList fix    : Show-AppList assigns status via bare string ('OK'/'MISSING') instead of
+#                    Write-Output inside an if-expression to avoid pipeline capture. (BUG-02)
 
 # ---------------------------------------------------------------------------
 # Error log helper — writes timestamped entries to $PSScriptRoot\startup-error.log
@@ -140,8 +147,6 @@ function Write-ErrorLog {
     $lines | Add-Content -LiteralPath $script:ErrorLogPath -Encoding UTF8
 }
 
-# Trap catches all terminating errors anywhere in the script and logs them
-# before PowerShell exits, so the window closing does not swallow the error.
 trap {
     Write-ErrorLog -Message "UNHANDLED TERMINATING ERROR" -ErrorRecord $_
     Write-Host "`n[ERROR] $($_.Exception.Message)" -ForegroundColor Red
@@ -165,7 +170,6 @@ $script:AllowedExeRoots = @(
 
 # ---------------------------------------------------------------------------
 # Config loader / exporter
-# QOL-03: Import-AppsConfig checks schemaVersion; Export-AppsConfig writes it.
 # ---------------------------------------------------------------------------
 function Import-AppsConfig {
     param([string]$Path = $script:AppsConfigPath)
@@ -175,7 +179,6 @@ function Import-AppsConfig {
     $raw = Get-Content -LiteralPath $Path -Raw -ErrorAction Stop
     $parsed = $raw | ConvertFrom-Json
 
-    # Accept either a bare array (legacy) or a {schemaVersion, apps} wrapper.
     if ($parsed -is [System.Array]) {
         Write-Warning "apps.json has no schemaVersion wrapper. Expected schemaVersion $script:AppsConfigSchemaVersion. Processing as legacy format."
         $entries = $parsed
@@ -207,7 +210,6 @@ function Import-AppsConfig {
     return $validated
 }
 
-# ROB-01 + QOL-03: writes schemaVersion wrapper; Set-Content in try/catch.
 function Export-AppsConfig {
     param([string]$Path = $script:AppsConfigPath)
     try {
@@ -237,8 +239,6 @@ $script:WshShell = New-Object -ComObject WScript.Shell
 
 # ---------------------------------------------------------------------------
 # Presence mode detection
-# T-07: uses Stopwatch instead of manual $elapsed++ so wall-clock time is
-#       accurate even when Get-Process calls are slow.
 # ---------------------------------------------------------------------------
 function Get-AppPresenceMode {
     param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds)
@@ -256,9 +256,6 @@ function Get-AppPresenceMode {
     return $null
 }
 
-# FIX-04: -RequireWindow switch added. When set, a running process with no
-#         visible MainWindowHandle is NOT considered open (returns $false).
-#         The startup launch loop passes -RequireWindow for Window-mode apps.
 function Test-AppAlreadyOpen {
     param(
         [string]$ProcessName,
@@ -283,7 +280,6 @@ function Test-AppAlreadyOpen {
         return [bool]($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
     }
 
-    if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) { return $true }
     return $true
 }
 
@@ -291,10 +287,6 @@ function Wait-ForAppReady {
     param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
     $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
     $mode = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
-    # NOTE (ROB-03): $phase1Secs reflects the time *requested* for phase-1 settle.
-    # The Stopwatch for phase-2 starts after Get-AppPresenceMode returns, so
-    # phase-2 remaining = TimeoutSeconds - phase1Secs is accurate. Do not move
-    # the Stopwatch start above the Get-AppPresenceMode call.
     if ($null -eq $mode) {
         $remaining = $TimeoutSeconds - $phase1Secs
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -321,8 +313,6 @@ function Wait-ForAppReady {
 
 # ---------------------------------------------------------------------------
 # Helper: numbered app picker
-# QOL-01: shortcut-existence status is pre-computed once before the display
-#         loop, avoiding a Test-Path call per input attempt on long lists.
 # ---------------------------------------------------------------------------
 function Show-AppPicker {
     param([string]$Prompt, [switch]$AllowNew)
@@ -352,7 +342,7 @@ function Show-AppPicker {
 
 # ---------------------------------------------------------------------------
 # QOL-05: Show-AppList — formatted table of all configured startup apps.
-# Columns: #, Name, Type, Shortcut, Process
+# BUG-02: status assigned via bare string, not Write-Output inside if-expression.
 # ---------------------------------------------------------------------------
 function Show-AppList {
     Write-Host "`n================================================"
@@ -362,20 +352,16 @@ function Show-AppList {
     Write-Host ("{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f '-'*3, '-'*21, '-'*5, '-'*8, '-'*15)
     for ($i = 0; $i -lt $script:apps.Count; $i++) {
         $app    = $script:apps[$i]
-        $status = if (Test-Path -LiteralPath $app.ShortcutPath -PathType Leaf) {
-            Write-Output 'OK'
-        } else {
-            Write-Output 'MISSING'
-        }
-        $color = if ($status -eq 'OK') { 'Green' } else { 'Yellow' }
-        $line  = "{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f ($i + 1), $app.Name, $app.LaunchType, $status, $app.ProcessName
+        $status = if (Test-Path -LiteralPath $app.ShortcutPath -PathType Leaf) { 'OK' } else { 'MISSING' }
+        $color  = if ($status -eq 'OK') { 'Green' } else { 'Yellow' }
+        $line   = "{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f ($i + 1), $app.Name, $app.LaunchType, $status, $app.ProcessName
         Write-Host $line -ForegroundColor $color
     }
     Write-Host ""
 }
 
 # ---------------------------------------------------------------------------
-# Single shortcut writer — all .lnk creation goes through here
+# Single shortcut writer
 # ---------------------------------------------------------------------------
 function New-AppShortcut {
     param(
@@ -411,7 +397,6 @@ function Add-Shortcut {
         $launchType = Read-Host "Launch type [Win32 / Appx]"
     }
 
-    # HARD-05: validate shortcut number is 1-2 digits.
     $number = ''
     while ($number -notmatch '^\d{1,2}$') {
         $number = Read-Host "Shortcut number (1-2 digits, e.g. 09)"
@@ -503,7 +488,6 @@ function Remove-Shortcut {
     }
 }
 
-# ROB-02: argument-repair branch guards with Test-Path before Get-ShortcutObject.
 function Edit-Shortcut {
     param($App)
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
@@ -534,7 +518,6 @@ function Edit-Shortcut {
 # ---------------------------------------------------------------------------
 # Core helpers
 # ---------------------------------------------------------------------------
-# QOL-02: all-paths failure is logged to startup-error.log via Write-ErrorLog.
 function Resolve-Aumid {
     param($App)
     $startApp = Get-StartApps | Where-Object { $_.Name -like "*$($App.StartAppName)*" } | Select-Object -First 1
@@ -662,7 +645,6 @@ function Test-ExeSignatureTrusted {
     }
 }
 
-# HARD-04: max 3 attempts; returns $null after exhaustion.
 function Prompt-ForExactExePath {
     param(
         [string]$AppName,
@@ -704,7 +686,6 @@ function Find-MisnumberedShortcut {
         Select-Object -First 1
 }
 
-# FIX-06: $env:SystemRoot replaces hardcoded 'C:\Windows'.
 function Initialize-Shortcut {
     param($App)
     if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { return }
@@ -769,7 +750,7 @@ function Repair-ShortcutTarget {
     return $null
 }
 
-# FIX-05: canonical PFN from Get-AppxPackage.
+# INT-01: uses $env:ProgramFiles instead of hardcoded 'C:\Program Files'.
 function Repair-ShortcutArguments {
     param($App)
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
@@ -786,7 +767,7 @@ function Repair-ShortcutArguments {
         return $null
     }
 
-    $windowsApps = "C:\Program Files\WindowsApps"
+    $windowsApps = Join-Path $env:ProgramFiles 'WindowsApps'
     Write-Host "$($App.Name): scanning $windowsApps for '*$aumidFragment*'..."
     $pkgFolder = Get-ChildItem -LiteralPath $windowsApps -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -like "*$aumidFragment*" } |
@@ -837,7 +818,7 @@ function Repair-ShortcutArguments {
 }
 
 # ---------------------------------------------------------------------------
-# Inline failure menu (shared by missing-shortcut and launch-timeout paths)
+# Inline failure menu
 # ---------------------------------------------------------------------------
 function Show-FailureMenu {
     param([string]$AppName, [string]$Context)
@@ -848,7 +829,7 @@ function Show-FailureMenu {
 }
 
 # ---------------------------------------------------------------------------
-# Shared launch-wait tail (used by Start-AppxApp and Start-Win32App)
+# Shared launch-wait tail
 # ---------------------------------------------------------------------------
 function Invoke-AppLaunchWait {
     param($App, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
@@ -862,9 +843,7 @@ function Invoke-AppLaunchWait {
 }
 
 # ---------------------------------------------------------------------------
-# ROB-04 + QOL-04: Invoke-FailureRecovery
-# Centralises Add+retry / Modify / Skip. -PreRetryAction runs before retry.
-# Returns $true to retry, $false to abort.
+# Invoke-FailureRecovery — centralises Add+retry / Modify / Skip
 # ---------------------------------------------------------------------------
 function Invoke-FailureRecovery {
     param(
@@ -914,11 +893,10 @@ function Start-AppxApp {
     }
 }
 
-# ROB-04 + QOL-04: bounded for-loop; both failure paths share Invoke-FailureRecovery.
-# FIX-04: passes -RequireWindow to Test-AppAlreadyOpen for Window-mode apps.
+# INT-02: $shortcut is re-read via Get-ShortcutObject after Repair-ShortcutTarget
+#         so the argument-repair check works on the freshly written .lnk.
 function Start-Win32App {
     param($App)
-    # Determine presence mode once to decide whether a window is required.
     $requireWin = (Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0) -eq 'Window'
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe `
             -RequireWindow:$requireWin) {
@@ -946,6 +924,8 @@ function Start-Win32App {
                     return $false
                 }
                 Write-Host "$($App.Name): shortcut repaired. Proceeding with launch."
+                # INT-02: re-read after repair so $shortcut reflects the updated .lnk.
+                $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
             }
 
             if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
@@ -982,7 +962,6 @@ function Start-Win32App {
 
 # ---------------------------------------------------------------------------
 # Main menu + startup sequence
-# Guard: when PS_STARTUP_TESTMODE=1, dot-source only (no interactive menu).
 # ---------------------------------------------------------------------------
 if ($env:PS_STARTUP_TESTMODE -eq '1') { return }
 
