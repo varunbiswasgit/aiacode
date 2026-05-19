@@ -10,15 +10,12 @@ Move each item to **Done** after its commit lands.
 ### Correctness
 
 - [ ] **FIX-04** — `Test-AppAlreadyOpen` returns `$true` for any running process even when it has no visible window; the final `return $true` at the bottom ignores window-vs-tray distinction. Add a `$RequireWindow` switch so callers that need a visible window can enforce it.
-- [ ] **FIX-05** — `Repair-ShortcutArguments` reconstructs the PFN by stripping the version segment with a fragile regex (`_\d+\.\d+\.\d+\.\d+_[^_]+__`). Use `$pkg.PackageFamilyName` from `Get-AppxPackage` instead — it is already the canonical PFN and never needs regex reconstruction.
-- [ ] **FIX-06** — `Initialize-Shortcut` hardcodes `C:\Windows\explorer.exe` and `C:\Windows` for Appx shortcuts instead of using `$env:SystemRoot`. Replace both literals.
-- [ ] **FIX-07** — `Start-Win32App` re-reads the shortcut after argument repair (`Get-ShortcutObject` is called again) but still uses the old `$shortcut` object for `WshShell.Run`. The path passed to `Run` is always `$App.ShortcutPath`, so this is benign today — but the stale `$shortcut` variable is misleading. Remove the redundant second read.
 
 ### Robustness
 
 - [ ] **ROB-01** — `Export-AppsConfig` calls `Set-Content` with no `-ErrorAction`; a write failure (locked file, read-only share) silently discards the update. Wrap in `try/catch` and call `Write-ErrorLog` on failure.
 - [ ] **ROB-02** — `Get-ShortcutObject` throws a terminating error if the shortcut is missing. Every caller already guards with `Test-Path` except `Edit-Shortcut` (argument-repair branch), which calls it without a prior existence check. Add the guard.
-- [ ] **ROB-03** — `Wait-ForAppReady` calls `Get-AppPresenceMode` with `$phase1Secs` but does not propagate the actual time spent inside that call to the phase-2 remaining calculation. The Stopwatch starts *after* `Get-AppPresenceMode` returns, so phase-2 timeout is correctly based on remaining time — document this clearly with an inline comment so future edits do not break it.
+- [ ] **ROB-03** — `Wait-ForAppReady` phase-2 Stopwatch placement is correct but subtle. The inline comment added in FIX-07 commit documents the intent; no code change needed — verify comment is clear on next review.
 - [ ] **ROB-04** — `Start-Win32App` recurses into itself on failure-menu choice `'1'` (missing shortcut) and `'1'` (launch timeout). Deep recursion is unlikely but unbounded. Replace with a `for` loop (max 2 retries) and `break`/`continue` instead.
 
 ### Hardening
@@ -56,6 +53,9 @@ Move each item to **Done** after its commit lands.
 
 ## Done
 
+- [x] **FIX-07** — Remove redundant `Get-ShortcutObject` call after `Repair-ShortcutTarget` in `Start-Win32App`
+- [x] **FIX-06** — Replace hardcoded `C:\Windows` with `$env:SystemRoot` in `Initialize-Shortcut`
+- [x] **FIX-05** — Use `$pkg.PackageFamilyName` from `Get-AppxPackage` in `Repair-ShortcutArguments`; remove fragile regex PFN reconstruction
 - [x] **T-10** — Update Pester header/inventory after all refactor tasks
 - [x] **T-09** — Unit test `Show-FailureMenu` output and return value
 - [x] **T-08** — Unit test `Get-ParentFolder`

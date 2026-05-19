@@ -83,6 +83,15 @@
 # - Stopwatch      : Get-AppPresenceMode and Wait-ForAppReady use
 #                    [System.Diagnostics.Stopwatch] instead of manual $elapsed++ counters
 #                    so elapsed time reflects wall clock even when Get-Process is slow. (T-07)
+# - PFN source     : Repair-ShortcutArguments uses $pkg.PackageFamilyName directly from
+#                    Get-AppxPackage instead of reconstructing it via regex, avoiding
+#                    breakage when version/arch segments vary. (FIX-05)
+# - SystemRoot     : Initialize-Shortcut uses $env:SystemRoot instead of hardcoded
+#                    'C:\Windows' for the explorer.exe target and working directory
+#                    in Appx shortcut creation. (FIX-06)
+# - Stale object   : Start-Win32App no longer re-reads the shortcut object after
+#                    Repair-ShortcutTarget; WshShell.Run always uses $App.ShortcutPath
+#                    directly so the extra Get-ShortcutObject call was misleading. (FIX-07)
 
 # ---------------------------------------------------------------------------
 # Error log helper — writes timestamped entries to $PSScriptRoot\startup-error.log
@@ -217,9 +226,12 @@ function Wait-ForAppReady {
     param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
     $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
     $mode = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
+    # NOTE (ROB-03): $phase1Secs reflects the time *requested* for phase-1 settle.
+    # The Stopwatch for phase-2 starts after Get-AppPresenceMode returns, so
+    # phase-2 remaining = TimeoutSeconds - phase1Secs is accurate. Do not move
+    # the Stopwatch start above the Get-AppPresenceMode call.
     if ($null -eq $mode) {
         $remaining = $TimeoutSeconds - $phase1Secs
-        # T-07: Stopwatch for accurate wall-clock remaining time.
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         while ($sw.Elapsed.TotalSeconds -lt $remaining) {
             if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) { return $true }
@@ -590,6 +602,8 @@ function Find-MisnumberedShortcut {
         Select-Object -First 1
 }
 
+# FIX-06: $env:SystemRoot replaces hardcoded 'C:\Windows' for both the
+#          explorer.exe target path and the WorkingDirectory in Appx shortcuts.
 function Initialize-Shortcut {
     param($App)
     if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { return }
@@ -604,8 +618,10 @@ function Initialize-Shortcut {
     Write-Warning "$($App.Name): no shortcut found at '$($App.ShortcutPath)'. Creating..."
 
     if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
-        New-AppShortcut -Path $App.ShortcutPath -TargetPath "C:\Windows\explorer.exe" `
-                        -Arguments $App.ExpectedArguments -WorkingDirectory "C:\Windows"
+        New-AppShortcut -Path $App.ShortcutPath `
+                        -TargetPath "$env:SystemRoot\explorer.exe" `
+                        -Arguments $App.ExpectedArguments `
+                        -WorkingDirectory $env:SystemRoot
         Write-Host "$($App.Name): shortcut created with Arguments: $($App.ExpectedArguments)"
         return
     }
@@ -652,6 +668,10 @@ function Repair-ShortcutTarget {
     return $null
 }
 
+# FIX-05: PFN is taken directly from $pkg.PackageFamilyName (the canonical value
+#          returned by Get-AppxPackage) instead of reconstructing it by stripping
+#          version/arch segments with a fragile regex. This avoids breakage when
+#          package folder naming conventions vary across Windows updates.
 function Repair-ShortcutArguments {
     param($App)
     $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
@@ -682,6 +702,11 @@ function Repair-ShortcutArguments {
 
     Write-Host "$($App.Name): found package folder: $($pkgFolder.Name)"
 
+    # FIX-05: resolve the installed package to get the canonical PackageFamilyName
+    # directly from Get-AppxPackage — no regex reconstruction needed.
+    $installedPkg = Get-AppxPackage | Where-Object { $_.PackageFamilyName -like "*$aumidFragment*" } | Select-Object -First 1
+    $pfn = if ($installedPkg) { $installedPkg.PackageFamilyName } else { $null }
+
     $manifestPath = Join-Path $pkgFolder.FullName "AppxManifest.xml"
     $appId = $null
     if (Test-Path -LiteralPath $manifestPath) {
@@ -700,7 +725,11 @@ function Repair-ShortcutArguments {
         $appId = ($App.ExpectedArguments -split '!') | Select-Object -Last 1
     }
 
-    $pfn          = $pkgFolder.Name -replace '_\d+\.\d+\.\d+\.\d+_[^_]+__', '_'
+    if ([string]::IsNullOrWhiteSpace($pfn)) {
+        Write-Warning "$($App.Name): installed package not found via Get-AppxPackage for fragment '$aumidFragment'. Cannot repair arguments."
+        return $null
+    }
+
     $aumid        = "$pfn!$appId"
     $repairedArgs = "shell:appsFolder\$aumid"
 
@@ -760,6 +789,9 @@ function Start-AppxApp {
     }
 }
 
+# FIX-07: Removed the redundant Get-ShortcutObject call after Repair-ShortcutTarget.
+#          WshShell.Run always fires $App.ShortcutPath directly; re-reading the
+#          shortcut object after repair served no purpose and was misleading.
 function Start-Win32App {
     param($App)
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe) {
@@ -801,7 +833,7 @@ function Start-Win32App {
                 return $false
             }
             Write-Host "$($App.Name): shortcut repaired. Proceeding with launch."
-            $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
+            # FIX-07: no second Get-ShortcutObject here; Run uses $App.ShortcutPath directly.
         }
 
         if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
