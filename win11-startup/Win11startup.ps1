@@ -47,7 +47,8 @@
 #                    (functions and vars available) but skips the interactive menu and
 #                    startup sequence entirely. Used by Win11startup.Tests.ps1.
 # - Config file    : $script:apps is loaded from Win11startupapps.json in the same folder.
-#                    Required fields: Name, LaunchType, ShortcutPath, ProcessName, ExpectedExe.
+#                    Required fields: Name, LaunchType, ShortcutPath, ExpectedExe.
+#                    ProcessName required for Win32; warn-only for Appx (cannot detect without running).
 #                    Add/Delete menu flows write changes back to Win11startupapps.json automatically.
 # - Add flow       : Show-AppPicker -AllowNew shows [N] for brand-new entry and returns
 #                    '__NEW__' sentinel; Add-Shortcut distinguishes re-init (real app object),
@@ -109,6 +110,12 @@
 #                    sequence. Retained only in Win11startup.Tests.ps1 for unit test coverage. (AUD-01)
 # - BUG-04         : Prompt-ForExactExePath max-attempts warning used $AppName: which PS
 #                    parsed as a drive-scoped variable reference; fixed to ${AppName}.
+# - BUG-05         : Sync-AppsFromStartMenu classified explorer.exe+shell:appsFolder entries
+#                    as Appx, causing empty ProcessName to fail Import-AppsConfig validation
+#                    on next load. Fix: keep LaunchType=Win32 for all such entries (they are
+#                    Win32 .lnk files invoking explorer.exe with arguments, not true Appx).
+#                    Import-AppsConfig now warns instead of throws when ProcessName is empty
+#                    on an Appx entry, since ProcessName cannot be determined without running.
 
 # ---------------------------------------------------------------------------
 # Error log helper
@@ -173,12 +180,21 @@ function Import-AppsConfig {
         $entries = $parsed.apps
     }
 
-    $required  = @('Name','LaunchType','ShortcutPath','ProcessName','ExpectedExe')
+    # BUG-05: ProcessName is required for Win32; warn-only for Appx (Sync cannot determine it without running the app).
+    $requiredAlways = @('Name','LaunchType','ShortcutPath','ExpectedExe')
     $validated = @()
     foreach ($entry in $entries) {
-        foreach ($field in $required) {
+        $ok = $true
+        foreach ($field in $requiredAlways) {
             if ([string]::IsNullOrWhiteSpace($entry.$field)) {
                 throw "Win11startupapps.json entry missing required field '$field': $(ConvertTo-Json $entry -Compress)"
+            }
+        }
+        if ([string]::IsNullOrWhiteSpace($entry.ProcessName)) {
+            if ($entry.LaunchType -eq 'Appx') {
+                Write-Warning "$($entry.Name): ProcessName is empty. Fill it in via Menu [4] after first run."
+            } else {
+                throw "Win11startupapps.json entry missing required field 'ProcessName': $(ConvertTo-Json $entry -Compress)"
             }
         }
         if ($null -eq $entry.ExpectedPublisher) { $entry | Add-Member -NotePropertyName ExpectedPublisher -NotePropertyValue '' -Force }
@@ -229,6 +245,9 @@ function Sync-AppsFromStartMenu {
         $appName  = ($file.BaseName -replace '^\d{1,2}\s+', '')
         $leafName = if ($target) { [System.IO.Path]::GetFileName($target) } else { '' }
 
+        # BUG-05: explorer.exe + shell:appsFolder\... is a Win32-with-arguments entry, not a true Appx entry.
+        # LaunchType stays Win32; WshShell.Run fires the .lnk and preserves the shell: arguments automatically.
+        # Appx classification is reserved for entries that must use Start-AppxApp (AUMID resolution path).
         $launchType        = 'Win32'
         $expectedExe       = $leafName
         $processName       = [System.IO.Path]::GetFileNameWithoutExtension($leafName)
@@ -238,13 +257,14 @@ function Sync-AppsFromStartMenu {
         $appxName          = ''
 
         if ($leafName -ieq 'explorer.exe' -and $scArgs -like 'shell:appsFolder\*') {
-            $launchType        = 'Appx'
+            # Win32 packaged-app entry: launched via WshShell.Run on .lnk, argument self-healing via Repair-ShortcutArguments.
             $expectedExe       = 'explorer.exe'
+            $processName       = ''   # cannot determine without running; fill in via Menu [4]
             $expectedArguments = $scArgs.Trim()
             $knownAumid        = ($scArgs -replace '^shell:appsFolder\\', '').Trim()
             $startAppName      = $appName
             $appxName          = ($knownAumid -split '_')[0]
-            $processName       = ''
+            Write-Warning "$appName`: ProcessName unknown after sync. Fill in via Menu [4] before running."
         } elseif ($leafName -notlike '*.exe') {
             Write-Warning "'$($file.Name)': unexpected target '$target'. Review and fill in fields manually."
         }
@@ -339,6 +359,7 @@ function Test-AppAlreadyOpen {
         [string]$ExpectedExe = "",
         [switch]$RequireWindow
     )
+    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $false }
     $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
     if (-not $procs) { return $false }
     if (-not [string]::IsNullOrWhiteSpace($ExpectedExe)) {
