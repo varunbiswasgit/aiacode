@@ -117,11 +117,12 @@
 #                    Win32 .lnk files invoking explorer.exe with arguments, not true Appx).
 #                    Import-AppsConfig now warns instead of throws when ProcessName is empty
 #                    on a Win32-with-args entry, since Sync cannot determine it without running.
-# - BUG-06         : Start-Win32App now auto-detects ProcessName after launch when the field
-#                    is blank. After WshShell.Run fires, a brief poll scans running processes
-#                    matching by window title or StartAppName fragment; the discovered name is
-#                    written back to the entry and persisted to Win11startupapps.json so the
-#                    warning never repeats on subsequent runs.
+# - BUG-06 (rev)   : When ProcessName is blank, launch confirmation is done by detecting an
+#                    active/opened window (MainWindowHandle != 0) whose MainWindowTitle matches
+#                    $App.Name or $App.StartAppName — not by polling a process name.
+#                    Wait-ForWindowByTitle replaces Resolve-ProcessName. Once a matching window
+#                    is found, ProcessName is back-filled from that process object and persisted
+#                    to Win11startupapps.json. Future runs use the normal Wait-ForAppReady path.
 
 # ---------------------------------------------------------------------------
 # Error log helper
@@ -390,7 +391,7 @@ function Wait-ForProcessCondition {
 
 function Wait-ForAppReady {
     param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
-    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $true }  # BUG-06: can't poll blank name; assume launched
+    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $true }  # blank name: assume launched
     $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
     $mode       = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
     $remaining  = $TimeoutSeconds - $phase1Secs
@@ -408,19 +409,26 @@ function Wait-ForAppReady {
 }
 
 # ---------------------------------------------------------------------------
-# BUG-06: Resolve-ProcessName — auto-detect ProcessName for blank entries
+# BUG-06 (rev): Wait-ForWindowByTitle
+# Confirms launch by detecting an active/opened window (MainWindowHandle != 0)
+# whose MainWindowTitle matches $App.Name or $App.StartAppName.
+# Returns the matched Process object so the caller can back-fill ProcessName.
+# Does NOT require or use ProcessName at all.
 # ---------------------------------------------------------------------------
-function Resolve-ProcessName {
-    param($App, [int]$WaitSecs = 5)
+function Wait-ForWindowByTitle {
+    param($App, [int]$WaitSecs = $script:SettleSeconds)
+    $searchTerms = @($App.Name, $App.StartAppName) |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    $searchTerms = @($App.Name, $App.StartAppName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     while ($sw.Elapsed.TotalSeconds -lt $WaitSecs) {
-        foreach ($term in $searchTerms) {
-            $match = Get-Process -ErrorAction SilentlyContinue |
-                Where-Object { $_.MainWindowTitle -like "*$term*" -or $_.ProcessName -like "*$term*" } |
-                Select-Object -First 1
-            if ($match) { return $match.ProcessName }
-        }
+        $match = Get-Process -ErrorAction SilentlyContinue |
+            Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } |
+            Where-Object {
+                $title = $_.MainWindowTitle
+                $searchTerms | Where-Object { $title -like "*$_*" }
+            } |
+            Select-Object -First 1
+        if ($match) { return $match }
         Start-Sleep -Seconds 1
     }
     return $null
@@ -852,16 +860,18 @@ function Start-Win32App {
             Write-Host "$($App.Name): launching via $($App.ShortcutPath)"
             $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
 
-            # BUG-06: auto-detect ProcessName when blank (e.g. Phone Link after Sync).
-            # Runs once; persists to JSON so subsequent runs skip this block entirely.
+            # BUG-06 (rev): when ProcessName is blank, confirm launch by detecting an active window
+            # whose title matches App.Name or App.StartAppName — no ProcessName needed.
+            # Once found, back-fill ProcessName from the matched process and persist to JSON.
             if ([string]::IsNullOrWhiteSpace($App.ProcessName)) {
-                $detected = Resolve-ProcessName -App $App -WaitSecs $script:SettleSeconds
-                if ($detected) {
-                    $App.ProcessName = $detected
+                Write-Host "$($App.Name): ProcessName blank — waiting for active window to confirm launch..."
+                $matchedProc = Wait-ForWindowByTitle -App $App -WaitSecs $script:SettleSeconds
+                if ($matchedProc) {
+                    $App.ProcessName = $matchedProc.ProcessName
                     Export-AppsConfig
-                    Write-Host "$($App.Name): ProcessName auto-detected as '$detected' and saved."
+                    Write-Host "$($App.Name): active window detected. ProcessName back-filled as '$($App.ProcessName)' and saved."
                 } else {
-                    Write-Warning "$($App.Name): ProcessName could not be auto-detected. App launched but ready-check skipped."
+                    Write-Warning "$($App.Name): no matching active window detected within $script:SettleSeconds seconds. Launch assumed but ready-check skipped."
                 }
             }
 
