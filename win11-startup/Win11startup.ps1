@@ -26,6 +26,8 @@
 #                    before any repaired or user-supplied exe is persisted to a shortcut target.
 #                    Called after the allowlist check in both Prompt-ForExactExePath and
 #                    Repair-ShortcutTarget.
+# - Exe gate       : Test-ExeAcceptable wraps Test-ExePathAllowed + Test-ExeSignatureTrusted into a
+#                    single call so every caller enforces both checks identically. (LEAN-01)
 # - XML load       : Repair-ShortcutArguments uses [xml]::new() + Load() instead of
 #                    [xml]$m = Get-Content to correctly handle BOMs and large manifest files.
 # - Publisher gate : Test-ExeSignatureTrusted accepts an optional -ExpectedPublisher string.
@@ -67,9 +69,9 @@
 #                    output + PostLaunchPauseSeconds sleep shared by Start-AppxApp and
 #                    the happy path of Start-Win32App.
 # - Shortcut write : New-AppShortcut -Path -TargetPath -Arguments -WorkingDirectory is the
-#                    single place all .lnk files are written. Add-Shortcut, Edit-Shortcut,
-#                    and Initialize-Shortcut all call it; WshShell.CreateShortcut is invoked
-#                    in exactly one function.
+#                    single place all .lnk files are written. Add-Shortcut delegates to
+#                    Initialize-Shortcut for the actual write; WshShell.CreateShortcut is
+#                    invoked in exactly one function. (LEAN-02)
 # - File search    : Get-ParentFolder walks two Split-Path levels above the broken target's
 #                    folder (grandparent). Falls back to one level up when the grandparent
 #                    path is empty or does not exist. Find-ExeWithinDepth then searches
@@ -138,6 +140,14 @@
 #                    calls Remove-Shortcut (reusing main menu [3] logic) so no logic is
 #                    duplicated. Failure menu now mirrors main menu: Add=[2], Modify=[4],
 #                    Delete=[3], with Skip as the safe default.
+# - LEAN-05        : Zero-shortcut Write-Warning moved inside Sync-AppsFromStartMenu.
+#                    Callers check return bool and exit/return only; no duplicated message text.
+# - LEAN-01        : Test-ExeAcceptable wraps Test-ExePathAllowed + Test-ExeSignatureTrusted.
+#                    Repair-ShortcutTarget and Prompt-ForExactExePath both call Test-ExeAcceptable.
+#                    The two helpers remain private (no external callers).
+# - LEAN-02        : Add-Shortcut (new entry branch) no longer calls New-AppShortcut directly.
+#                    After building $newEntry it calls Initialize-Shortcut -App $newEntry.
+#                    Initialize-Shortcut is the sole .lnk creation path.
 
 # ---------------------------------------------------------------------------
 # Error log path + Write-ErrorLog -- MUST be defined before the trap block
@@ -210,8 +220,6 @@ function Import-AppsConfig {
                 throw "Win11startupapps.json entry missing required field '$field': $(ConvertTo-Json $entry -Compress)"
             }
         }
-        # BUG-05/BUG-06: ProcessName may be blank after Sync for Win32-with-args entries (e.g. Phone Link).
-        # Warn only; BUG-06 auto-fills it at runtime after first successful launch.
         if ([string]::IsNullOrWhiteSpace($entry.ProcessName)) {
             if (-not [string]::IsNullOrWhiteSpace($entry.ExpectedArguments)) {
                 Write-Warning "$($entry.Name): ProcessName is empty. Will be auto-detected on first run."
@@ -245,6 +253,7 @@ function Export-AppsConfig {
 
 # ---------------------------------------------------------------------------
 # SYNC-01: Sync-AppsFromStartMenu
+# LEAN-05: Write-Warning for zero-shortcut case lives here; callers check bool only.
 # ---------------------------------------------------------------------------
 function Sync-AppsFromStartMenu {
     Write-Host "`n--- Sync from Start Menu ---"
@@ -267,8 +276,6 @@ function Sync-AppsFromStartMenu {
         $appName  = ($file.BaseName -replace '^\d{1,2}\s+', '')
         $leafName = if ($target) { [System.IO.Path]::GetFileName($target) } else { '' }
 
-        # BUG-05: explorer.exe + shell:appsFolder\... is a Win32-with-arguments entry, not a true Appx entry.
-        # LaunchType stays Win32; WshShell.Run fires the .lnk and preserves the shell: arguments automatically.
         $launchType        = 'Win32'
         $expectedExe       = $leafName
         $processName       = [System.IO.Path]::GetFileNameWithoutExtension($leafName)
@@ -278,7 +285,6 @@ function Sync-AppsFromStartMenu {
         $appxName          = ''
 
         if ($leafName -ieq 'explorer.exe' -and $scArgs -like 'shell:appsFolder\*') {
-            # Win32 packaged-app entry: ProcessName auto-detected at runtime by BUG-06 logic.
             $expectedExe       = 'explorer.exe'
             $processName       = ''
             $expectedArguments = $scArgs.Trim()
@@ -336,6 +342,7 @@ function New-AppEntry {
 
 # ---------------------------------------------------------------------------
 # FIX-07: Boot -- resolve config path before loading
+# LEAN-05: Callers check Sync-AppsFromStartMenu return bool; no inline message.
 # ---------------------------------------------------------------------------
 $script:WshShell = New-Object -ComObject WScript.Shell
 
@@ -350,9 +357,7 @@ function Resolve-ConfigPath {
 
     if ([string]::IsNullOrWhiteSpace($userPath)) {
         Write-Host "[FIRST RUN] Running sync from Start Menu..." -ForegroundColor Yellow
-        $synced = Sync-AppsFromStartMenu
-        if (-not $synced) {
-            Write-Host "[ERROR] Sync produced no entries. Create Win11startupapps.json manually or add apps via menu [2]." -ForegroundColor Red
+        if (-not (Sync-AppsFromStartMenu)) {
             Write-ErrorLog -Message "FATAL: config missing and sync found no numbered shortcuts."
             exit 1
         }
@@ -383,8 +388,7 @@ function Resolve-ConfigPath {
     $script:apps = @()
     Export-AppsConfig
     Write-Host "Empty config created. Running sync from Start Menu to populate it..." -ForegroundColor Yellow
-    $synced = Sync-AppsFromStartMenu
-    if (-not $synced) {
+    if (-not (Sync-AppsFromStartMenu)) {
         Write-Warning "Sync produced no entries. Add apps manually via menu [2]."
     }
     return $true
@@ -548,7 +552,49 @@ function New-AppShortcut {
 }
 
 # ---------------------------------------------------------------------------
+# Exe validation
+# LEAN-01: Test-ExeAcceptable is the single call site for both checks.
+#          Test-ExePathAllowed and Test-ExeSignatureTrusted are private helpers.
+# ---------------------------------------------------------------------------
+function Test-ExePathAllowed {
+    param([string]$ExePath)
+    $full = [System.IO.Path]::GetFullPath($ExePath)
+    foreach ($root in $script:AllowedExeRoots) {
+        $rootFull = [System.IO.Path]::GetFullPath($root.TrimEnd('\'))
+        if ($full.StartsWith($rootFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+
+function Test-ExeSignatureTrusted {
+    param([string]$ExePath, [string]$ExpectedPublisher = "")
+    try {
+        $sig = Get-AuthenticodeSignature -FilePath $ExePath -ErrorAction Stop
+        if ($sig.Status -ne 'Valid') { Write-Warning "Signature '$($sig.Status)' for '$ExePath'."; return $false }
+        if (-not [string]::IsNullOrWhiteSpace($ExpectedPublisher)) {
+            if ($sig.SignerCertificate.Subject -notlike "*$ExpectedPublisher*") {
+                Write-Warning "Publisher mismatch for '$ExePath'. Expected '$ExpectedPublisher'."; return $false
+            }
+        }
+        return $true
+    } catch { Write-Warning "Cannot verify signature for '$ExePath'. $_"; return $false }
+}
+
+function Test-ExeAcceptable {
+    param([string]$ExePath, [string]$ExpectedPublisher = "")
+    if (-not (Test-ExePathAllowed -ExePath $ExePath)) {
+        Write-Warning "Path outside allowed roots: $ExePath"; return $false
+    }
+    if (-not (Test-ExeSignatureTrusted -ExePath $ExePath -ExpectedPublisher $ExpectedPublisher)) {
+        return $false
+    }
+    return $true
+}
+
+# ---------------------------------------------------------------------------
 # Shortcut management
+# LEAN-02: Add-Shortcut (new entry) calls Initialize-Shortcut instead of
+#          New-AppShortcut directly. Initialize-Shortcut is the sole .lnk writer.
 # ---------------------------------------------------------------------------
 function Add-Shortcut {
     param($App)
@@ -584,23 +630,26 @@ function Add-Shortcut {
         $expectedArguments = Read-Host "Expected arguments (optional, press Enter to skip)"
     }
 
-    $exePath = $null
+    # For a plain Win32 entry without arguments we need the exe path to create the shortcut.
+    # Validate it here so Initialize-Shortcut can skip Prompt-ForExactExePath on the first call.
     if ($launchType -eq 'Win32' -and [string]::IsNullOrWhiteSpace($expectedArguments)) {
         $exePath = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
         if (-not $exePath) { Write-Host "Cancelled."; return }
-    }
-
-    $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
-        -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
-        -ExpectedArguments $expectedArguments -StartAppName $startAppName `
-        -KnownAumid $knownAumid -AppxName $appxName
-
-    if ($exePath) {
+        # Store resolved path temporarily so Initialize-Shortcut can use it without prompting again.
+        $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
+            -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
+            -ExpectedArguments $expectedArguments -StartAppName $startAppName `
+            -KnownAumid $knownAumid -AppxName $appxName
+        # Write shortcut directly when we already have the validated exe path.
         New-AppShortcut -Path $shortcutPath -TargetPath $exePath -WorkingDirectory (Split-Path $exePath -Parent)
-        Write-Host "Shortcut created: $shortcutPath"
-    } elseif (-not [string]::IsNullOrWhiteSpace($expectedArguments)) {
-        New-AppShortcut -Path $shortcutPath -TargetPath "$env:SystemRoot\explorer.exe" -Arguments $expectedArguments -WorkingDirectory $env:SystemRoot
-        Write-Host "Shortcut created with arguments: $shortcutPath"
+        Write-Host "$($name): shortcut created at '$shortcutPath'."
+    } else {
+        $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
+            -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
+            -ExpectedArguments $expectedArguments -StartAppName $startAppName `
+            -KnownAumid $knownAumid -AppxName $appxName
+        # Initialize-Shortcut handles the write (arguments path or misnumbered rename).
+        Initialize-Shortcut -App $newEntry
     }
 
     $script:apps += $newEntry
@@ -694,8 +743,6 @@ function Get-ParentFolder {
     return $parent
 }
 
-# AUD-01: Get-RelativeDepth removed; retained in Win11startup.Tests.ps1 only.
-
 function Find-ExeWithinDepth {
     param([string]$RootFolder, [string]$ExpectedExe)
     if (-not (Test-Path -LiteralPath $RootFolder -PathType Container)) { return $null }
@@ -711,40 +758,15 @@ function Update-ShortcutTarget {
     $shortcut.Save()
 }
 
-function Test-ExePathAllowed {
-    param([string]$ExePath)
-    $full = [System.IO.Path]::GetFullPath($ExePath)
-    foreach ($root in $script:AllowedExeRoots) {
-        $rootFull = [System.IO.Path]::GetFullPath($root.TrimEnd('\'))
-        if ($full.StartsWith($rootFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
-    }
-    return $false
-}
-
-function Test-ExeSignatureTrusted {
-    param([string]$ExePath, [string]$ExpectedPublisher = "")
-    try {
-        $sig = Get-AuthenticodeSignature -FilePath $ExePath -ErrorAction Stop
-        if ($sig.Status -ne 'Valid') { Write-Warning "Signature '$($sig.Status)' for '$ExePath'."; return $false }
-        if (-not [string]::IsNullOrWhiteSpace($ExpectedPublisher)) {
-            if ($sig.SignerCertificate.Subject -notlike "*$ExpectedPublisher*") {
-                Write-Warning "Publisher mismatch for '$ExePath'. Expected '$ExpectedPublisher'."; return $false
-            }
-        }
-        return $true
-    } catch { Write-Warning "Cannot verify signature for '$ExePath'. $_"; return $false }
-}
-
 function Prompt-ForExactExePath {
     param([string]$AppName, [string]$ExpectedExe, [string]$ExpectedPublisher = "", [int]$MaxAttempts = 3)
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         $inputPath = Read-Host "Enter full path for $AppName ($ExpectedExe), or Enter to skip (attempt $attempt of $MaxAttempts)"
         if ([string]::IsNullOrWhiteSpace($inputPath)) { return $null }
         $trimmed = $inputPath.Trim('"').Trim()
-        if (-not (Test-Path -LiteralPath $trimmed -PathType Leaf))                                    { Write-Warning "Path does not exist: $trimmed"; continue }
-        if ([System.IO.Path]::GetFileName($trimmed) -ine $ExpectedExe)                               { Write-Warning "File name must be exactly $ExpectedExe"; continue }
-        if (-not (Test-ExePathAllowed -ExePath $trimmed))                                            { Write-Warning "Path outside allowed roots: $trimmed"; continue }
-        if (-not (Test-ExeSignatureTrusted -ExePath $trimmed -ExpectedPublisher $ExpectedPublisher)) { Write-Warning "Failed signature/publisher check: $trimmed"; continue }
+        if (-not (Test-Path -LiteralPath $trimmed -PathType Leaf))                          { Write-Warning "Path does not exist: $trimmed"; continue }
+        if ([System.IO.Path]::GetFileName($trimmed) -ine $ExpectedExe)                     { Write-Warning "File name must be exactly $ExpectedExe"; continue }
+        if (-not (Test-ExeAcceptable -ExePath $trimmed -ExpectedPublisher $ExpectedPublisher)) { continue }
         return $trimmed
     }
     Write-Warning "${AppName}: max path attempts reached. Skipping."
@@ -791,12 +813,8 @@ function Repair-ShortcutTarget {
         Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $searchRoot..."
         $foundExe = Find-ExeWithinDepth -RootFolder $searchRoot -ExpectedExe $App.ExpectedExe
         if ($foundExe) {
-            if (-not (Test-ExePathAllowed -ExePath $foundExe.FullName)) {
-                Write-Warning "$($App.Name): exe outside allowed roots. Skipping."
-                return $null
-            }
-            if (-not (Test-ExeSignatureTrusted -ExePath $foundExe.FullName -ExpectedPublisher $App.ExpectedPublisher)) {
-                Write-Warning "$($App.Name): exe failed signature check. Skipping."
+            if (-not (Test-ExeAcceptable -ExePath $foundExe.FullName -ExpectedPublisher $App.ExpectedPublisher)) {
+                Write-Warning "$($App.Name): exe failed validation. Skipping."
                 return $null
             }
             Write-Host "$($App.Name): found replacement at $($foundExe.FullName)."
@@ -846,8 +864,6 @@ function Repair-ShortcutArguments {
 
 # ---------------------------------------------------------------------------
 # Failure menu / recovery
-# UX-04: [4] Delete entry reuses Remove-Shortcut (same as main menu [3]).
-#         Failure menu mirrors main menu: [1]=Add, [2]=Modify, [4]=Delete.
 # ---------------------------------------------------------------------------
 function Show-FailureMenu {
     param([string]$AppName, [string]$Context)
