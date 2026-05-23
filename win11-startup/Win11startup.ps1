@@ -163,6 +163,14 @@
 #                    iteration of the repair + launch + wait + failure-recovery cycle. Returns
 #                    'Success', 'Retry', or 'Abort'. Start-Win32App loop becomes a thin
 #                    switch over that return value, collapsing ~40 lines into ~10.
+# - BUG-07         : Add-Shortcut Win32 branch passed -ExpectedPublisher with no value and
+#                    used undefined $appName instead of $appxName. Fixed: $expectedPublisher
+#                    value supplied; $appxName used for the correct parameter.
+# - BUG-08         : Initialize-Shortcut had a dangling } else { ... } block outside the
+#                    function body because the Win32 exe-path branch lacked a wrapping if/else.
+#                    Fixed: exe resolution and shortcut creation wrapped in if ($exePath) { }
+#                    else { } so the function is syntactically complete and null $exePath is
+#                    handled gracefully instead of crashing with a null TargetPath.
 
 # ---------------------------------------------------------------------------
 # Error log path + Write-ErrorLog -- MUST be defined before the trap block
@@ -610,6 +618,8 @@ function Test-ExeAcceptable {
 # Shortcut management
 # LEAN-02: Add-Shortcut (new entry) calls Initialize-Shortcut instead of
 #          New-AppShortcut directly. Initialize-Shortcut is the sole .lnk writer.
+# BUG-07 : Win32 branch fixed -- $expectedPublisher value passed correctly;
+#          $appxName used instead of undefined $appName.
 # ---------------------------------------------------------------------------
 function Add-Shortcut {
     param($App)
@@ -645,14 +655,20 @@ function Add-Shortcut {
         $expectedArguments = Read-Host "Expected arguments (optional, press Enter to skip)"
     }
 
+    # BUG-07: Win32 no-args branch -- pass $expectedPublisher value and use $appxName (not $appName).
     if ($launchType -eq 'Win32' -and [string]::IsNullOrWhiteSpace($expectedArguments)) {
-        $exePath = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
-                $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
-            -ProcessName $processName -ExpectedExe $exePath -ExpectedPublisher `
+        $exePath  = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
+        $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
+            -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
             -ExpectedArguments $expectedArguments -StartAppName $startAppName `
-            -KnownAumid $knownAumid -AppName $appName
-        Initialize-Shortcut -App $newEntry
-        Write-Host "$($name): shortcut created at '$shortcutPath'."
+            -KnownAumid $knownAumid -AppxName $appxName
+        if ($exePath) {
+            $newEntry.ExpectedExe = $exePath
+            Initialize-Shortcut -App $newEntry
+            Write-Host "$($name): shortcut created at '$shortcutPath'."
+        } else {
+            Write-Warning "$($name): no exe path supplied. Entry added without shortcut creation."
+        }
     } else {
         $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
             -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
@@ -786,6 +802,9 @@ function Find-MisnumberedShortcut {
         Select-Object -First 1
 }
 
+# BUG-08: Initialize-Shortcut -- Win32 exe-path branch now wrapped in if ($exePath) { } else { }
+#         so the function body is syntactically complete and a null $exePath (user cancelled)
+#         is handled gracefully instead of passing $null as TargetPath to New-AppShortcut.
 function Initialize-Shortcut {
     param($App)
     if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { return }
@@ -799,14 +818,17 @@ function Initialize-Shortcut {
         New-AppShortcut -Path $App.ShortcutPath -TargetPath "$env:SystemRoot\explorer.exe" -Arguments $App.ExpectedArguments -WorkingDirectory $env:SystemRoot
         Write-Host "$($App.Name): shortcut created with Arguments: $($App.ExpectedArguments)"; return
     }
-        if (Test-Path -LiteralPath $App.ExpectedExe -PathType Leaf -ErrorAction SilentlyContinue) {
-        $exePath = $App.ExpectedExe
+    $exePath = if (Test-Path -LiteralPath $App.ExpectedExe -PathType Leaf -ErrorAction SilentlyContinue) {
+        $App.ExpectedExe
     } else {
-        $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
+        Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     }
+    if ($exePath) {
         New-AppShortcut -Path $App.ShortcutPath -TargetPath $exePath -WorkingDirectory (Split-Path $exePath -Parent)
         Write-Host "$($App.Name): shortcut created at '$($App.ShortcutPath)'."
-    } else { Write-Warning "$($App.Name): shortcut creation skipped." }
+    } else {
+        Write-Warning "$($App.Name): shortcut creation skipped (no valid exe path)."
+    }
 }
 
 # ---------------------------------------------------------------------------
@@ -1005,7 +1027,7 @@ function Invoke-LaunchAttempt {
         if ($null -eq $App.PresenceMode -and -not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
             $resolvedMode = Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0
             if ($resolvedMode) { $App.PresenceMode = $resolvedMode }
-            Export-AppsConfig            
+            Export-AppsConfig
         }
         if ($ready) { return 'Success' }
 
