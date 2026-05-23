@@ -4,7 +4,13 @@
 
 ## Open
 
-*(no open tasks — backlog is empty)*
+| ID | Category | Description |
+|---|---|---|
+| **BUG-A** | Bug | `Add-Shortcut` Win32 no-args branch: `New-AppEntry` called with `-ExpectedPublisher` missing value (used as switch), undefined `$appName` variable, and non-existent `-AppName` param. Must be `-ExpectedPublisher $expectedPublisher`, `-AppxName $appxName`. |
+| **BUG-B** | Bug | `Initialize-Shortcut` has dangling `else` with no matching `if`. The `New-AppShortcut` + `Write-Host` lines sit outside any branch; the trailing `} else { Write-Warning …skipped }` is unanchored. Wrap in `if ($exePath) { … } else { … }`. |
+| **BUG-C** | Bug | `Invoke-LaunchAttempt` uses `return if ($recover) { 'Retry' } else { 'Abort' }` — invalid PowerShell syntax. `return` exits with `$null` before `if` is evaluated, breaking the retry loop in `Start-Win32App`. Replace with explicit `if ($recover) { return 'Retry' } else { return 'Abort' }`. |
+| **BUG-D** | Bug | `Win11startupapps.json` Sticky Notes entry is misconfigured as `LaunchType=Win32 / ProcessName=ONENOTE / ExpectedExe=ONENOTE.EXE`. Sticky Notes is a UWP app; it must be `LaunchType=Appx`, `ProcessName=StickyNotes`, `ExpectedExe=explorer.exe`, `KnownAumid=Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe!App`. Also causes OneNote false-skip (shared ProcessName). |
+| **DEAD-01** | Cleanup | Audit `Win11startup.ps1` for any functions/variables defined but never called in the startup sequence (reuse existing modules; delete unused code). Cross-check against `Win11startup.Tests.ps1` to retain test-only stubs intentionally. |
 
 ## Closed
 
@@ -12,7 +18,7 @@
 |---|---|---|---|
 | **LEAN-01** | Refactor | Collapse `Test-ExePathAllowed` + `Test-ExeSignatureTrusted` into single `Test-ExeAcceptable` wrapper | Done |
 | **LEAN-02** | Refactor | Remove inline `New-AppShortcut` from `Add-Shortcut`; delegate to `Initialize-Shortcut` so shortcut creation has one owner | Done |
-| **LEAN-03** | Refactor | Extract `Invoke-MenuAction` to unify `Show-AppPicker` + dispatch used by main menu and `Invoke-FailureRecovery` choice `[2]` | Done — evaluated; patterns are contextually different enough (`-AllowNew` on menu `[2]` only, failure recovery scoped to specific app) that extraction adds marginal value. Intentionally deprioritised. |
+| **LEAN-03** | Refactor | Extract `Invoke-MenuAction` to unify `Show-AppPicker` + dispatch used by main menu and `Invoke-FailureRecovery` choice `[2]` | Done — evaluated; patterns are contextually different enough that extraction adds marginal value. Intentionally deprioritised. |
 | **LEAN-04** | Refactor | Extract `Invoke-LaunchAttempt` from `Start-Win32App`; collapse timeout + exception `Invoke-FailureRecovery` calls into one | Done — returns `'Success'`/`'Retry'`/`'Abort'`; `Start-Win32App` loop is a thin `switch` |
 | **LEAN-05** | Refactor | Move zero-shortcut `Write-Warning` inside `Sync-AppsFromStartMenu`; callers check bool only | Done |
 | **LEAN-06** | Refactor | `Invoke-ShortcutRepair` owns `Get-ShortcutObject` + `.Save()` envelope; both repair functions are thin scriptblock delegates; `Update-ShortcutTarget` retired | Done |
@@ -25,10 +31,10 @@
 | **BUG-04** | Bug | `Prompt-ForExactExePath` max-attempts warning fixed from `$AppName:` to `${AppName}` | Done |
 | **BUG-05** | Bug | `Sync-AppsFromStartMenu` now keeps `LaunchType=Win32` for `explorer.exe+shell:appsFolder` entries | Done |
 | **BUG-06** | Bug | `Wait-ForWindowByTitle` replaces `Resolve-ProcessName`; back-fills `ProcessName` from matched window and persists to JSON | Done |
-| **BUG-07** | Bug | `Edit-Shortcut` update-existing branch bypassed `Invoke-ShortcutRepair`. Routed through `Initialize-Shortcut` to honor LEAN-02 contract. | Done — sees BUG-07 fix commit |
-| **BUG-08** | Bug | `Add-Shortcut` Win32 no-args path called `New-AppShortcut` outside `Initialize-Shortcut`. Refactored to pass `$exePath` into `Initialize-Shortcut`. | Done — sees BUG-08 fix commit |
-| **BUG-09** | Bug | `Invoke-LaunchAttempt` args-validity check used `-notlike` wildcard on `ExpectedArguments`. Replaced with strict `-ine` equality. | Done — sees BUG-09 fix commit |
-| **BUG-10** | Bug | `Invoke-LaunchAttempt` set `$App.PresenceMode` in memory after detection but never called `Export-AppsConfig`. Added `Export-AppsConfig` call after persisting. | Done — sees BUG-10 fix commit |
+| **BUG-07** | Bug | `Edit-Shortcut` update-existing branch bypassed `Invoke-ShortcutRepair`. Routed through `Initialize-Shortcut` to honor LEAN-02 contract. | Done |
+| **BUG-08** | Bug | `Add-Shortcut` Win32 no-args path called `New-AppShortcut` outside `Initialize-Shortcut`. Refactored to pass `$exePath` into `Initialize-Shortcut`. | Done |
+| **BUG-09** | Bug | `Invoke-LaunchAttempt` args-validity check used `-notlike` wildcard on `ExpectedArguments`. Replaced with strict `-ine` equality. | Done |
+| **BUG-10** | Bug | `Invoke-LaunchAttempt` set `$App.PresenceMode` in memory after detection but never called `Export-AppsConfig`. Added `Export-AppsConfig` call after persisting. | Done |
 | **DUP-01** | Refactor | `Wait-ForProcessCondition` extracted from `Wait-ForAppReady` | Done |
 | **FIX-04** | Fix | `Test-AppAlreadyOpen` accepts `-RequireWindow` switch | Done |
 | **FIX-05** | Fix | `Repair-ShortcutArguments` uses `$pkg.PackageFamilyName` directly from `Get-AppxPackage` | Done |
@@ -50,11 +56,10 @@
 | **UX-02** | UX | `Remove-Shortcut` uses combined prompt when shortcut is missing | Done |
 | **UX-03** | UX | `Start-Win32App` catch block calls `Invoke-FailureRecovery` | Done |
 | **UX-04** | UX | `Show-FailureMenu` adds `[4] Delete entry`; `Invoke-FailureRecovery` `'4'` branch calls `Remove-Shortcut` | Done |
-| **README-01** | Docs | README outdated: references `apps.json` and `$MaxRepairDepth`; missing menu `[6] Sync` workflow; missing all user menu scenario / workflow descriptions | Done — full rewrite delivered in commit 8d05861; file references `Win11startupapps.json`, includes `[6] Sync from Start Menu`, sync workflow, and scenario descriptions.
+| **README-01** | Docs | README outdated: references `apps.json` and `$MaxRepairDepth`; missing menu `[6] Sync` workflow | Done — full rewrite delivered in commit 8d05861 |
 
 ## Notes
 - All LEAN tasks complete through LEAN-07.
-- All backlog items resolved. Closed items include LEAN (7 tasks), BUG (10 tasks), SYNC, AUD, DUP, FIX (4 tasks), HARD (2 tasks), INT (2 tasks), QOL (5 tasks), ROB (3 tasks), T, UX (3 tasks), README (1 task).
-- BUG-07 through BUG-10 resolved. LEAN-02/LEAN-06 contracts now consistently enforced across `Edit-Shortcut` and `Add-Shortcut`.
-- `Invoke-LaunchAttempt` args check is strict (`-ine`); `PresenceMode` persistence triggers `Export-AppsConfig`.
-- `Win11startup.Tests.ps1` should be reviewed for `Invoke-ShortcutRepair` delegate coverage.
+- BUG-A/B/C are code bugs; BUG-D is a JSON config error. All four are blocking correct operation of `Add-Shortcut`, `Initialize-Shortcut`, `Invoke-LaunchAttempt`, and Sticky Notes launch.
+- DEAD-01: reuse existing helpers (`Initialize-Shortcut`, `Invoke-ShortcutRepair`, `New-AppEntry`) — do not duplicate logic. Delete only functions with zero callers confirmed by grep.
+- `Win11startup.Tests.ps1` intentionally retains `Get-RelativeDepth` stub (AUD-01); do not delete from test file.
