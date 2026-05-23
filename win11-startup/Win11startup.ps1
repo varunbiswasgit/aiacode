@@ -13,7 +13,7 @@
 # - Bootstrap      : before launch loop, ensures every Win32 .lnk exists at the expected path;
 #                    renames misnumbered matches found in the same folder, or creates fresh if absent
 # - Main menu      : on launch, user chooses Run / Add / Delete / Modify / List / Sync / Exit
-#                    inline failure menu (Add+retry / Modify / Skip) appears when a shortcut
+#                    inline failure menu (Add+retry / Modify / Skip / Delete entry) appears when a shortcut
 #                    is missing or an app fails to start during the startup sequence
 # - Presence mode  : after launch, Get-AppPresenceMode polls MainWindowHandle for $script:SettleSeconds;
 #                    if a window appears -> 'Window' mode (skip only when window visible);
@@ -58,9 +58,11 @@
 # - Timeout math   : Wait-ForAppReady stores actual phase-1 settle duration in $phase1Secs
 #                    and subtracts that exact value for phase-2 remaining, so the total
 #                    timeout is always honoured even when TimeoutSeconds < SettleSeconds.
-# - Failure menu   : Show-FailureMenu centralises the 3-option inline prompt (Add+retry /
-#                    Modify / Skip) used by both the missing-shortcut and launch-timeout
-#                    paths in Start-Win32App.
+# - Failure menu   : Show-FailureMenu centralises the 4-option inline prompt (Add+retry /
+#                    Modify / Skip / Delete entry) used by both the missing-shortcut and
+#                    launch-timeout paths in Start-Win32App.
+#                    [4] Delete entry calls Remove-Shortcut (same as main menu [3]) so no
+#                    logic is duplicated.
 # - Launch wait    : Invoke-AppLaunchWait centralises the Wait-ForAppReady + ready/warning
 #                    output + PostLaunchPauseSeconds sleep shared by Start-AppxApp and
 #                    the happy path of Start-Win32App.
@@ -132,6 +134,10 @@
 #                    If the user supplies a new (non-existent) path, an empty config skeleton
 #                    is written there and Sync-AppsFromStartMenu populates it. Pressing Enter
 #                    falls back to the original auto-sync behaviour.
+# - UX-04          : Show-FailureMenu adds [4] Delete entry. Invoke-FailureRecovery '4' branch
+#                    calls Remove-Shortcut (reusing main menu [3] logic) so no logic is
+#                    duplicated. Failure menu now mirrors main menu: Add=[2], Modify=[4],
+#                    Delete=[3], with Skip as the safe default.
 
 # ---------------------------------------------------------------------------
 # Error log path + Write-ErrorLog -- MUST be defined before the trap block
@@ -330,11 +336,6 @@ function New-AppEntry {
 
 # ---------------------------------------------------------------------------
 # FIX-07: Boot -- resolve config path before loading
-# If Win11startupapps.json is missing at the default location:
-#   1. Prompt user for an alternate path.
-#   2a. If the path exists     -> load it and update $script:AppsConfigPath.
-#   2b. If the path is new     -> write an empty skeleton there, update path, then sync.
-#   2c. If Enter pressed       -> fall back to auto-sync into the default path.
 # ---------------------------------------------------------------------------
 $script:WshShell = New-Object -ComObject WScript.Shell
 
@@ -348,7 +349,6 @@ function Resolve-ConfigPath {
     $userPath = (Read-Host "JSON path (or Enter to auto-sync)").Trim().Trim('"')
 
     if ([string]::IsNullOrWhiteSpace($userPath)) {
-        # Fall back: auto-sync into default path
         Write-Host "[FIRST RUN] Running sync from Start Menu..." -ForegroundColor Yellow
         $synced = Sync-AppsFromStartMenu
         if (-not $synced) {
@@ -365,13 +365,11 @@ function Resolve-ConfigPath {
     }
 
     if (Test-Path -LiteralPath $userPath -PathType Leaf) {
-        # Existing file at custom path -- use it directly
         $script:AppsConfigPath = $userPath
         Write-Host "Using existing config: $script:AppsConfigPath" -ForegroundColor Green
         return $true
     }
 
-    # New path -- confirm creation
     $confirm = Read-Host "File not found. Create new empty config at '$userPath'? (Y/N)"
     if ($confirm -ine 'Y') { Write-Host "Cancelled."; return $false }
 
@@ -381,7 +379,6 @@ function Resolve-ConfigPath {
         catch { Write-Warning "Cannot create directory '$dir': $_"; return $false }
     }
 
-    # Write empty skeleton so Export-AppsConfig has a valid target
     $script:AppsConfigPath = $userPath
     $script:apps = @()
     Export-AppsConfig
@@ -457,7 +454,7 @@ function Wait-ForProcessCondition {
 
 function Wait-ForAppReady {
     param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
-    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $true }  # blank name: assume launched
+    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $true }
     $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
     $mode       = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
     $remaining  = $TimeoutSeconds - $phase1Secs
@@ -476,10 +473,6 @@ function Wait-ForAppReady {
 
 # ---------------------------------------------------------------------------
 # BUG-06 (rev): Wait-ForWindowByTitle
-# Confirms launch by detecting an active/opened window (MainWindowHandle != 0)
-# whose MainWindowTitle matches $App.Name or $App.StartAppName.
-# Returns the matched Process object so the caller can back-fill ProcessName.
-# Does NOT require or use ProcessName at all.
 # ---------------------------------------------------------------------------
 function Wait-ForWindowByTitle {
     param($App, [int]$WaitSecs = $script:SettleSeconds)
@@ -853,12 +846,15 @@ function Repair-ShortcutArguments {
 
 # ---------------------------------------------------------------------------
 # Failure menu / recovery
+# UX-04: [4] Delete entry reuses Remove-Shortcut (same as main menu [3]).
+#         Failure menu mirrors main menu: [1]=Add, [2]=Modify, [4]=Delete.
 # ---------------------------------------------------------------------------
 function Show-FailureMenu {
     param([string]$AppName, [string]$Context)
     Write-Host "  [1] Add / fix shortcut for $AppName and retry"
     Write-Host "  [2] Modify a different shortcut"
     Write-Host "  [3] Skip"
+    Write-Host "  [4] Delete '$AppName' entry from config"
     return (Read-Host "Select ($Context)")
 }
 
@@ -877,6 +873,7 @@ function Invoke-FailureRecovery {
     switch ($choice) {
         '1' { if ($PreRetryAction) { & $PreRetryAction }; return $true }
         '2' { $target = Show-AppPicker -Prompt "Select shortcut to modify:"; if ($target) { Edit-Shortcut -App $target }; return $false }
+        '4' { Remove-Shortcut -App $App; return $false }
         default { Write-Host "$($App.Name): skipped.`n"; return $false }
     }
 }
@@ -926,9 +923,6 @@ function Start-Win32App {
             Write-Host "$($App.Name): launching via $($App.ShortcutPath)"
             $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
 
-            # BUG-06 (rev): when ProcessName is blank, confirm launch by detecting an active window
-            # whose title matches App.Name or App.StartAppName - no ProcessName needed.
-            # Once found, back-fill ProcessName from the matched process and persist to JSON.
             if ([string]::IsNullOrWhiteSpace($App.ProcessName)) {
                 Write-Host "$($App.Name): ProcessName blank - waiting for active window to confirm launch..."
                 $matchedProc = Wait-ForWindowByTitle -App $App -WaitSecs $script:SettleSeconds
