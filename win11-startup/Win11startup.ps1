@@ -647,12 +647,11 @@ function Add-Shortcut {
 
     if ($launchType -eq 'Win32' -and [string]::IsNullOrWhiteSpace($expectedArguments)) {
         $exePath = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
-        if (-not $exePath) { Write-Host "Cancelled."; return }
-        $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
-            -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
+                $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
+            -ProcessName $processName -ExpectedExe $exePath -ExpectedPublisher `
             -ExpectedArguments $expectedArguments -StartAppName $startAppName `
-            -KnownAumid $knownAumid -AppxName $appxName
-        New-AppShortcut -Path $shortcutPath -TargetPath $exePath -WorkingDirectory (Split-Path $exePath -Parent)
+            -KnownAumid $knownAumid -AppName $appName
+        Initialize-Shortcut -App $newEntry
         Write-Host "$($name): shortcut created at '$shortcutPath'."
     } else {
         $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
@@ -800,8 +799,11 @@ function Initialize-Shortcut {
         New-AppShortcut -Path $App.ShortcutPath -TargetPath "$env:SystemRoot\explorer.exe" -Arguments $App.ExpectedArguments -WorkingDirectory $env:SystemRoot
         Write-Host "$($App.Name): shortcut created with Arguments: $($App.ExpectedArguments)"; return
     }
-    $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
-    if ($exePath) {
+        if (Test-Path -LiteralPath $App.ExpectedExe -PathType Leaf -ErrorAction SilentlyContinue) {
+        $exePath = $App.ExpectedExe
+    } else {
+        $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
+    }
         New-AppShortcut -Path $App.ShortcutPath -TargetPath $exePath -WorkingDirectory (Split-Path $exePath -Parent)
         Write-Host "$($App.Name): shortcut created at '$($App.ShortcutPath)'."
     } else { Write-Warning "$($App.Name): shortcut creation skipped." }
@@ -1003,6 +1005,7 @@ function Invoke-LaunchAttempt {
         if ($null -eq $App.PresenceMode -and -not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
             $resolvedMode = Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0
             if ($resolvedMode) { $App.PresenceMode = $resolvedMode }
+            Export-AppsConfig            
         }
         if ($ready) { return 'Success' }
 
