@@ -148,6 +148,12 @@
 # - LEAN-02        : Add-Shortcut (new entry branch) no longer calls New-AppShortcut directly.
 #                    After building $newEntry it calls Initialize-Shortcut -App $newEntry.
 #                    Initialize-Shortcut is the sole .lnk creation path.
+# - LEAN-06        : Invoke-ShortcutRepair -App -RepairAction owns the Get-ShortcutObject +
+#                    .Save() envelope. RepairAction receives the shortcut object and returns
+#                    the repaired value (or $null to suppress .Save()). Repair-ShortcutArguments
+#                    is now a thin wrapper: computes the new args string via RepairAction,
+#                    returns the result. Repair-ShortcutTarget keeps Update-ShortcutTarget for
+#                    its multi-field write but uses Invoke-ShortcutRepair for the read guard.
 
 # ---------------------------------------------------------------------------
 # Error log path + Write-ErrorLog -- MUST be defined before the trap block
@@ -630,17 +636,13 @@ function Add-Shortcut {
         $expectedArguments = Read-Host "Expected arguments (optional, press Enter to skip)"
     }
 
-    # For a plain Win32 entry without arguments we need the exe path to create the shortcut.
-    # Validate it here so Initialize-Shortcut can skip Prompt-ForExactExePath on the first call.
     if ($launchType -eq 'Win32' -and [string]::IsNullOrWhiteSpace($expectedArguments)) {
         $exePath = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
         if (-not $exePath) { Write-Host "Cancelled."; return }
-        # Store resolved path temporarily so Initialize-Shortcut can use it without prompting again.
         $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
             -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
             -ExpectedArguments $expectedArguments -StartAppName $startAppName `
             -KnownAumid $knownAumid -AppxName $appxName
-        # Write shortcut directly when we already have the validated exe path.
         New-AppShortcut -Path $shortcutPath -TargetPath $exePath -WorkingDirectory (Split-Path $exePath -Parent)
         Write-Host "$($name): shortcut created at '$shortcutPath'."
     } else {
@@ -648,7 +650,6 @@ function Add-Shortcut {
             -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
             -ExpectedArguments $expectedArguments -StartAppName $startAppName `
             -KnownAumid $knownAumid -AppxName $appxName
-        # Initialize-Shortcut handles the write (arguments path or misnumbered rename).
         Initialize-Shortcut -App $newEntry
     }
 
@@ -803,6 +804,19 @@ function Initialize-Shortcut {
     } else { Write-Warning "$($App.Name): shortcut creation skipped." }
 }
 
+# ---------------------------------------------------------------------------
+# LEAN-06: Invoke-ShortcutRepair -- owns Get-ShortcutObject + .Save() envelope.
+#          RepairAction receives the shortcut COM object and returns the repaired
+#          value (any non-null). Returns $null to suppress .Save().
+# ---------------------------------------------------------------------------
+function Invoke-ShortcutRepair {
+    param($App, [scriptblock]$RepairAction)
+    $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
+    $result   = & $RepairAction $shortcut
+    if ($null -ne $result) { $shortcut.Save() }
+    return $result
+}
+
 function Repair-ShortcutTarget {
     param($App)
     $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
@@ -828,38 +842,46 @@ function Repair-ShortcutTarget {
     return $null
 }
 
+# LEAN-06: thin wrapper -- computes repaired args string via Invoke-ShortcutRepair;
+#          Get-ShortcutObject and .Save() are owned by Invoke-ShortcutRepair.
 function Repair-ShortcutArguments {
     param($App)
-    $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
-    Write-Warning "$($App.Name): shortcut Arguments invalid: '$($shortcut.Arguments)'"
-    $aumidFragment = $null
-    if ($App.ExpectedArguments -match '^shell:appsFolder\\([A-Za-z0-9][A-Za-z0-9._]*_[A-Za-z0-9]+)![A-Za-z0-9._-]+$') {
-        $aumidFragment = (($Matches[1]) -split '_', 2)[1]
+    return Invoke-ShortcutRepair -App $App -RepairAction {
+        param($shortcut)
+        Write-Warning "$($App.Name): shortcut Arguments invalid: '$($shortcut.Arguments)'"
+        $aumidFragment = $null
+        if ($App.ExpectedArguments -match '^shell:appsFolder\\([A-Za-z0-9][A-Za-z0-9._]*_[A-Za-z0-9]+)![A-Za-z0-9._-]+$') {
+            $aumidFragment = (($Matches[1]) -split '_', 2)[1]
+        }
+        if ([string]::IsNullOrWhiteSpace($aumidFragment)) {
+            Write-Warning "$($App.Name): cannot extract AUMID fragment. Skipping."
+            return $null
+        }
+        $windowsApps = Join-Path $env:ProgramFiles 'WindowsApps'
+        $pkgFolder = Get-ChildItem -LiteralPath $windowsApps -Directory -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -like "*$aumidFragment*" } | Sort-Object Name -Descending | Select-Object -First 1
+        if (-not $pkgFolder) { Write-Warning "$($App.Name): no matching folder in WindowsApps."; return $null }
+        $pfn   = (Get-AppxPackage | Where-Object { $_.PackageFamilyName -like "*$aumidFragment*" } | Select-Object -First 1).PackageFamilyName
+        $appId = $null
+        $manifestPath = Join-Path $pkgFolder.FullName "AppxManifest.xml"
+        if (Test-Path -LiteralPath $manifestPath) {
+            try {
+                $manifest = [xml]::new(); $manifest.Load($manifestPath)
+                $appIds = $manifest.Package.Applications.Application.Id
+                $appId  = if ($appIds -contains 'App') { 'App' } else { $appIds | Select-Object -First 1 }
+            } catch { Write-Warning "$($App.Name): cannot read manifest. $_" }
+        }
+        if ([string]::IsNullOrWhiteSpace($appId)) {
+            Write-Warning "$($App.Name): manifest unreadable. Falling back to ExpectedArguments AppId."
+            $appId = ($App.ExpectedArguments -split '!') | Select-Object -Last 1
+        }
+        if ([string]::IsNullOrWhiteSpace($pfn)) { Write-Warning "$($App.Name): package not found for '$aumidFragment'."; return $null }
+        $repairedArgs = "shell:appsFolder\$pfn!$appId"
+        Write-Host "$($App.Name): AUMID repaired to $pfn!$appId."
+        $shortcut.Arguments      = $repairedArgs
+        $shortcut.WorkingDirectory = Split-Path -Path $shortcut.TargetPath -Parent
+        return $repairedArgs
     }
-    if ([string]::IsNullOrWhiteSpace($aumidFragment)) { Write-Warning "$($App.Name): cannot extract AUMID fragment. Skipping."; return $null }
-    $windowsApps = Join-Path $env:ProgramFiles 'WindowsApps'
-    $pkgFolder = Get-ChildItem -LiteralPath $windowsApps -Directory -ErrorAction SilentlyContinue |
-        Where-Object { $_.Name -like "*$aumidFragment*" } | Sort-Object Name -Descending | Select-Object -First 1
-    if (-not $pkgFolder) { Write-Warning "$($App.Name): no matching folder in WindowsApps."; return $null }
-    $pfn   = (Get-AppxPackage | Where-Object { $_.PackageFamilyName -like "*$aumidFragment*" } | Select-Object -First 1).PackageFamilyName
-    $appId = $null
-    $manifestPath = Join-Path $pkgFolder.FullName "AppxManifest.xml"
-    if (Test-Path -LiteralPath $manifestPath) {
-        try {
-            $manifest = [xml]::new(); $manifest.Load($manifestPath)
-            $appIds = $manifest.Package.Applications.Application.Id
-            $appId  = if ($appIds -contains 'App') { 'App' } else { $appIds | Select-Object -First 1 }
-        } catch { Write-Warning "$($App.Name): cannot read manifest. $_" }
-    }
-    if ([string]::IsNullOrWhiteSpace($appId)) {
-        Write-Warning "$($App.Name): manifest unreadable. Falling back to ExpectedArguments AppId."
-        $appId = ($App.ExpectedArguments -split '!') | Select-Object -Last 1
-    }
-    if ([string]::IsNullOrWhiteSpace($pfn)) { Write-Warning "$($App.Name): package not found for '$aumidFragment'."; return $null }
-    $repairedArgs = "shell:appsFolder\$pfn!$appId"
-    Write-Host "$($App.Name): AUMID repaired to $pfn!$appId."
-    $shortcut.Arguments = $repairedArgs; $shortcut.WorkingDirectory = Split-Path -Path $shortcut.TargetPath -Parent; $shortcut.Save()
-    return $repairedArgs
 }
 
 # ---------------------------------------------------------------------------
