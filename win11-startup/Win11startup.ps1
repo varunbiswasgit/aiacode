@@ -1,187 +1,13 @@
-# Curated startup launcher with self-healing shortcut repair
-# - Win32 apps     : shortcut invoked via WshShell.Run when target is valid (preserves baked-in arguments)
-#                    self-healing repair + user-prompt fallback used only when shortcut target is broken
-#                    repaired shortcuts are then invoked via WshShell.Run as well
-# - Appx apps      : AUMID resolved at runtime (Get-StartApps -> KnownAumid verification -> AppxPackage manifest)
-#                    KnownAumid used only as primary candidate, not sole source of truth
-# - Sticky Notes   : Win32 shortcut with /memoryWindow start baked into the .lnk Target field
-#                    WshShell.Run fires the shortcut as-is; no separate Arguments field needed
-# - Packaged apps  : Win32 entries that cannot be launched via direct .exe invocation (e.g. apps installed
-#                    under WindowsApps which is ACL-locked) are stored as .lnk targeting explorer.exe
-#                    with shell:appsFolder\<AUMID> as the Arguments field. ExpectedArguments triggers
-#                    argument self-healing when the AUMID becomes stale after a package update.
-# - Bootstrap      : before launch loop, ensures every Win32 .lnk exists at the expected path;
-#                    renames misnumbered matches found in the same folder, or creates fresh if absent
-# - Main menu      : on launch, user chooses Run / Add / Delete / Modify / List / Sync / Exit
-#                    inline failure menu (Add+retry / Modify / Skip / Delete entry) appears when a shortcut
-#                    is missing or an app fails to start during the startup sequence
-# - Presence mode  : after launch, Get-AppPresenceMode polls MainWindowHandle for $script:SettleSeconds;
-#                    if a window appears -> 'Window' mode (skip only when window visible);
-#                    if no window appears -> 'Tray' mode (skip when process running).
-#                    No per-app flags needed; detection is fully automatic at runtime.
-# - Exe allowlist  : Test-ExePathAllowed enforces that any exe accepted via user prompt or
-#                    auto-discovery during repair lives under Program Files, Program Files (x86),
-#                    or Windows. Paths outside these roots are rejected before any shortcut write.
-# - Signature gate : Test-ExeSignatureTrusted requires Get-AuthenticodeSignature status 'Valid'
-#                    before any repaired or user-supplied exe is persisted to a shortcut target.
-#                    Called after the allowlist check in both Prompt-ForExactExePath and
-#                    Repair-ShortcutTarget.
-# - Exe gate       : Test-ExeAcceptable wraps Test-ExePathAllowed + Test-ExeSignatureTrusted into a
-#                    single call so every caller enforces both checks identically. (LEAN-01)
-# - XML load       : Repair-ShortcutArguments uses [xml]::new() + Load() instead of
-#                    [xml]$m = Get-Content to correctly handle BOMs and large manifest files.
-# - Publisher gate : Test-ExeSignatureTrusted accepts an optional -ExpectedPublisher string.
-#                    When present, the SignerCertificate.Subject must contain that string.
-#                    Each app entry carries an optional ExpectedPublisher field; Microsoft apps
-#                    use 'CN=Microsoft Corporation', Chrome uses 'CN=Google LLC'.
-# - Process guard  : Test-AppAlreadyOpen compares each matching process MainModule filename
-#                    against ExpectedExe before treating the app as already open, preventing
-#                    false skips caused by unrelated same-named processes.
-# - Regex anchor   : Repair-ShortcutArguments uses a fully anchored regex to extract the PFN
-#                    from ExpectedArguments. Pattern requires the full value to match
-#                    ^shell:appsFolder\<PFN>!<AppId>$ and accepts any valid PackageFamilyName
-#                    prefix so non-Microsoft packaged apps are handled correctly.
-# - Script scope   : All shared vars ($WshShell, $apps, $startMenu,
-#                    $InitialDelaySeconds, $LaunchTimeoutSeconds, $PostLaunchPauseSeconds,
-#                    $SettleSeconds, $AllowedExeRoots) use $script: scope so dot-sourced
-#                    Pester runs cannot leak or shadow globals.
-# - Test mode      : When $env:PS_STARTUP_TESTMODE = '1', the script dot-sources cleanly
-#                    (functions and vars available) but skips the interactive menu and
-#                    startup sequence entirely. Used by Win11startup.Tests.ps1.
-# - Config file    : $script:apps is loaded from Win11startupapps.json in the same folder.
-#                    Required fields: Name, LaunchType, ShortcutPath, ExpectedExe.
-#                    ProcessName required for Win32; warn-only for Win32-with-args entries
-#                    where Sync cannot determine it without running the app.
-#                    Add/Delete menu flows write changes back to Win11startupapps.json automatically.
-# - Add flow       : Show-AppPicker -AllowNew shows [N] for brand-new entry and returns
-#                    '__NEW__' sentinel; Add-Shortcut distinguishes re-init (real app object),
-#                    new entry ('__NEW__'), and cancel ($null). Appx entries collect
-#                    StartAppName, KnownAumid, AppxName during the add prompt.
-# - Timeout math   : Wait-ForAppReady stores actual phase-1 settle duration in $phase1Secs
-#                    and subtracts that exact value for phase-2 remaining, so the total
-#                    timeout is always honoured even when TimeoutSeconds < SettleSeconds.
-# - Failure menu   : Show-FailureMenu centralises the 4-option inline prompt (Add+retry /
-#                    Modify / Skip / Delete entry) used by both the missing-shortcut and
-#                    launch-timeout paths in Start-Win32App.
-#                    [4] Delete entry calls Remove-Shortcut (same as main menu [3]) so no
-#                    logic is duplicated.
-# - Launch wait    : Invoke-AppLaunchWait centralises the Wait-ForAppReady + ready/warning
-#                    output + PostLaunchPauseSeconds sleep shared by Start-AppxApp and
-#                    the happy path of Start-Win32App.
-# - Shortcut write : New-AppShortcut -Path -TargetPath -Arguments -WorkingDirectory is the
-#                    single place all .lnk files are written. Add-Shortcut delegates to
-#                    Initialize-Shortcut for the actual write; WshShell.CreateShortcut is
-#                    invoked in exactly one function. (LEAN-02)
-# - File search    : Get-ParentFolder walks two Split-Path levels above the broken target's
-#                    folder (grandparent). Falls back to one level up when the grandparent
-#                    path is empty or does not exist. Find-ExeWithinDepth then searches
-#                    recursively from that root with Get-ChildItem -Recurse (no depth cap).
-# - Appx enum      : Resolve-Aumid calls Get-AppxPackage once, stores the result in $pkgs,
-#                    and reuses it for both KnownAumid verification and the AppxName fallback,
-#                    avoiding a second full pipeline enumeration.
-# - Error logging  : All unhandled errors and terminating exceptions are written to
-#                    startup-error.log in the same folder as the script, with timestamps,
-#                    so crashes can be diagnosed after PowerShell has closed.
-# - Stopwatch      : Get-AppPresenceMode and Wait-ForAppReady use
-#                    [System.Diagnostics.Stopwatch] instead of manual $elapsed++ counters
-#                    so elapsed time reflects wall clock even when Get-Process is slow. (T-07)
-# - PFN source     : Repair-ShortcutArguments uses $pkg.PackageFamilyName directly from
-#                    Get-AppxPackage instead of reconstructing it via regex. (FIX-05)
-# - SystemRoot     : Initialize-Shortcut uses $env:SystemRoot for Appx shortcut creation. (FIX-06)
-# - Export guard   : Export-AppsConfig wraps Set-Content in try/catch. (ROB-01)
-# - Edit guard     : Edit-Shortcut argument-repair branch guards Get-ShortcutObject. (ROB-02)
-# - Retry loop     : Start-Win32App uses Invoke-FailureRecovery with bounded for-loop,
-#                    up to 3 attempts (attempt 0, 1, 2). (ROB-04+QOL-04)
-# - Path attempts  : Prompt-ForExactExePath limits retries to 3 attempts. (HARD-04)
-# - Number valid   : Add-Shortcut validates shortcut number is 1-2 digits. (HARD-05)
-# - Picker perf    : Show-AppPicker pre-computes shortcut-existence before display loop. (QOL-01)
-# - Window switch  : Test-AppAlreadyOpen accepts -RequireWindow. (FIX-04)
-# - AUMID log      : Resolve-Aumid logs all-paths failure. (QOL-02)
-# - Schema version : Import-AppsConfig checks for top-level schemaVersion field. (QOL-03)
-# - List apps      : Main menu option [5] prints formatted table via Show-AppList. (QOL-05)
-# - Stale shortcut : Start-Win32App re-reads shortcut after Repair-ShortcutTarget. (INT-02)
-# - WindowsApps    : Repair-ShortcutArguments uses Join-Path $env:ProgramFiles. (INT-01)
-# - AppList fix    : Show-AppList uses bare string for status assignment. (BUG-02)
-# - Catch recovery : Start-Win32App catch block calls Invoke-FailureRecovery. (UX-03)
-# - Delete guard   : Remove-Shortcut uses combined prompt when shortcut is missing. (UX-02)
-# - RequireWindow  : Start-Win32App derives $requireWin from cached $App.PresenceMode. (BUG-03)
-# - Dead branch    : Test-AppAlreadyOpen non-RequireWindow tail collapsed to single return $true. (BUG-01)
-# - Poll helper    : Wait-ForProcessCondition extracted from Wait-ForAppReady. (DUP-01)
-# - Sync menu      : Main menu [6] calls Sync-AppsFromStartMenu; also auto-triggered when
-#                    Win11startupapps.json is missing (first-run / broken-path scenario).
-#                    Scans Start Menu Programs for numbered .lnk files (1-2 digit prefix),
-#                    classifies each as Win32 or Appx, writes Win11startupapps.json. (SYNC-01)
-# - Dead code      : Get-RelativeDepth removed from main script; never called in startup
-#                    sequence. Retained only in Win11startup.Tests.ps1 for unit test coverage. (AUD-01)
-# - BUG-04         : Prompt-ForExactExePath max-attempts warning used $AppName: which PS
-#                    parsed as a drive-scoped variable reference; fixed to ${AppName}.
-# - BUG-05         : Sync-AppsFromStartMenu classified explorer.exe+shell:appsFolder entries
-#                    as Appx, causing empty ProcessName to fail Import-AppsConfig validation
-#                    on next load. Fix: keep LaunchType=Win32 for all such entries (they are
-#                    Win32 .lnk files invoking explorer.exe with arguments, not true Appx).
-#                    Import-AppsConfig now warns instead of throws when ProcessName is empty
-#                    on a Win32-with-args entry, since Sync cannot determine it without running.
-# - BUG-06 (rev)   : When ProcessName is blank, launch confirmation is done by detecting an
-#                    active/opened window (MainWindowHandle != 0) whose MainWindowTitle matches
-#                    $App.Name or $App.StartAppName - not by polling a process name.
-#                    Wait-ForWindowByTitle replaces Resolve-ProcessName. Once a matching window
-#                    is found, ProcessName is back-filled from that process object and persisted
-#                    to Win11startupapps.json. Future runs use the normal Wait-ForAppReady path.
-# - FIX-07         : Write-ErrorLog defined before trap block so the trap can call it on cold
-#                    errors before any other script code runs. Previously the trap fired before
-#                    the function was parsed, causing CommandNotFoundException.
-#                    Boot block now prompts user for a custom JSON path when Win11startupapps.json
-#                    is not found at the default location. If the user supplies a valid path,
-#                    $script:AppsConfigPath is updated and Import-AppsConfig loads from there.
-#                    If the user supplies a new (non-existent) path, an empty config skeleton
-#                    is written there and Sync-AppsFromStartMenu populates it. Pressing Enter
-#                    falls back to the original auto-sync behaviour.
-# - UX-04          : Show-FailureMenu adds [4] Delete entry. Invoke-FailureRecovery '4' branch
-#                    calls Remove-Shortcut (reusing main menu [3] logic) so no logic is
-#                    duplicated. Failure menu now mirrors main menu: Add=[2], Modify=[4],
-#                    Delete=[3], with Skip as the safe default.
-# - LEAN-05        : Zero-shortcut Write-Warning moved inside Sync-AppsFromStartMenu.
-#                    Callers check return bool and exit/return only; no duplicated message text.
-# - LEAN-01        : Test-ExeAcceptable wraps Test-ExePathAllowed + Test-ExeSignatureTrusted.
-#                    Repair-ShortcutTarget and Prompt-ForExactExePath both call Test-ExeAcceptable.
-#                    The two helpers remain private (no external callers).
-# - LEAN-02        : Add-Shortcut (new entry branch) no longer calls New-AppShortcut directly.
-#                    After building $newEntry it calls Initialize-Shortcut -App $newEntry.
-#                    Initialize-Shortcut is the sole .lnk creation path.
-# - LEAN-06        : Invoke-ShortcutRepair -App -RepairAction owns the Get-ShortcutObject +
-#                    .Save() envelope. RepairAction receives the shortcut object and returns
-#                    the repaired value (or $null to suppress .Save()). Both
-#                    Repair-ShortcutArguments and Repair-ShortcutTarget are thin scriptblock
-#                    delegates. Update-ShortcutTarget retired; all .lnk field writes now happen
-#                    inside RepairAction scriptblocks passed to Invoke-ShortcutRepair.
-# - LEAN-07        : Start-AppxApp intentionally has no failure recovery on timeout. Appx
-#                    failures are AUMID-resolution failures; Resolve-Aumid already exhausts
-#                    three resolution paths. A retry menu cannot produce a different AUMID
-#                    without editing Win11startupapps.json directly (use main menu [4] Modify).
-#                    The asymmetry with Start-Win32App is by design, not an oversight.
-# - LEAN-04        : Invoke-LaunchAttempt extracted from Start-Win32App. Encapsulates one
-#                    iteration of the repair + launch + wait + failure-recovery cycle. Returns
-#                    'Success', 'Retry', or 'Abort'. Start-Win32App loop becomes a thin
-#                    switch over that return value, collapsing ~40 lines into ~10.
-# - BUG-07         : Add-Shortcut Win32 branch passed -ExpectedPublisher with no value and
-#                    used undefined $appName instead of $appxName. Fixed: $expectedPublisher
-#                    value supplied; $appxName used for the correct parameter.
-# - BUG-08         : Initialize-Shortcut had a dangling } else { ... } block outside the
-#                    function body because the Win32 exe-path branch lacked a wrapping if/else.
-#                    Fixed: exe resolution and shortcut creation wrapped in if ($exePath) { }
-#                    else { } so the function is syntactically complete and null $exePath is
-#                    handled gracefully instead of crashing with a null TargetPath.
-# - BUG-D          : Invoke-LaunchAttempt used `return if ($recover) { 'Retry' } else { 'Abort' }`
-#                    (x2) which is invalid syntax in PowerShell 5.1 (Windows default) and throws
-#                    a parse error on any machine not running PS 7+. Fixed: split into standard
-#                    if/else blocks with explicit return statements on each branch.
-# - BUG-E          : Repair-ShortcutArguments extracted only the publisher suffix token from the
-#                    PFN via `(($Matches[1]) -split '_', 2)[1]`, which does not match WindowsApps
-#                    folder names or Get-AppxPackage results. Fixed: use $Matches[1] directly
-#                    (the full PackageFamilyName captured by the anchored regex).
+# Win11 Startup Manager
+# Launches configured apps at startup via numbered .lnk shortcuts.
+# Win32 apps  : launched via WshShell.Run; self-healing shortcut repair on broken target/args.
+# Appx apps   : AUMID resolved at runtime (Get-StartApps -> KnownAumid -> AppxPackage manifest).
+# Bootstrap   : ensures every Win32 .lnk exists before launch; renames misnumbered or creates fresh.
+# Config      : Win11startupapps.json (same folder). Add/Delete/Modify via main menu.
+# Test mode   : set $env:PS_STARTUP_TESTMODE = '1' to dot-source without running the menu/sequence.
 
 # ---------------------------------------------------------------------------
-# Error log path + Write-ErrorLog -- MUST be defined before the trap block
+# Error log + trap (defined before trap so cold errors can call Write-ErrorLog)
 # ---------------------------------------------------------------------------
 $script:ErrorLogPath = Join-Path $PSScriptRoot "startup-error.log"
 
@@ -205,6 +31,9 @@ trap {
     break
 }
 
+# ---------------------------------------------------------------------------
+# Script-scope configuration
+# ---------------------------------------------------------------------------
 $script:startMenu               = "C:\ProgramData\Microsoft\Windows\Start Menu\Programs"
 $script:InitialDelaySeconds     = 10
 $script:LaunchTimeoutSeconds    = 30
@@ -283,8 +112,7 @@ function Export-AppsConfig {
 }
 
 # ---------------------------------------------------------------------------
-# SYNC-01: Sync-AppsFromStartMenu
-# LEAN-05: Write-Warning for zero-shortcut case lives here; callers check bool only.
+# Sync from Start Menu
 # ---------------------------------------------------------------------------
 function Sync-AppsFromStartMenu {
     Write-Host "`n--- Sync from Start Menu ---"
@@ -322,7 +150,7 @@ function Sync-AppsFromStartMenu {
             $knownAumid        = ($scArgs -replace '^shell:appsFolder\\', '').Trim()
             $startAppName      = $appName
             $appxName          = ($knownAumid -split '_')[0]
-            Write-Warning "${appName}: ProcessName unknown after sync. Will be auto-detected on first run (BUG-06)."
+            Write-Warning "${appName}: ProcessName unknown after sync. Will be auto-detected on first run."
         } elseif ($leafName -notlike '*.exe') {
             Write-Warning "'$($file.Name)': unexpected target '$target'. Review and fill in fields manually."
         }
@@ -346,7 +174,7 @@ function Sync-AppsFromStartMenu {
 }
 
 # ---------------------------------------------------------------------------
-# New-AppEntry -- single constructor for all app entry objects
+# App entry constructor
 # ---------------------------------------------------------------------------
 function New-AppEntry {
     param(
@@ -377,8 +205,7 @@ function New-AppEntry {
 }
 
 # ---------------------------------------------------------------------------
-# FIX-07: Boot -- resolve config path before loading
-# LEAN-05: Callers check Sync-AppsFromStartMenu return bool; no inline message.
+# Boot: resolve config path, then load
 # ---------------------------------------------------------------------------
 $script:WshShell = New-Object -ComObject WScript.Shell
 
@@ -448,7 +275,7 @@ if (-not $script:apps) {
 }
 
 # ---------------------------------------------------------------------------
-# Presence mode detection
+# Presence / ready detection
 # ---------------------------------------------------------------------------
 function Get-AppPresenceMode {
     param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds)
@@ -512,9 +339,6 @@ function Wait-ForAppReady {
     }
 }
 
-# ---------------------------------------------------------------------------
-# BUG-06 (rev): Wait-ForWindowByTitle
-# ---------------------------------------------------------------------------
 function Wait-ForWindowByTitle {
     param($App, [int]$WaitSecs = $script:SettleSeconds)
     $searchTerms = @($App.Name, $App.StartAppName) |
@@ -535,7 +359,7 @@ function Wait-ForWindowByTitle {
 }
 
 # ---------------------------------------------------------------------------
-# Helper: numbered app picker
+# App picker / list display
 # ---------------------------------------------------------------------------
 function Show-AppPicker {
     param([string]$Prompt, [switch]$AllowNew)
@@ -577,7 +401,7 @@ function Show-AppList {
 }
 
 # ---------------------------------------------------------------------------
-# Single shortcut writer
+# Shortcut writer (single .lnk creation point)
 # ---------------------------------------------------------------------------
 function New-AppShortcut {
     param([string]$Path, [string]$TargetPath, [string]$Arguments = "", [string]$WorkingDirectory = "")
@@ -589,9 +413,7 @@ function New-AppShortcut {
 }
 
 # ---------------------------------------------------------------------------
-# Exe validation
-# LEAN-01: Test-ExeAcceptable is the single call site for both checks.
-#          Test-ExePathAllowed and Test-ExeSignatureTrusted are private helpers.
+# Exe validation (allowlist + signature)
 # ---------------------------------------------------------------------------
 function Test-ExePathAllowed {
     param([string]$ExePath)
@@ -630,10 +452,6 @@ function Test-ExeAcceptable {
 
 # ---------------------------------------------------------------------------
 # Shortcut management
-# LEAN-02: Add-Shortcut (new entry) calls Initialize-Shortcut instead of
-#          New-AppShortcut directly. Initialize-Shortcut is the sole .lnk writer.
-# BUG-07 : Win32 branch fixed -- $expectedPublisher value passed correctly;
-#          $appxName used instead of undefined $appName.
 # ---------------------------------------------------------------------------
 function Add-Shortcut {
     param($App)
@@ -669,13 +487,13 @@ function Add-Shortcut {
         $expectedArguments = Read-Host "Expected arguments (optional, press Enter to skip)"
     }
 
-    # BUG-07: Win32 no-args branch -- pass $expectedPublisher value and use $appxName (not $appName).
+    $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
+        -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
+        -ExpectedArguments $expectedArguments -StartAppName $startAppName `
+        -KnownAumid $knownAumid -AppxName $appxName
+
     if ($launchType -eq 'Win32' -and [string]::IsNullOrWhiteSpace($expectedArguments)) {
-        $exePath  = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
-        $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
-            -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
-            -ExpectedArguments $expectedArguments -StartAppName $startAppName `
-            -KnownAumid $knownAumid -AppxName $appxName
+        $exePath = Prompt-ForExactExePath -AppName $name -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher
         if ($exePath) {
             $newEntry.ExpectedExe = $exePath
             Initialize-Shortcut -App $newEntry
@@ -684,10 +502,6 @@ function Add-Shortcut {
             Write-Warning "$($name): no exe path supplied. Entry added without shortcut creation."
         }
     } else {
-        $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
-            -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
-            -ExpectedArguments $expectedArguments -StartAppName $startAppName `
-            -KnownAumid $knownAumid -AppxName $appxName
         Initialize-Shortcut -App $newEntry
     }
 
@@ -728,15 +542,9 @@ function Edit-Shortcut {
     }
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
     if ($exePath) {
-        if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-            New-AppShortcut -Path $App.ShortcutPath -TargetPath $exePath -WorkingDirectory (Split-Path $exePath -Parent)
-            Write-Host "$($App.Name): shortcut created at '$($App.ShortcutPath)'."
-        } else {
-            $sc = $script:WshShell.CreateShortcut($App.ShortcutPath)
-            $sc.TargetPath = $exePath; $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
-            $sc.Save()
-            Write-Host "$($App.Name): shortcut updated to '$exePath'."
-        }
+        New-AppShortcut -Path $App.ShortcutPath -TargetPath $exePath -WorkingDirectory (Split-Path $exePath -Parent)
+        $verb = if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { 'updated' } else { 'created' }
+        Write-Host "$($App.Name): shortcut $verb to '$exePath'."
     } else { Write-Host "$($App.Name): modify cancelled." }
 }
 
@@ -816,9 +624,6 @@ function Find-MisnumberedShortcut {
         Select-Object -First 1
 }
 
-# BUG-08: Initialize-Shortcut -- Win32 exe-path branch now wrapped in if ($exePath) { } else { }
-#         so the function body is syntactically complete and a null $exePath (user cancelled)
-#         is handled gracefully instead of passing $null as TargetPath to New-AppShortcut.
 function Initialize-Shortcut {
     param($App)
     if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { return }
@@ -846,11 +651,7 @@ function Initialize-Shortcut {
 }
 
 # ---------------------------------------------------------------------------
-# LEAN-06: Invoke-ShortcutRepair -- owns Get-ShortcutObject + .Save() envelope.
-#          RepairAction receives the shortcut COM object and returns the repaired
-#          value (any non-null). Returns $null to suppress .Save().
-#          Both Repair-ShortcutTarget and Repair-ShortcutArguments are thin
-#          scriptblock delegates; Update-ShortcutTarget is retired.
+# Shortcut repair (Invoke-ShortcutRepair owns Get-ShortcutObject + .Save())
 # ---------------------------------------------------------------------------
 function Invoke-ShortcutRepair {
     param($App, [scriptblock]$RepairAction)
@@ -860,8 +661,6 @@ function Invoke-ShortcutRepair {
     return $result
 }
 
-# LEAN-06: thin wrapper -- search/prompt logic runs inside RepairAction;
-#          Get-ShortcutObject and .Save() are owned by Invoke-ShortcutRepair.
 function Repair-ShortcutTarget {
     param($App)
     return Invoke-ShortcutRepair -App $App -RepairAction {
@@ -896,12 +695,6 @@ function Repair-ShortcutTarget {
     }
 }
 
-# LEAN-06: thin wrapper -- computes repaired args string via Invoke-ShortcutRepair;
-#          Get-ShortcutObject and .Save() are owned by Invoke-ShortcutRepair.
-# BUG-E  : Fixed AUMID fragment extraction. Previously split $Matches[1] on '_' and
-#          took [1] (publisher suffix only), which does not match WindowsApps folder
-#          names or Get-AppxPackage PackageFamilyName. Fix: use $Matches[1] directly
-#          (the full PFN captured by the anchored regex).
 function Repair-ShortcutArguments {
     param($App)
     return Invoke-ShortcutRepair -App $App -RepairAction {
@@ -936,7 +729,7 @@ function Repair-ShortcutArguments {
         if ([string]::IsNullOrWhiteSpace($pfn)) { Write-Warning "$($App.Name): package not found for '$aumidFragment'."; return $null }
         $repairedArgs = "shell:appsFolder\$pfn!$appId"
         Write-Host "$($App.Name): AUMID repaired to $pfn!$appId."
-        $shortcut.Arguments      = $repairedArgs
+        $shortcut.Arguments        = $repairedArgs
         $shortcut.WorkingDirectory = Split-Path -Path $shortcut.TargetPath -Parent
         return $repairedArgs
     }
@@ -977,13 +770,10 @@ function Invoke-FailureRecovery {
 # ---------------------------------------------------------------------------
 # Launch functions
 # ---------------------------------------------------------------------------
-
-# LEAN-07: Start-AppxApp has no failure recovery on timeout by design.
-#          Appx failures are AUMID-resolution failures; Resolve-Aumid already
-#          exhausts three resolution paths (Get-StartApps, KnownAumid, manifest).
-#          A retry menu cannot produce a different AUMID without editing
-#          Win11startupapps.json directly -- use main menu [4] Modify for that.
 function Start-AppxApp {
+    # Appx has no failure-recovery retry by design: failures are AUMID-resolution
+    # failures that Resolve-Aumid already exhausts three paths for. Use menu [4]
+    # Modify to update Win11startupapps.json directly if AUMID changes.
     param($App)
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) { Write-Host "$($App.Name): already open. Skipping.`n"; return $true }
     $aumid = Resolve-Aumid -App $App
@@ -995,15 +785,8 @@ function Start-AppxApp {
     } catch { Write-Warning "$($App.Name): launch failed. $_`n"; return $false }
 }
 
-# ---------------------------------------------------------------------------
-# LEAN-04: Invoke-LaunchAttempt -- one iteration of the Win32 repair+launch+wait
-#          cycle. Returns 'Success', 'Retry', or 'Abort'.
-#          Start-Win32App loop switches on the return value only.
-# BUG-D  : Fixed invalid `return if ($recover) { ... } else { ... }` syntax
-#          (PS 5.1 does not support inline ternary return). Both occurrences
-#          replaced with standard if/else blocks with explicit return statements.
-# ---------------------------------------------------------------------------
 function Invoke-LaunchAttempt {
+    # One repair+launch+wait cycle. Returns 'Success', 'Retry', or 'Abort'.
     param($App)
 
     if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
