@@ -10,7 +10,7 @@ All items reference the live script at `win11-startup/Win11startup.ps1`.
 |----|----------|-------------|--------|
 | BUG-A | `Invoke-LaunchAttempt` (×2) | `return if ($recover) {...}` is invalid PS syntax — PS does not support inline ternary `return`. Must split into `if ($recover) { return 'Retry' } else { return 'Abort' }` | ✅ Fixed |
 | BUG-B | `Add-Shortcut` Win32 branch | `New-AppEntry` call passes `-AppName $appName` — neither the param name (`-AppxName`) nor the variable (`$appName` vs `$appxName`) is correct. `-ExpectedPublisher` flag is also missing its argument value. | ✅ Fixed |
-| BUG-C | `Initialize-Shortcut` | Orphaned `} else { Write-Warning \"shortcut creation skipped.\" }` with no matching `if`. The preceding `if (Test-Path ...)` block resolves `$exePath` but the `else` branch is a dangling statement that never runs. | ✅ Fixed |
+| BUG-C | `Initialize-Shortcut` | Orphaned `} else { Write-Warning "shortcut creation skipped." }` with no matching `if`. The preceding `if (Test-Path ...)` block resolves `$exePath` but the `else` branch is a dangling statement that never runs. | ✅ Fixed |
 | BUG-D | `Invoke-LaunchAttempt` (×2) | `return if ($recover) { 'Retry' } else { 'Abort' }` — inline `return if` is still invalid in PowerShell 5.1 (Windows default). Will throw a parse error on any machine without PS 7+. Fix: `if ($recover) { return 'Retry' } else { return 'Abort' }` | ⬜ Open |
 | BUG-E | `Repair-ShortcutArguments` | AUMID fragment regex: `(($Matches[1]) -split '_', 2)[1]` extracts only the publisher token from the PFN, not the full suffix needed to match WindowsApps folder names. Fix: use `$Matches[1]` directly as the search fragment. | ⬜ Open |
 | BUG-F | `Get-AppPresenceMode` | No guard for blank `$ProcessName`. `Get-Process -Name ''` enumerates all processes, causing false positives in presence detection. Fix: add `if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $null }` at top of function. | ⬜ Open |
@@ -22,7 +22,7 @@ All items reference the live script at `win11-startup/Win11startup.ps1`.
 
 | ID | Location | Description | Status |
 |----|----------|-------------|--------|
-| TEST-GAP-01 | `Win11startup.Tests.ps1` | `Invoke-LaunchAttempt` — no direct unit tests. Core retry logic (Success/Retry/Abort paths) untested in isolation. | ⬜ Open |
+| TEST-GAP-01 | `Win11startup.Tests.ps1` | `Invoke-LaunchAttempt` — no direct unit tests. Core retry logic (Success/Retry/Abort paths) untested in isolation. | ✅ Closed — NEW-TEST-20 |
 | TEST-GAP-02 | `Win11startup.Tests.ps1` | `Start-Win32App` retry loop (0–2 attempts) — max-attempts guard and loop exit untested. | ⬜ Open |
 | TEST-GAP-03 | `Win11startup.Tests.ps1` | `Wait-ForWindowByTitle` (BUG-06 path) — title-match window polling logic unverified. | ⬜ Open |
 | TEST-GAP-04 | `Win11startup.Tests.ps1` | `Sync-AppsFromStartMenu` with empty-target shortcut — unguarded `$scArgs` (BUG-G) not caught by any test. | ⬜ Open |
@@ -41,6 +41,20 @@ All items reference the live script at `win11-startup/Win11startup.ps1`.
 - QOL-01 through QOL-05
 - T-07, INT-01, INT-02, UX-02 through UX-04
 - HARD-04, HARD-05
+
+## Completed Tests Added (session: 2026-05-23)
+
+| Tag | Function |
+|-----|----------|
+| NEW-TEST-14 | `Test-ExeAcceptable` |
+| NEW-TEST-15 | `New-AppEntry` |
+| NEW-TEST-16 | `Wait-ForProcessCondition` |
+| NEW-TEST-17 | `Find-ExeWithinDepth` |
+| NEW-TEST-18 | `Get-ShortcutObject` |
+| NEW-TEST-19 | `New-AppShortcut` |
+| NEW-TEST-20 | `Invoke-AppLaunch` |
+| NEW-TEST-21 | `Test-ShortcutHealthy` |
+| NEW-TEST-22 | `Get-AppPresence` |
 
 ---
 

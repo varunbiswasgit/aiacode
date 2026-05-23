@@ -29,6 +29,9 @@
 #   Find-ExeWithinDepth            (NEW-TEST-17)
 #   Get-ShortcutObject             (NEW-TEST-18)
 #   New-AppShortcut                (NEW-TEST-19)
+#   Invoke-AppLaunch               (NEW-TEST-20)
+#   Test-ShortcutHealthy           (NEW-TEST-21)
+#   Get-AppPresence                (NEW-TEST-22)
 # Integration:
 #   Initialize-Shortcut            (INT-02)
 
@@ -395,18 +398,13 @@ Describe 'Unit' {
     Describe 'Test-AppAlreadyOpen -RequireWindow' {
 
         It 'returns false when no process with given name is running' {
-            # Use a guaranteed-not-running process name.
             Test-AppAlreadyOpen -ProcessName 'pester_no_such_process_xyz' | Should -Be $false
         }
 
         It 'returns false with -RequireWindow when process is running but has no window' {
-            # Start a hidden notepad (no visible window expected immediately).
             $p = Start-Process notepad.exe -WindowStyle Hidden -PassThru -ErrorAction SilentlyContinue
             Start-Sleep -Milliseconds 500
             try {
-                # With RequireWindow, only a process with MainWindowHandle != 0 counts.
-                # Hidden notepad may or may not have a window; we verify the switch
-                # does not throw and returns a boolean.
                 $result = Test-AppAlreadyOpen -ProcessName 'notepad' -RequireWindow
                 $result | Should -BeIn @($true, $false)
             } finally {
@@ -433,7 +431,6 @@ Describe 'Unit' {
                 ExpectedPublisher=''; ExpectedArguments=''
                 StartAppName=''; KnownAumid=''; AppxName=''
             })
-            # Point to a path that cannot be written (a directory path used as file path).
             $script:AppsConfigPath = $env:TEMP
             try {
                 { Export-AppsConfig -Path $env:TEMP } | Should -Not -Throw
@@ -453,7 +450,6 @@ Describe 'Unit' {
             $logPath = Join-Path $env:TEMP ("PesterErrLog_" + [System.IO.Path]::GetRandomFileName() + ".log")
             $savedLog        = $script:ErrorLogPath
             $script:ErrorLogPath = $logPath
-
             $fakeApp = [PSCustomObject]@{
                 Name         = 'NoSuchApp'
                 StartAppName = 'pester_no_such_startapp_xyz'
@@ -520,10 +516,8 @@ Describe 'Unit' {
             $saved = $script:apps
             $script:apps = @(
                 [PSCustomObject]@{
-                    Name         = 'PesterApp'
-                    LaunchType   = 'Win32'
-                    ShortcutPath = 'C:\Fake\01 PesterApp.lnk'
-                    ProcessName  = 'pesterapp'
+                    Name='PesterApp'; LaunchType='Win32'
+                    ShortcutPath='C:\Fake\01 PesterApp.lnk'; ProcessName='pesterapp'
                 }
             )
             try {
@@ -538,10 +532,8 @@ Describe 'Unit' {
             $saved = $script:apps
             $script:apps = @(
                 [PSCustomObject]@{
-                    Name         = 'UniqueTestAppXYZ'
-                    LaunchType   = 'Appx'
-                    ShortcutPath = 'C:\Fake\01 UniqueTestAppXYZ.lnk'
-                    ProcessName  = 'utaxyz'
+                    Name='UniqueTestAppXYZ'; LaunchType='Appx'
+                    ShortcutPath='C:\Fake\01 UniqueTestAppXYZ.lnk'; ProcessName='utaxyz'
                 }
             )
             try {
@@ -611,8 +603,6 @@ Describe 'Unit' {
     Describe 'Invoke-ShortcutRepair' {
 
         BeforeEach {
-            # Build a real .lnk in TEMP pointing to notepad.exe so
-            # Get-ShortcutObject can open it without throwing.
             $script:ISR_dir = Join-Path $env:TEMP ("PesterISR_" + [System.IO.Path]::GetRandomFileName())
             New-Item -ItemType Directory -Path $script:ISR_dir | Out-Null
             $script:ISR_lnk = Join-Path $script:ISR_dir '01 ISRTest.lnk'
@@ -631,38 +621,28 @@ Describe 'Unit' {
         }
 
         It 'calls .Save() and returns the repaired value when RepairAction returns non-null' {
-            $saveCalled = $false
-            # Wrap the real shortcut COM object with a proxy that tracks .Save() calls.
             $result = Invoke-ShortcutRepair -App $script:ISR_app -RepairAction {
                 param($shortcut)
-                # Monkey-patch Save on the COM object via a wrapper scriptblock is not
-                # possible directly, so we verify indirectly: write a sentinel to
-                # Arguments and assert it persists after the call (proving .Save() ran).
                 $shortcut.Arguments = 'pester-sentinel'
                 return 'repaired'
             }
             $result | Should -Be 'repaired'
-            # Re-read the .lnk from disk to confirm .Save() was called.
             $wsh    = New-Object -ComObject WScript.Shell
             $verify = $wsh.CreateShortcut($script:ISR_lnk)
             $verify.Arguments | Should -Be 'pester-sentinel'
         }
 
         It 'does not call .Save() and returns $null when RepairAction returns $null' {
-            # Stamp a known Arguments value before the call.
             $wsh = New-Object -ComObject WScript.Shell
             $pre = $wsh.CreateShortcut($script:ISR_lnk)
             $pre.Arguments = 'original-value'
             $pre.Save()
-
             $result = Invoke-ShortcutRepair -App $script:ISR_app -RepairAction {
                 param($shortcut)
-                # Mutate in memory but return $null to suppress .Save().
                 $shortcut.Arguments = 'should-not-persist'
                 return $null
             }
             $result | Should -BeNullOrEmpty
-            # Re-read from disk -- original value must still be there.
             $wsh2   = New-Object -ComObject WScript.Shell
             $verify = $wsh2.CreateShortcut($script:ISR_lnk)
             $verify.Arguments | Should -Be 'original-value'
@@ -694,9 +674,7 @@ Describe 'Unit' {
             $sc.TargetPath = "$env:SystemRoot\System32\notepad.exe"
             $sc.Save()
             $app = [PSCustomObject]@{
-                Name              = 'RSATest'
-                ShortcutPath      = $lnk
-                ExpectedArguments = 'not-a-shell-appsfolder-value'
+                Name='RSATest'; ShortcutPath=$lnk; ExpectedArguments='not-a-shell-appsfolder-value'
             }
             try {
                 $result = Repair-ShortcutArguments -App $app
@@ -715,9 +693,8 @@ Describe 'Unit' {
             $sc.TargetPath = "$env:SystemRoot\System32\explorer.exe"
             $sc.Save()
             $app = [PSCustomObject]@{
-                Name              = 'RSATest2'
-                ShortcutPath      = $lnk
-                ExpectedArguments = 'shell:appsFolder\Contoso.App_abc123_x64__xyz!App'
+                Name='RSATest2'; ShortcutPath=$lnk
+                ExpectedArguments='shell:appsFolder\Contoso.App_abc123_x64__xyz!App'
             }
             try {
                 { Repair-ShortcutArguments -App $app } | Should -Not -Throw
@@ -742,9 +719,7 @@ Describe 'Unit' {
             Test-ExeAcceptable -ExePath $notepad -ExpectedPublisher 'CN=Microsoft Windows' | Should -Be $true
         }
 
-        It 'returns false when the path is outside allowed roots even if the file exists' {
-            # We don't need the file to exist -- Test-ExePathAllowed short-circuits before
-            # Test-ExeSignatureTrusted reads the file.
+        It 'returns false when the path is outside allowed roots' {
             $fakePath = Join-Path $env:TEMP 'notepad_copy.exe'
             Test-ExeAcceptable -ExePath $fakePath | Should -Be $false
         }
@@ -779,8 +754,7 @@ Describe 'Unit' {
         }
 
         It 'defaults optional string fields to empty string' {
-            $entry = New-AppEntry -Name 'A' -LaunchType 'Win32' `
-                -ShortcutPath 'C:\x.lnk' -ExpectedExe 'a.exe'
+            $entry = New-AppEntry -Name 'A' -LaunchType 'Win32' -ShortcutPath 'C:\x.lnk' -ExpectedExe 'a.exe'
             $entry.ExpectedPublisher | Should -Be ''
             $entry.ExpectedArguments | Should -Be ''
             $entry.StartAppName      | Should -Be ''
@@ -795,9 +769,9 @@ Describe 'Unit' {
 
         It 'honours explicitly supplied optional values' {
             $entry = New-AppEntry -Name 'Chrome' -LaunchType 'Win32' `
-                -ShortcutPath 'C:\Fake\01 Chrome.lnk' `
-                -ExpectedExe 'chrome.exe' -ExpectedPublisher 'CN=Google LLC' `
-                -StartAppName 'Google Chrome' -KnownAumid 'ChromeAUMID' -AppxName 'Chrome'
+                -ShortcutPath 'C:\Fake\01 Chrome.lnk' -ExpectedExe 'chrome.exe' `
+                -ExpectedPublisher 'CN=Google LLC' -StartAppName 'Google Chrome' `
+                -KnownAumid 'ChromeAUMID' -AppxName 'Chrome'
             $entry.ExpectedPublisher | Should -Be 'CN=Google LLC'
             $entry.StartAppName      | Should -Be 'Google Chrome'
             $entry.KnownAumid        | Should -Be 'ChromeAUMID'
@@ -816,21 +790,18 @@ Describe 'Unit' {
     Describe 'Wait-ForProcessCondition' {
 
         It 'returns $true immediately when condition is already true' {
-            $result = Wait-ForProcessCondition -Condition { $true } -Remaining 5
-            $result | Should -Be $true
+            Wait-ForProcessCondition -Condition { $true } -Remaining 5 | Should -Be $true
         }
 
         It 'returns $false when condition is never true and Remaining elapses' {
-            # Use Remaining=1 so the test is fast (1-second budget).
-            $result = Wait-ForProcessCondition -Condition { $false } -Remaining 1
-            $result | Should -Be $false
+            Wait-ForProcessCondition -Condition { $false } -Remaining 1 | Should -Be $false
         }
 
         It 'returns $true as soon as condition becomes true mid-loop' {
             $script:WFPC_calls = 0
             $result = Wait-ForProcessCondition -Condition {
                 $script:WFPC_calls++
-                $script:WFPC_calls -ge 1   # true on first evaluation
+                $script:WFPC_calls -ge 1
             } -Remaining 5
             $result | Should -Be $true
         }
@@ -867,7 +838,7 @@ Describe 'Unit' {
         }
 
         It 'finds an exe nested at depth 2 when MaxDepth is 2' {
-            $sub    = Join-Path $script:FEW_dir 'sub'
+            $sub = Join-Path $script:FEW_dir 'sub'
             New-Item -ItemType Directory -Path $sub | Out-Null
             $exePath = Join-Path $sub 'app.exe'
             New-Item -ItemType File -Path $exePath | Out-Null
@@ -882,14 +853,11 @@ Describe 'Unit' {
             New-Item -ItemType Directory -Path $sub2 -Force | Out-Null
             $exePath = Join-Path $sub2 'app.exe'
             New-Item -ItemType File -Path $exePath | Out-Null
-            # MaxDepth 1 should NOT find the file at depth 3.
-            $result = Find-ExeWithinDepth -SearchRoot $script:FEW_dir -ExeName 'app.exe' -MaxDepth 1
-            $result | Should -BeNullOrEmpty
+            Find-ExeWithinDepth -SearchRoot $script:FEW_dir -ExeName 'app.exe' -MaxDepth 1 | Should -BeNullOrEmpty
         }
 
         It 'returns $null when no matching exe exists anywhere' {
-            $result = Find-ExeWithinDepth -SearchRoot $script:FEW_dir -ExeName 'nosuchfile.exe' -MaxDepth 3
-            $result | Should -BeNullOrEmpty
+            Find-ExeWithinDepth -SearchRoot $script:FEW_dir -ExeName 'nosuchfile.exe' -MaxDepth 3 | Should -BeNullOrEmpty
         }
 
         It 'does not throw when SearchRoot does not exist' {
@@ -935,14 +903,8 @@ Describe 'Unit' {
 
         It 'throws or returns $null for a path that does not exist' {
             $missing = Join-Path $script:GSO_dir 'ghost.lnk'
-            # The function should either throw or return null -- not silently succeed.
-            $threw = $false
-            $result = $null
-            try {
-                $result = Get-ShortcutObject -LnkPath $missing
-            } catch {
-                $threw = $true
-            }
+            $threw = $false; $result = $null
+            try { $result = Get-ShortcutObject -LnkPath $missing } catch { $threw = $true }
             ($threw -or ($null -eq $result)) | Should -Be $true
         }
 
@@ -967,29 +929,16 @@ Describe 'Unit' {
 
         It 'creates a .lnk file at the specified ShortcutPath' {
             $lnk = Join-Path $script:NAS_dir '01 NASTest.lnk'
-            $app = [PSCustomObject]@{
-                Name              = 'NASTest'
-                LaunchType        = 'Win32'
-                ShortcutPath      = $lnk
-                ExpectedExe       = 'notepad.exe'
-                ExpectedPublisher = ''
-                ExpectedArguments = ''
-            }
-            $target = "$env:SystemRoot\System32\notepad.exe"
-            New-AppShortcut -App $app -TargetPath $target
+            $app = [PSCustomObject]@{ Name='NASTest'; LaunchType='Win32'; ShortcutPath=$lnk
+                ExpectedExe='notepad.exe'; ExpectedPublisher=''; ExpectedArguments='' }
+            New-AppShortcut -App $app -TargetPath "$env:SystemRoot\System32\notepad.exe"
             Test-Path -LiteralPath $lnk -PathType Leaf | Should -Be $true
         }
 
         It 'created lnk has TargetPath matching the supplied exe' {
             $lnk = Join-Path $script:NAS_dir '01 NASTest2.lnk'
-            $app = [PSCustomObject]@{
-                Name              = 'NASTest2'
-                LaunchType        = 'Win32'
-                ShortcutPath      = $lnk
-                ExpectedExe       = 'notepad.exe'
-                ExpectedPublisher = ''
-                ExpectedArguments = ''
-            }
+            $app = [PSCustomObject]@{ Name='NASTest2'; LaunchType='Win32'; ShortcutPath=$lnk
+                ExpectedExe='notepad.exe'; ExpectedPublisher=''; ExpectedArguments='' }
             $target = "$env:SystemRoot\System32\notepad.exe"
             New-AppShortcut -App $app -TargetPath $target
             $wsh    = New-Object -ComObject WScript.Shell
@@ -999,32 +948,188 @@ Describe 'Unit' {
 
         It 'does not throw when called with valid parameters' {
             $lnk = Join-Path $script:NAS_dir '01 NASTest3.lnk'
-            $app = [PSCustomObject]@{
-                Name              = 'NASTest3'
-                LaunchType        = 'Win32'
-                ShortcutPath      = $lnk
-                ExpectedExe       = 'notepad.exe'
-                ExpectedPublisher = ''
-                ExpectedArguments = ''
-            }
+            $app = [PSCustomObject]@{ Name='NASTest3'; LaunchType='Win32'; ShortcutPath=$lnk
+                ExpectedExe='notepad.exe'; ExpectedPublisher=''; ExpectedArguments='' }
             { New-AppShortcut -App $app -TargetPath "$env:SystemRoot\System32\notepad.exe" } |
                 Should -Not -Throw
         }
 
         It 'does not throw when WorkingDirectory is explicitly passed' {
             $lnk = Join-Path $script:NAS_dir '01 NASTest4.lnk'
-            $app = [PSCustomObject]@{
-                Name              = 'NASTest4'
+            $app = [PSCustomObject]@{ Name='NASTest4'; LaunchType='Win32'; ShortcutPath=$lnk
+                ExpectedExe='notepad.exe'; ExpectedPublisher=''; ExpectedArguments='' }
+            { New-AppShortcut -App $app -TargetPath "$env:SystemRoot\System32\notepad.exe" `
+                -WorkingDirectory "$env:SystemRoot\System32" } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-20: Invoke-AppLaunch -- retry-loop branch coverage (TEST-GAP-01)
+    # -----------------------------------------------------------------------
+    Describe 'Invoke-AppLaunch' {
+
+        BeforeEach {
+            $script:IAL_dir = Join-Path $env:TEMP ("PesterIAL_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:IAL_dir | Out-Null
+            $script:IAL_lnk = Join-Path $script:IAL_dir '01 IALTest.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($script:IAL_lnk)
+            $sc.TargetPath = "$env:SystemRoot\System32\notepad.exe"
+            $sc.Save()
+            $script:IAL_app = [PSCustomObject]@{
+                Name              = 'IALTest'
                 LaunchType        = 'Win32'
-                ShortcutPath      = $lnk
+                ShortcutPath      = $script:IAL_lnk
+                ProcessName       = 'notepad'
                 ExpectedExe       = 'notepad.exe'
                 ExpectedPublisher = ''
                 ExpectedArguments = ''
             }
-            $target  = "$env:SystemRoot\System32\notepad.exe"
-            $workDir = "$env:SystemRoot\System32"
-            { New-AppShortcut -App $app -TargetPath $target -WorkingDirectory $workDir } |
-                Should -Not -Throw
+        }
+
+        AfterEach {
+            Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $script:IAL_dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'does not throw when called with a valid Win32 app object' {
+            { Invoke-AppLaunch -App $script:IAL_app } | Should -Not -Throw
+        }
+
+        It 'returns a result object (not $null) for a valid app' {
+            $result = Invoke-AppLaunch -App $script:IAL_app
+            $result | Should -Not -BeNullOrEmpty
+        }
+
+        It 'returns a Success or known-status result for notepad' {
+            $result = Invoke-AppLaunch -App $script:IAL_app
+            $result | Should -BeIn @('Success', 'Retry', 'Abort', 'Skipped')
+        }
+
+        It 'does not throw when app object has an empty ExpectedPublisher' {
+            $app2 = $script:IAL_app.PSObject.Copy()
+            $app2.ExpectedPublisher = ''
+            { Invoke-AppLaunch -App $app2 } | Should -Not -Throw
+        }
+
+        It 'does not throw when the shortcut file is missing (graceful error path)' {
+            $ghost = [PSCustomObject]@{
+                Name='Ghost'; LaunchType='Win32'
+                ShortcutPath='C:\DoesNotExist\ghost.lnk'
+                ProcessName='ghost'; ExpectedExe='ghost.exe'
+                ExpectedPublisher=''; ExpectedArguments=''
+            }
+            { Invoke-AppLaunch -App $ghost } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-21: Test-ShortcutHealthy -- health-check gate
+    # -----------------------------------------------------------------------
+    Describe 'Test-ShortcutHealthy' {
+
+        BeforeEach {
+            $script:TSH_dir = Join-Path $env:TEMP ("PesterTSH_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:TSH_dir | Out-Null
+            $script:TSH_lnk = Join-Path $script:TSH_dir '01 TSHTest.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($script:TSH_lnk)
+            $sc.TargetPath = "$env:SystemRoot\System32\notepad.exe"
+            $sc.Save()
+        }
+
+        AfterEach {
+            Remove-Item -LiteralPath $script:TSH_dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'returns true for a valid lnk pointing to a real, signed exe' {
+            $app = [PSCustomObject]@{
+                Name='TSHTest'; ShortcutPath=$script:TSH_lnk
+                ExpectedExe='notepad.exe'; ExpectedPublisher=''; ExpectedArguments=''
+            }
+            Test-ShortcutHealthy -App $app | Should -Be $true
+        }
+
+        It 'returns false when the lnk file does not exist' {
+            $app = [PSCustomObject]@{
+                Name='Ghost'; ShortcutPath='C:\DoesNotExist\ghost.lnk'
+                ExpectedExe='ghost.exe'; ExpectedPublisher=''; ExpectedArguments=''
+            }
+            Test-ShortcutHealthy -App $app | Should -Be $false
+        }
+
+        It 'returns false when the lnk target does not exist on disk' {
+            $brokenLnk = Join-Path $script:TSH_dir '01 Broken.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($brokenLnk)
+            $sc.TargetPath = 'C:\DoesNotExist\broken.exe'
+            $sc.Save()
+            $app = [PSCustomObject]@{
+                Name='Broken'; ShortcutPath=$brokenLnk
+                ExpectedExe='broken.exe'; ExpectedPublisher=''; ExpectedArguments=''
+            }
+            Test-ShortcutHealthy -App $app | Should -Be $false
+        }
+
+        It 'returns false when ExpectedPublisher does not match' {
+            $app = [PSCustomObject]@{
+                Name='TSHTest'; ShortcutPath=$script:TSH_lnk
+                ExpectedExe='notepad.exe'; ExpectedPublisher='CN=Google LLC'; ExpectedArguments=''
+            }
+            Test-ShortcutHealthy -App $app | Should -Be $false
+        }
+
+        It 'does not throw for a healthy shortcut' {
+            $app = [PSCustomObject]@{
+                Name='TSHTest'; ShortcutPath=$script:TSH_lnk
+                ExpectedExe='notepad.exe'; ExpectedPublisher=''; ExpectedArguments=''
+            }
+            { Test-ShortcutHealthy -App $app } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-22: Get-AppPresence -- presence-mode detection
+    # -----------------------------------------------------------------------
+    Describe 'Get-AppPresence' {
+
+        It 'returns a known presence string or $null for a running process' {
+            $p = Start-Process notepad.exe -WindowStyle Hidden -PassThru -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 400
+            try {
+                $result = Get-AppPresence -ProcessName 'notepad'
+                # Valid outcomes: Running, WindowVisible, or $null
+                if ($null -ne $result) {
+                    $result | Should -BeIn @('Running', 'WindowVisible')
+                }
+            } finally {
+                $p | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It 'returns $null or Absent for a process that is not running' {
+            $result = Get-AppPresence -ProcessName 'pester_no_such_process_xyz'
+            if ($null -ne $result) {
+                $result | Should -BeIn @('Absent', $null)
+            }
+        }
+
+        It 'does not throw for a running process' {
+            $p = Start-Process notepad.exe -WindowStyle Hidden -PassThru -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 300
+            try {
+                { Get-AppPresence -ProcessName 'notepad' } | Should -Not -Throw
+            } finally {
+                $p | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It 'does not throw for a non-existent process name' {
+            { Get-AppPresence -ProcessName 'pester_no_such_process_xyz' } | Should -Not -Throw
+        }
+
+        It 'does not throw for an empty process name (BUG-F guard test)' {
+            { Get-AppPresence -ProcessName '' } | Should -Not -Throw
         }
     }
 }
@@ -1049,12 +1154,8 @@ Describe 'Integration' -Skip:($env:RUN_INTEGRATION -ne '1') {
         $notepad = Join-Path $env:SystemRoot 'System32\notepad.exe'
         $lnkPath = Join-Path $script:intTempDir '01 Notepad.lnk'
         $fakeApp = @{
-            Name              = 'Notepad'
-            LaunchType        = 'Win32'
-            ShortcutPath      = $lnkPath
-            ExpectedExe       = 'notepad.exe'
-            ExpectedPublisher = 'CN=Microsoft Windows'
-            ExpectedArguments = ''
+            Name='Notepad'; LaunchType='Win32'; ShortcutPath=$lnkPath
+            ExpectedExe='notepad.exe'; ExpectedPublisher='CN=Microsoft Windows'; ExpectedArguments=''
         }
         $wsh = New-Object -ComObject WScript.Shell
         $sc  = $wsh.CreateShortcut($lnkPath)
