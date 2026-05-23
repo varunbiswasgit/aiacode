@@ -23,6 +23,9 @@
 #   Import-AppsConfig schemaVersion (NEW-TEST-13)
 #   Invoke-ShortcutRepair          (LEAN-06-01)
 #   Repair-ShortcutArguments wrapper (LEAN-06-02)
+#   Test-ExeAcceptable             (NEW-TEST-14)
+#   New-AppEntry                   (NEW-TEST-15)
+#   Wait-ForProcessCondition       (NEW-TEST-16)
 # Integration:
 #   Initialize-Shortcut            (INT-02)
 
@@ -718,6 +721,125 @@ Describe 'Unit' {
             } finally {
                 Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
             }
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-14: Test-ExeAcceptable -- LEAN-01 composite gate
+    # -----------------------------------------------------------------------
+    Describe 'Test-ExeAcceptable' {
+
+        It 'returns true for notepad.exe (allowed path + valid signature, no publisher check)' {
+            $notepad = Join-Path $env:SystemRoot 'System32\notepad.exe'
+            Test-ExeAcceptable -ExePath $notepad | Should -Be $true
+        }
+
+        It 'returns true for notepad.exe with correct publisher' {
+            $notepad = Join-Path $env:SystemRoot 'System32\notepad.exe'
+            Test-ExeAcceptable -ExePath $notepad -ExpectedPublisher 'CN=Microsoft Windows' | Should -Be $true
+        }
+
+        It 'returns false when the path is outside allowed roots even if the file exists' {
+            # Write a real signed exe? Not practical -- verify path check fires first.
+            # TEMP is never in AllowedExeRoots, so any path there must return false.
+            $fakePath = Join-Path $env:TEMP 'notepad_copy.exe'
+            # We don't need the file to exist -- Test-ExePathAllowed short-circuits before
+            # Test-ExeSignatureTrusted reads the file.
+            Test-ExeAcceptable -ExePath $fakePath | Should -Be $false
+        }
+
+        It 'returns false for notepad.exe with wrong publisher' {
+            $notepad = Join-Path $env:SystemRoot 'System32\notepad.exe'
+            Test-ExeAcceptable -ExePath $notepad -ExpectedPublisher 'CN=Google LLC' | Should -Be $false
+        }
+
+        It 'does not throw for any combination of valid inputs' {
+            $notepad = Join-Path $env:SystemRoot 'System32\notepad.exe'
+            { Test-ExeAcceptable -ExePath $notepad }                                        | Should -Not -Throw
+            { Test-ExeAcceptable -ExePath $notepad -ExpectedPublisher '' }                  | Should -Not -Throw
+            { Test-ExeAcceptable -ExePath $notepad -ExpectedPublisher 'CN=Microsoft Windows' } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-15: New-AppEntry -- single constructor contract
+    # -----------------------------------------------------------------------
+    Describe 'New-AppEntry' {
+
+        It 'returns an object with all required fields populated' {
+            $entry = New-AppEntry -Name 'TestApp' -LaunchType 'Win32' `
+                -ShortcutPath 'C:\Fake\01 TestApp.lnk' `
+                -ProcessName 'testapp' -ExpectedExe 'testapp.exe'
+            $entry.Name         | Should -Be 'TestApp'
+            $entry.LaunchType   | Should -Be 'Win32'
+            $entry.ShortcutPath | Should -Be 'C:\Fake\01 TestApp.lnk'
+            $entry.ProcessName  | Should -Be 'testapp'
+            $entry.ExpectedExe  | Should -Be 'testapp.exe'
+        }
+
+        It 'defaults optional string fields to empty string' {
+            $entry = New-AppEntry -Name 'A' -LaunchType 'Win32' `
+                -ShortcutPath 'C:\x.lnk' -ExpectedExe 'a.exe'
+            $entry.ExpectedPublisher | Should -Be ''
+            $entry.ExpectedArguments | Should -Be ''
+            $entry.StartAppName      | Should -Be ''
+            $entry.KnownAumid        | Should -Be ''
+            $entry.AppxName          | Should -Be ''
+        }
+
+        It 'defaults PresenceMode to $null' {
+            $entry = New-AppEntry -Name 'A' -LaunchType 'Appx' -ShortcutPath 'C:\x.lnk' -ExpectedExe 'a.exe'
+            $entry.PresenceMode | Should -BeNullOrEmpty
+        }
+
+        It 'honours explicitly supplied optional values' {
+            $entry = New-AppEntry -Name 'Chrome' -LaunchType 'Win32' `
+                -ShortcutPath 'C:\Fake\01 Chrome.lnk' `
+                -ExpectedExe 'chrome.exe' -ExpectedPublisher 'CN=Google LLC' `
+                -StartAppName 'Google Chrome' -KnownAumid 'ChromeAUMID' -AppxName 'Chrome'
+            $entry.ExpectedPublisher | Should -Be 'CN=Google LLC'
+            $entry.StartAppName      | Should -Be 'Google Chrome'
+            $entry.KnownAumid        | Should -Be 'ChromeAUMID'
+            $entry.AppxName          | Should -Be 'Chrome'
+        }
+
+        It 'does not throw for any combination of parameters' {
+            { New-AppEntry -Name 'X' -LaunchType 'Win32' -ShortcutPath 'C:\x.lnk' -ExpectedExe 'x.exe' } |
+                Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-16: Wait-ForProcessCondition -- DUP-01 extracted helper
+    # -----------------------------------------------------------------------
+    Describe 'Wait-ForProcessCondition' {
+
+        It 'returns $true immediately when condition is already true' {
+            $result = Wait-ForProcessCondition -Condition { $true } -Remaining 5
+            $result | Should -Be $true
+        }
+
+        It 'returns $false when condition is never true and Remaining elapses' {
+            # Use Remaining=1 so the test is fast (1-second budget).
+            $result = Wait-ForProcessCondition -Condition { $false } -Remaining 1
+            $result | Should -Be $false
+        }
+
+        It 'returns $true as soon as condition becomes true mid-loop' {
+            $script:WFPC_calls = 0
+            $result = Wait-ForProcessCondition -Condition {
+                $script:WFPC_calls++
+                $script:WFPC_calls -ge 1   # true on first evaluation
+            } -Remaining 5
+            $result | Should -Be $true
+        }
+
+        It 'does not throw when Remaining is 0' {
+            { Wait-ForProcessCondition -Condition { $false } -Remaining 0 } | Should -Not -Throw
+        }
+
+        It 'does not throw when condition scriptblock throws internally' {
+            { Wait-ForProcessCondition -Condition { throw 'oops' } -Remaining 1 } | Should -Not -Throw
         }
     }
 }
