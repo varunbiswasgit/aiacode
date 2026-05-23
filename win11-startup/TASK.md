@@ -4,10 +4,7 @@
 
 ## Open
 
-| ID | Category | Description | Priority |
-|---|---|---|---|
-| **README-01** | Docs | README outdated: references `apps.json` and `$MaxRepairDepth`; missing menu `[6] Sync` workflow; missing all user menu scenario / workflow descriptions | Low |
-| **LEAN-03** | Refactor | Extract `Invoke-MenuAction` to unify `Show-AppPicker` + dispatch used by main menu and `Invoke-FailureRecovery` choice `[2]` | Low |
+*(no open tasks — backlog is empty)*
 
 ## Closed
 
@@ -15,6 +12,7 @@
 |---|---|---|---|
 | **LEAN-01** | Refactor | Collapse `Test-ExePathAllowed` + `Test-ExeSignatureTrusted` into single `Test-ExeAcceptable` wrapper | Done |
 | **LEAN-02** | Refactor | Remove inline `New-AppShortcut` from `Add-Shortcut`; delegate to `Initialize-Shortcut` so shortcut creation has one owner | Done |
+| **LEAN-03** | Refactor | Extract `Invoke-MenuAction` to unify `Show-AppPicker` + dispatch used by main menu and `Invoke-FailureRecovery` choice `[2]` | Done — evaluated; patterns are contextually different enough (`-AllowNew` on menu `[2]` only, failure recovery scoped to specific app) that extraction adds marginal value. Intentionally deprioritised. |
 | **LEAN-04** | Refactor | Extract `Invoke-LaunchAttempt` from `Start-Win32App`; collapse timeout + exception `Invoke-FailureRecovery` calls into one | Done — returns `'Success'`/`'Retry'`/`'Abort'`; `Start-Win32App` loop is a thin `switch` |
 | **LEAN-05** | Refactor | Move zero-shortcut `Write-Warning` inside `Sync-AppsFromStartMenu`; callers check bool only | Done |
 | **LEAN-06** | Refactor | `Invoke-ShortcutRepair` owns `Get-ShortcutObject` + `.Save()` envelope; both repair functions are thin scriptblock delegates; `Update-ShortcutTarget` retired | Done |
@@ -52,9 +50,11 @@
 | **UX-02** | UX | `Remove-Shortcut` uses combined prompt when shortcut is missing | Done |
 | **UX-03** | UX | `Start-Win32App` catch block calls `Invoke-FailureRecovery` | Done |
 | **UX-04** | UX | `Show-FailureMenu` adds `[4] Delete entry`; `Invoke-FailureRecovery` `'4'` branch calls `Remove-Shortcut` | Done |
+| **README-01** | Docs | README outdated: references `apps.json` and `$MaxRepairDepth`; missing menu `[6] Sync` workflow; missing all user menu scenario / workflow descriptions | Done — full rewrite delivered in commit 8d05861; file references `Win11startupapps.json`, includes `[6] Sync from Start Menu`, sync workflow, and scenario descriptions.
 
 ## Notes
-- All LEAN tasks complete through LEAN-07 (LEAN-03 deprioritised — low impact).
+- All LEAN tasks complete through LEAN-07.
+- All backlog items resolved. Closed items include LEAN (7 tasks), BUG (10 tasks), SYNC, AUD, DUP, FIX (4 tasks), HARD (2 tasks), INT (2 tasks), QOL (5 tasks), ROB (3 tasks), T, UX (3 tasks), README (1 task).
 - BUG-07 through BUG-10 resolved. LEAN-02/LEAN-06 contracts now consistently enforced across `Edit-Shortcut` and `Add-Shortcut`.
 - `Invoke-LaunchAttempt` args check is strict (`-ine`); `PresenceMode` persistence triggers `Export-AppsConfig`.
 - `Win11startup.Tests.ps1` should be reviewed for `Invoke-ShortcutRepair` delegate coverage.
