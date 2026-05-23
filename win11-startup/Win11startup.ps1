@@ -171,6 +171,10 @@
 #                    Fixed: exe resolution and shortcut creation wrapped in if ($exePath) { }
 #                    else { } so the function is syntactically complete and null $exePath is
 #                    handled gracefully instead of crashing with a null TargetPath.
+# - BUG-D          : Invoke-LaunchAttempt used `return if ($recover) { 'Retry' } else { 'Abort' }`
+#                    (x2) which is invalid syntax in PowerShell 5.1 (Windows default) and throws
+#                    a parse error on any machine not running PS 7+. Fixed: split into standard
+#                    if/else blocks with explicit return statements on each branch.
 
 # ---------------------------------------------------------------------------
 # Error log path + Write-ErrorLog -- MUST be defined before the trap block
@@ -981,6 +985,9 @@ function Start-AppxApp {
 # LEAN-04: Invoke-LaunchAttempt -- one iteration of the Win32 repair+launch+wait
 #          cycle. Returns 'Success', 'Retry', or 'Abort'.
 #          Start-Win32App loop switches on the return value only.
+# BUG-D  : Fixed invalid `return if ($recover) { ... } else { ... }` syntax
+#          (PS 5.1 does not support inline ternary return). Both occurrences
+#          replaced with standard if/else blocks with explicit return statements.
 # ---------------------------------------------------------------------------
 function Invoke-LaunchAttempt {
     param($App)
@@ -988,7 +995,7 @@ function Invoke-LaunchAttempt {
     if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
         Write-Warning "$($App.Name): shortcut not found: $($App.ShortcutPath)"
         $recover = Invoke-FailureRecovery -App $App -Context "missing shortcut" -PreRetryAction { Initialize-Shortcut -App $App }
-        return if ($recover) { 'Retry' } else { 'Abort' }
+        if ($recover) { return 'Retry' } else { return 'Abort' }
     }
 
     try {
@@ -1032,13 +1039,13 @@ function Invoke-LaunchAttempt {
         if ($ready) { return 'Success' }
 
         $recover = Invoke-FailureRecovery -App $App -Context "launch timeout" -PreRetryAction { Edit-Shortcut -App $App }
-        return if ($recover) { 'Retry' } else { 'Abort' }
+        if ($recover) { return 'Retry' } else { return 'Abort' }
 
     } catch {
         Write-Warning "$($App.Name): launch exception. $_`n"
         Write-ErrorLog -Message "$($App.Name): launch exception" -ErrorRecord $_
         $recover = Invoke-FailureRecovery -App $App -Context "launch exception" -PreRetryAction { Edit-Shortcut -App $App }
-        return if ($recover) { 'Retry' } else { 'Abort' }
+        if ($recover) { return 'Retry' } else { return 'Abort' }
     }
 }
 
