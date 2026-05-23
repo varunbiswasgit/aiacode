@@ -154,6 +154,15 @@
 #                    is now a thin wrapper: computes the new args string via RepairAction,
 #                    returns the result. Repair-ShortcutTarget keeps Update-ShortcutTarget for
 #                    its multi-field write but uses Invoke-ShortcutRepair for the read guard.
+# - LEAN-07        : Start-AppxApp intentionally has no failure recovery on timeout. Appx
+#                    failures are AUMID-resolution failures; Resolve-Aumid already exhausts
+#                    three resolution paths. A retry menu cannot produce a different AUMID
+#                    without editing Win11startupapps.json directly (use main menu [4] Modify).
+#                    The asymmetry with Start-Win32App is by design, not an oversight.
+# - LEAN-04        : Invoke-LaunchAttempt extracted from Start-Win32App. Encapsulates one
+#                    iteration of the repair + launch + wait + failure-recovery cycle. Returns
+#                    'Success', 'Retry', or 'Abort'. Start-Win32App loop becomes a thin
+#                    switch over that return value, collapsing ~40 lines into ~10.
 
 # ---------------------------------------------------------------------------
 # Error log path + Write-ErrorLog -- MUST be defined before the trap block
@@ -919,6 +928,12 @@ function Invoke-FailureRecovery {
 # ---------------------------------------------------------------------------
 # Launch functions
 # ---------------------------------------------------------------------------
+
+# LEAN-07: Start-AppxApp has no failure recovery on timeout by design.
+#          Appx failures are AUMID-resolution failures; Resolve-Aumid already
+#          exhausts three resolution paths (Get-StartApps, KnownAumid, manifest).
+#          A retry menu cannot produce a different AUMID without editing
+#          Win11startupapps.json directly -- use main menu [4] Modify for that.
 function Start-AppxApp {
     param($App)
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) { Write-Host "$($App.Name): already open. Skipping.`n"; return $true }
@@ -931,6 +946,70 @@ function Start-AppxApp {
     } catch { Write-Warning "$($App.Name): launch failed. $_`n"; return $false }
 }
 
+# ---------------------------------------------------------------------------
+# LEAN-04: Invoke-LaunchAttempt -- one iteration of the Win32 repair+launch+wait
+#          cycle. Returns 'Success', 'Retry', or 'Abort'.
+#          Start-Win32App loop switches on the return value only.
+# ---------------------------------------------------------------------------
+function Invoke-LaunchAttempt {
+    param($App)
+
+    if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
+        Write-Warning "$($App.Name): shortcut not found: $($App.ShortcutPath)"
+        $recover = Invoke-FailureRecovery -App $App -Context "missing shortcut" -PreRetryAction { Initialize-Shortcut -App $App }
+        return if ($recover) { 'Retry' } else { 'Abort' }
+    }
+
+    try {
+        $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
+        $targetPath = $shortcut.TargetPath
+        if ([string]::IsNullOrWhiteSpace($targetPath) -or -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+            $repairedPath = Repair-ShortcutTarget -App $App
+            if (-not $repairedPath) { Write-Warning "$($App.Name): repair failed. Skipping.`n"; return 'Abort' }
+            $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
+        }
+
+        if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
+            $currentArgs = $shortcut.Arguments
+            if ([string]::IsNullOrWhiteSpace($currentArgs) -or $currentArgs -notlike "*$($App.ExpectedArguments)*") {
+                $repairedArgs = Repair-ShortcutArguments -App $App
+                if (-not $repairedArgs) { Write-Warning "$($App.Name): argument repair failed. Skipping.`n"; return 'Abort' }
+            }
+        }
+
+        Write-Host "$($App.Name): launching via $($App.ShortcutPath)"
+        $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
+
+        if ([string]::IsNullOrWhiteSpace($App.ProcessName)) {
+            Write-Host "$($App.Name): ProcessName blank - waiting for active window to confirm launch..."
+            $matchedProc = Wait-ForWindowByTitle -App $App -WaitSecs $script:SettleSeconds
+            if ($matchedProc) {
+                $App.ProcessName = $matchedProc.ProcessName
+                Export-AppsConfig
+                Write-Host "$($App.Name): active window detected. ProcessName back-filled as '$($App.ProcessName)' and saved."
+            } else {
+                Write-Warning "$($App.Name): no matching active window detected within $script:SettleSeconds seconds. Launch assumed but ready-check skipped."
+            }
+        }
+
+        $ready = Invoke-AppLaunchWait -App $App
+        if ($null -eq $App.PresenceMode -and -not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
+            $resolvedMode = Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0
+            if ($resolvedMode) { $App.PresenceMode = $resolvedMode }
+        }
+        if ($ready) { return 'Success' }
+
+        $recover = Invoke-FailureRecovery -App $App -Context "launch timeout" -PreRetryAction { Edit-Shortcut -App $App }
+        return if ($recover) { 'Retry' } else { 'Abort' }
+
+    } catch {
+        Write-Warning "$($App.Name): launch exception. $_`n"
+        Write-ErrorLog -Message "$($App.Name): launch exception" -ErrorRecord $_
+        $recover = Invoke-FailureRecovery -App $App -Context "launch exception" -PreRetryAction { Edit-Shortcut -App $App }
+        return if ($recover) { 'Retry' } else { 'Abort' }
+    }
+}
+
 function Start-Win32App {
     param($App)
     $requireWin = ($App.PresenceMode -eq 'Window')
@@ -938,54 +1017,9 @@ function Start-Win32App {
         Write-Host "$($App.Name): already open. Skipping.`n"; return $true
     }
     for ($attempt = 0; $attempt -le 2; $attempt++) {
-        if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-            Write-Warning "$($App.Name): shortcut not found: $($App.ShortcutPath)"
-            $recover = Invoke-FailureRecovery -App $App -Context "missing shortcut" -PreRetryAction { Initialize-Shortcut -App $App }
-            if (-not $recover) { return $false }; continue
-        }
-        try {
-            $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
-            $targetPath = $shortcut.TargetPath
-            if ([string]::IsNullOrWhiteSpace($targetPath) -or -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
-                $repairedPath = Repair-ShortcutTarget -App $App
-                if (-not $repairedPath) { Write-Warning "$($App.Name): repair failed. Skipping.`n"; return $false }
-                $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
-            }
-            if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
-                $currentArgs = $shortcut.Arguments
-                if ([string]::IsNullOrWhiteSpace($currentArgs) -or $currentArgs -notlike "*$($App.ExpectedArguments)*") {
-                    $repairedArgs = Repair-ShortcutArguments -App $App
-                    if (-not $repairedArgs) { Write-Warning "$($App.Name): argument repair failed. Skipping.`n"; return $false }
-                }
-            }
-            Write-Host "$($App.Name): launching via $($App.ShortcutPath)"
-            $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
-
-            if ([string]::IsNullOrWhiteSpace($App.ProcessName)) {
-                Write-Host "$($App.Name): ProcessName blank - waiting for active window to confirm launch..."
-                $matchedProc = Wait-ForWindowByTitle -App $App -WaitSecs $script:SettleSeconds
-                if ($matchedProc) {
-                    $App.ProcessName = $matchedProc.ProcessName
-                    Export-AppsConfig
-                    Write-Host "$($App.Name): active window detected. ProcessName back-filled as '$($App.ProcessName)' and saved."
-                } else {
-                    Write-Warning "$($App.Name): no matching active window detected within $script:SettleSeconds seconds. Launch assumed but ready-check skipped."
-                }
-            }
-
-            $ready = Invoke-AppLaunchWait -App $App
-            if ($null -eq $App.PresenceMode -and -not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
-                $resolvedMode = Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0
-                if ($resolvedMode) { $App.PresenceMode = $resolvedMode }
-            }
-            if ($ready) { return $true }
-            $recover = Invoke-FailureRecovery -App $App -Context "launch timeout" -PreRetryAction { Edit-Shortcut -App $App }
-            if (-not $recover) { return $false }
-        } catch {
-            Write-Warning "$($App.Name): launch exception. $_`n"
-            Write-ErrorLog -Message "$($App.Name): launch exception" -ErrorRecord $_
-            $recover = Invoke-FailureRecovery -App $App -Context "launch exception" -PreRetryAction { Edit-Shortcut -App $App }
-            if (-not $recover) { return $false }
+        switch (Invoke-LaunchAttempt -App $App) {
+            'Success' { return $true }
+            'Abort'   { return $false }
         }
     }
     Write-Warning "$($App.Name): max attempts reached. Skipping.`n"
