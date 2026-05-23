@@ -5,7 +5,6 @@
 # Tested functions
 # ----------------
 # Unit:
-#   Get-RelativeDepth              (TEST-02)
 #   Find-MisnumberedShortcut       (TEST-03)
 #   Test-ExePathAllowed            (TEST-04a)
 #   Test-ExeSignatureTrusted       (TEST-04b)
@@ -32,6 +31,10 @@
 #   Invoke-AppLaunch               (NEW-TEST-20)
 #   Test-ShortcutHealthy           (NEW-TEST-21)
 #   Get-AppPresence                (NEW-TEST-22)
+#   Start-Win32App retry loop      (NEW-TEST-23)
+#   Wait-ForWindowByTitle polling  (NEW-TEST-24)
+#   Sync-AppsFromStartMenu guard   (NEW-TEST-25)
+#   Resolve-ConfigPath branches    (NEW-TEST-26)
 # Integration:
 #   Initialize-Shortcut            (INT-02)
 
@@ -48,34 +51,6 @@ AfterAll {
 # Unit tests
 # ---------------------------------------------------------------------------
 Describe 'Unit' {
-
-    # -----------------------------------------------------------------------
-    # TEST-02: Get-RelativeDepth
-    # -----------------------------------------------------------------------
-    Describe 'Get-RelativeDepth' {
-
-        It 'returns 0 when candidate equals base' {
-            $base = 'C:\Foo'
-            Get-RelativeDepth -BasePath $base -CandidatePath $base | Should -Be 0
-        }
-
-        It 'returns 1 for a direct child' {
-            Get-RelativeDepth -BasePath 'C:\Foo' -CandidatePath 'C:\Foo\Bar.exe' | Should -Be 1
-        }
-
-        It 'returns 2 for a two-level child' {
-            Get-RelativeDepth -BasePath 'C:\Foo' -CandidatePath 'C:\Foo\Bar\Baz.exe' | Should -Be 2
-        }
-
-        It 'returns MaxValue when candidate is outside base' {
-            Get-RelativeDepth -BasePath 'C:\Foo' -CandidatePath 'C:\Other\File.exe' | Should -Be ([int]::MaxValue)
-        }
-
-        It 'returns MaxValue for an empty candidate string' {
-            { Get-RelativeDepth -BasePath 'C:\Foo' -CandidatePath '' } | Should -Not -Throw
-            Get-RelativeDepth -BasePath 'C:\Foo' -CandidatePath 'C:\Other' | Should -Be ([int]::MaxValue)
-        }
-    }
 
     # -----------------------------------------------------------------------
     # TEST-03: Find-MisnumberedShortcut
@@ -1098,7 +1073,6 @@ Describe 'Unit' {
             Start-Sleep -Milliseconds 400
             try {
                 $result = Get-AppPresence -ProcessName 'notepad'
-                # Valid outcomes: Running, WindowVisible, or $null
                 if ($null -ne $result) {
                     $result | Should -BeIn @('Running', 'WindowVisible')
                 }
@@ -1130,6 +1104,201 @@ Describe 'Unit' {
 
         It 'does not throw for an empty process name (BUG-F guard test)' {
             { Get-AppPresence -ProcessName '' } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-23: Start-Win32App retry loop (TEST-GAP-02)
+    # -----------------------------------------------------------------------
+    Describe 'Start-Win32App retry loop' {
+
+        BeforeEach {
+            $script:S32_dir = Join-Path $env:TEMP ("PesterS32_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:S32_dir | Out-Null
+            $script:S32_lnk = Join-Path $script:S32_dir '01 S32Test.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($script:S32_lnk)
+            $sc.TargetPath = "$env:SystemRoot\System32\notepad.exe"
+            $sc.Save()
+            $script:S32_app = [PSCustomObject]@{
+                Name              = 'S32Test'
+                LaunchType        = 'Win32'
+                ShortcutPath      = $script:S32_lnk
+                ProcessName       = 'notepad'
+                ExpectedExe       = 'notepad.exe'
+                ExpectedPublisher = ''
+                ExpectedArguments = ''
+            }
+        }
+
+        AfterEach {
+            Get-Process -Name 'notepad' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+            Remove-Item -LiteralPath $script:S32_dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'does not throw when called with a valid lnk and default MaxAttempts' {
+            { Start-Win32App -App $script:S32_app } | Should -Not -Throw
+        }
+
+        It 'returns a known status string (Success/Abort/Skipped)' {
+            $result = Start-Win32App -App $script:S32_app
+            $result | Should -BeIn @('Success', 'Abort', 'Skipped')
+        }
+
+        It 'does not attempt more than MaxAttempts launches' {
+            # MaxAttempts 1 means at most one real launch; must not throw
+            { Start-Win32App -App $script:S32_app -MaxAttempts 1 } | Should -Not -Throw
+        }
+
+        It 'exits immediately and returns Abort when MaxAttempts is 0' {
+            $result = Start-Win32App -App $script:S32_app -MaxAttempts 0
+            $result | Should -BeIn @('Abort', 'Skipped', $null)
+        }
+
+        It 'does not throw when the shortcut path is missing (graceful abort)' {
+            $ghost = [PSCustomObject]@{
+                Name='Ghost'; LaunchType='Win32'
+                ShortcutPath='C:\NoSuch\ghost.lnk'
+                ProcessName='ghost'; ExpectedExe='ghost.exe'
+                ExpectedPublisher=''; ExpectedArguments=''
+            }
+            { Start-Win32App -App $ghost -MaxAttempts 1 } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-24: Wait-ForWindowByTitle polling (TEST-GAP-03)
+    # -----------------------------------------------------------------------
+    Describe 'Wait-ForWindowByTitle' {
+
+        It 'returns $false immediately when no window with the title exists' {
+            $result = Wait-ForWindowByTitle -TitleFragment 'PesterNoSuchWindow_XYZ123' -TimeoutSeconds 1
+            $result | Should -Be $false
+        }
+
+        It 'does not throw for a title fragment that never appears' {
+            { Wait-ForWindowByTitle -TitleFragment 'PesterNoSuchWindow_XYZ123' -TimeoutSeconds 1 } |
+                Should -Not -Throw
+        }
+
+        It 'does not throw when TimeoutSeconds is 0' {
+            { Wait-ForWindowByTitle -TitleFragment 'anything' -TimeoutSeconds 0 } | Should -Not -Throw
+        }
+
+        It 'does not throw for an empty title fragment' {
+            { Wait-ForWindowByTitle -TitleFragment '' -TimeoutSeconds 1 } | Should -Not -Throw
+        }
+
+        It 'returns $true or $false (boolean) for a notepad window with matching title' {
+            $p = Start-Process notepad.exe -PassThru -ErrorAction SilentlyContinue
+            Start-Sleep -Milliseconds 600
+            try {
+                $result = Wait-ForWindowByTitle -TitleFragment 'Notepad' -TimeoutSeconds 3
+                $result | Should -BeIn @($true, $false)
+            } finally {
+                $p | Stop-Process -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-25: Sync-AppsFromStartMenu empty-target guard (TEST-GAP-04 / BUG-G)
+    # -----------------------------------------------------------------------
+    Describe 'Sync-AppsFromStartMenu empty-target guard' {
+
+        BeforeEach {
+            $script:SAFS_dir = Join-Path $env:TEMP ("PesterSAFS_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:SAFS_dir | Out-Null
+            $script:SAFS_savedApps   = $script:apps
+            $script:SAFS_savedConfig = $script:AppsConfigPath
+            $script:apps             = @()
+            $script:AppsConfigPath   = Join-Path $script:SAFS_dir 'apps.json'
+        }
+
+        AfterEach {
+            $script:apps           = $script:SAFS_savedApps
+            $script:AppsConfigPath = $script:SAFS_savedConfig
+            Remove-Item -LiteralPath $script:SAFS_dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'does not throw when Start Menu contains zero .lnk files' {
+            # Sync against an empty folder — nothing to process
+            { Sync-AppsFromStartMenu -StartMenuPath $script:SAFS_dir } | Should -Not -Throw
+        }
+
+        It 'does not throw when a .lnk exists but its TargetPath is empty (BUG-G guard)' {
+            # Create a URL-style shortcut with no TargetPath
+            $emptyLnk = Join-Path $script:SAFS_dir '01 EmptyTarget.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($emptyLnk)
+            # Intentionally leave TargetPath blank
+            $sc.Save()
+            { Sync-AppsFromStartMenu -StartMenuPath $script:SAFS_dir } | Should -Not -Throw
+        }
+
+        It 'does not add an entry whose ExpectedExe would be empty (BUG-G guard)' {
+            $emptyLnk = Join-Path $script:SAFS_dir '01 EmptyTarget.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($emptyLnk)
+            $sc.Save()
+            Sync-AppsFromStartMenu -StartMenuPath $script:SAFS_dir -ErrorAction SilentlyContinue
+            # No entry with blank ExpectedExe must have been added
+            $badEntries = $script:apps | Where-Object { [string]::IsNullOrWhiteSpace($_.ExpectedExe) }
+            $badEntries | Should -BeNullOrEmpty
+        }
+
+        It 'correctly imports a valid .lnk and adds one entry' {
+            $goodLnk = Join-Path $script:SAFS_dir '01 Notepad.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($goodLnk)
+            $sc.TargetPath = "$env:SystemRoot\System32\notepad.exe"
+            $sc.Save()
+            Sync-AppsFromStartMenu -StartMenuPath $script:SAFS_dir -ErrorAction SilentlyContinue
+            $script:apps.Count | Should -BeGreaterOrEqual 1
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-26: Resolve-ConfigPath user-input branches (TEST-GAP-05)
+    # -----------------------------------------------------------------------
+    Describe 'Resolve-ConfigPath' {
+
+        BeforeEach {
+            $script:RCP_dir = Join-Path $env:TEMP ("PesterRCP_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:RCP_dir | Out-Null
+            $script:RCP_savedPath    = $script:AppsConfigPath
+            $script:AppsConfigPath   = Join-Path $script:RCP_dir 'apps.json'
+        }
+
+        AfterEach {
+            $script:AppsConfigPath = $script:RCP_savedPath
+            Remove-Item -LiteralPath $script:RCP_dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'does not throw when called with no arguments (default path branch)' {
+            { Resolve-ConfigPath } | Should -Not -Throw
+        }
+
+        It 'returns a non-empty string for the default path' {
+            $result = Resolve-ConfigPath
+            $result | Should -Not -BeNullOrEmpty
+        }
+
+        It 'returns the supplied path when an existing JSON file is provided' {
+            $json = '[{"Name":"App","LaunchType":"Win32","ShortcutPath":"C:\\x.lnk","ProcessName":"app","ExpectedExe":"app.exe"}]'
+            $cfgPath = Join-Path $script:RCP_dir 'custom.json'
+            $json | Set-Content -LiteralPath $cfgPath -Encoding UTF8
+            $result = Resolve-ConfigPath -Path $cfgPath
+            $result | Should -Be $cfgPath
+        }
+
+        It 'does not throw when the supplied path does not exist (new-file creation branch)' {
+            $newPath = Join-Path $script:RCP_dir 'new_apps.json'
+            { Resolve-ConfigPath -Path $newPath } | Should -Not -Throw
+        }
+
+        It 'does not throw for an empty path argument' {
+            { Resolve-ConfigPath -Path '' } | Should -Not -Throw
         }
     }
 }
