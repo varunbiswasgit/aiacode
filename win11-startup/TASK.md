@@ -11,6 +11,16 @@
 | **BUG-C** | Bug | `Invoke-LaunchAttempt` uses `return if ($recover) { 'Retry' } else { 'Abort' }` — invalid PowerShell syntax. `return` exits with `$null` before `if` is evaluated, breaking the retry loop in `Start-Win32App`. Replace with explicit `if ($recover) { return 'Retry' } else { return 'Abort' }`. |
 | **BUG-D** | Bug | `Win11startupapps.json` Sticky Notes entry is misconfigured as `LaunchType=Win32 / ProcessName=ONENOTE / ExpectedExe=ONENOTE.EXE`. Sticky Notes is a UWP app; it must be `LaunchType=Appx`, `ProcessName=StickyNotes`, `ExpectedExe=explorer.exe`, `KnownAumid=Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe!App`. Also causes OneNote false-skip (shared ProcessName). |
 | **DEAD-01** | Cleanup | Audit `Win11startup.ps1` for any functions/variables defined but never called in the startup sequence (reuse existing modules; delete unused code). Cross-check against `Win11startup.Tests.ps1` to retain test-only stubs intentionally. |
+| **FIX-TEST-01** | Test Fix | `Get-ShortcutObject`: test (NEW-TEST-18) calls `-LnkPath`; script has `-ShortcutPath`. Add `[Alias('LnkPath')]` to the `-ShortcutPath` parameter. |
+| **FIX-TEST-02** | Test Fix | `Find-ExeWithinDepth`: test (NEW-TEST-17) calls `-SearchRoot`, `-ExeName`, `-MaxDepth`; script has `-RootFolder`, `-ExpectedExe`, no depth cap. Add aliases `-SearchRoot`/`-ExeName` and a new `-MaxDepth` parameter with depth-bounded filtering. |
+| **FIX-TEST-03** | Test Fix | `New-AppShortcut`: test (NEW-TEST-19) calls `-App $app -TargetPath $target`; script has no `-App` parameter. Add `-App [PSCustomObject]` that maps `$App.ShortcutPath` → `-Path` when `-Path` is not supplied. |
+| **FIX-TEST-04** | Test Fix | `Invoke-AppLaunch`: test (NEW-TEST-20) calls `Invoke-AppLaunch -App $app`; script has `Invoke-LaunchAttempt`. Add thin wrapper `Invoke-AppLaunch` that delegates to `Invoke-LaunchAttempt`. |
+| **FIX-TEST-05** | Test Fix | `Test-ShortcutHealthy`: test (NEW-TEST-21) calls `Test-ShortcutHealthy -App $app`; function does not exist. Extract as standalone: check `.lnk` exists → target exists → `Test-ExeAcceptable` passes. |
+| **FIX-TEST-06** | Test Fix | `Get-AppPresence`: test (NEW-TEST-22) calls `Get-AppPresence -ProcessName` expecting `'Running'`/`'WindowVisible'`/`$null`; script has `Get-AppPresenceMode` returning `'Tray'`/`'Window'`/`$null`. Add `Get-AppPresence` wrapper with mapped return values. |
+| **FIX-TEST-07** | Test Fix | `Wait-ForWindowByTitle`: test (NEW-TEST-24) calls `-TitleFragment`/`-TimeoutSeconds` and expects `[bool]`; script has `-App`/`-WaitSecs` returning a process object. Add `-TitleFragment` + `-TimeoutSeconds` overload that returns `$true`/`$false`. |
+| **FIX-TEST-08** | Test Fix | `Sync-AppsFromStartMenu`: test (NEW-TEST-25) calls `-StartMenuPath $path`; script has no parameter (hardcodes `$script:startMenu`). Add optional `-StartMenuPath` parameter defaulting to `$script:startMenu`. |
+| **FIX-TEST-09** | Test Fix | `Resolve-ConfigPath`: test (NEW-TEST-26) calls `-Path $cfgPath`; script has no parameters. Add optional `-Path` parameter. |
+| **FIX-TEST-10** | Test Fix | `Start-Win32App`: test (NEW-TEST-23) calls `-MaxAttempts 1` and `-MaxAttempts 0`; script hardcodes `$attempt -le 2`. Add `-MaxAttempts [int]` parameter with default `3`; replace hardcoded loop bound. |
 
 ## Closed
 
@@ -62,4 +72,5 @@
 - All LEAN tasks complete through LEAN-07.
 - BUG-A/B/C are code bugs; BUG-D is a JSON config error. All four are blocking correct operation of `Add-Shortcut`, `Initialize-Shortcut`, `Invoke-LaunchAttempt`, and Sticky Notes launch.
 - DEAD-01: reuse existing helpers (`Initialize-Shortcut`, `Invoke-ShortcutRepair`, `New-AppEntry`) — do not duplicate logic. Delete only functions with zero callers confirmed by grep.
+- FIX-TEST-01 through FIX-TEST-10: all are **additive** — no existing logic changes. Two new functions (`Invoke-AppLaunch`, `Test-ShortcutHealthy`, `Get-AppPresence`), plus parameter aliases/additions on existing functions. Apply together in one commit.
 - `Win11startup.Tests.ps1` intentionally retains `Get-RelativeDepth` stub (AUD-01); do not delete from test file.
