@@ -42,15 +42,15 @@
     },
     {
       "Name": "Sticky Notes",
-      "LaunchType": "Win32",
+      "LaunchType": "Appx",
       "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\04 Sticky Notes.lnk",
-      "ProcessName": "ONENOTE",
-      "ExpectedExe": "ONENOTE.EXE",
-      "ExpectedPublisher": "CN=Microsoft Corporation",
-      "ExpectedArguments": "",
-      "StartAppName": "",
-      "KnownAumid": "",
-      "AppxName": "",
+      "ProcessName": "StickyNotes",
+      "ExpectedExe": "explorer.exe",
+      "ExpectedPublisher": "CN=Microsoft Windows",
+      "ExpectedArguments": "shell:appsFolder\\Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe!App",
+      "StartAppName": "Sticky Notes",
+      "KnownAumid": "Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe!App",
+      "AppxName": "MicrosoftStickyNotes",
       "PresenceMode": null
     },
     {
