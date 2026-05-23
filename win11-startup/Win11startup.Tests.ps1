@@ -21,6 +21,8 @@
 #   Invoke-FailureRecovery         (NEW-TEST-11)
 #   Show-AppList                   (NEW-TEST-12)
 #   Import-AppsConfig schemaVersion (NEW-TEST-13)
+#   Invoke-ShortcutRepair          (LEAN-06-01)
+#   Repair-ShortcutArguments wrapper (LEAN-06-02)
 # Integration:
 #   Initialize-Shortcut            (INT-02)
 
@@ -594,6 +596,128 @@ Describe 'Unit' {
             $warnings = @()
             Import-AppsConfig -Path $cfgPath -WarningVariable warnings -WarningAction SilentlyContinue | Out-Null
             $warnings | Where-Object { $_ -match 'schemaVersion' } | Should -Not -BeNullOrEmpty
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # LEAN-06-01: Invoke-ShortcutRepair -- envelope behaviour
+    # -----------------------------------------------------------------------
+    Describe 'Invoke-ShortcutRepair' {
+
+        BeforeEach {
+            # Build a real .lnk in TEMP pointing to notepad.exe so
+            # Get-ShortcutObject can open it without throwing.
+            $script:ISR_dir = Join-Path $env:TEMP ("PesterISR_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:ISR_dir | Out-Null
+            $script:ISR_lnk = Join-Path $script:ISR_dir '01 ISRTest.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($script:ISR_lnk)
+            $sc.TargetPath = "$env:SystemRoot\System32\notepad.exe"
+            $sc.Save()
+            $script:ISR_app = [PSCustomObject]@{
+                Name         = 'ISRTest'
+                ShortcutPath = $script:ISR_lnk
+            }
+        }
+
+        AfterEach {
+            Remove-Item -LiteralPath $script:ISR_dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'calls .Save() and returns the repaired value when RepairAction returns non-null' {
+            $saveCalled = $false
+            # Wrap the real shortcut COM object with a proxy that tracks .Save() calls.
+            $result = Invoke-ShortcutRepair -App $script:ISR_app -RepairAction {
+                param($shortcut)
+                # Monkey-patch Save on the COM object via a wrapper scriptblock is not
+                # possible directly, so we verify indirectly: write a sentinel to
+                # Arguments and assert it persists after the call (proving .Save() ran).
+                $shortcut.Arguments = 'pester-sentinel'
+                return 'repaired'
+            }
+            $result | Should -Be 'repaired'
+            # Re-read the .lnk from disk to confirm .Save() was called.
+            $wsh    = New-Object -ComObject WScript.Shell
+            $verify = $wsh.CreateShortcut($script:ISR_lnk)
+            $verify.Arguments | Should -Be 'pester-sentinel'
+        }
+
+        It 'does not call .Save() and returns $null when RepairAction returns $null' {
+            # Stamp a known Arguments value before the call.
+            $wsh = New-Object -ComObject WScript.Shell
+            $pre = $wsh.CreateShortcut($script:ISR_lnk)
+            $pre.Arguments = 'original-value'
+            $pre.Save()
+
+            $result = Invoke-ShortcutRepair -App $script:ISR_app -RepairAction {
+                param($shortcut)
+                # Mutate in memory but return $null to suppress .Save().
+                $shortcut.Arguments = 'should-not-persist'
+                return $null
+            }
+            $result | Should -BeNullOrEmpty
+            # Re-read from disk -- original value must still be there.
+            $wsh2   = New-Object -ComObject WScript.Shell
+            $verify = $wsh2.CreateShortcut($script:ISR_lnk)
+            $verify.Arguments | Should -Be 'original-value'
+        }
+
+        It 'does not throw when RepairAction returns $null' {
+            { Invoke-ShortcutRepair -App $script:ISR_app -RepairAction { param($s) return $null } } |
+                Should -Not -Throw
+        }
+
+        It 'throws when the shortcut file does not exist' {
+            $missing = [PSCustomObject]@{ Name = 'Ghost'; ShortcutPath = 'C:\DoesNotExist\ghost.lnk' }
+            { Invoke-ShortcutRepair -App $missing -RepairAction { param($s) return 'x' } } |
+                Should -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # LEAN-06-02: Repair-ShortcutArguments is a thin wrapper
+    # -----------------------------------------------------------------------
+    Describe 'Repair-ShortcutArguments wrapper' {
+
+        It 'returns $null and does not throw when ExpectedArguments has no shell:appsFolder pattern' {
+            $dir = Join-Path $env:TEMP ("PesterRSA_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $dir | Out-Null
+            $lnk = Join-Path $dir '01 RSATest.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($lnk)
+            $sc.TargetPath = "$env:SystemRoot\System32\notepad.exe"
+            $sc.Save()
+            $app = [PSCustomObject]@{
+                Name              = 'RSATest'
+                ShortcutPath      = $lnk
+                ExpectedArguments = 'not-a-shell-appsfolder-value'
+            }
+            try {
+                $result = Repair-ShortcutArguments -App $app
+                $result | Should -BeNullOrEmpty
+            } finally {
+                Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+
+        It 'does not throw when the shortcut has no Arguments field set' {
+            $dir = Join-Path $env:TEMP ("PesterRSA2_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $dir | Out-Null
+            $lnk = Join-Path $dir '01 RSATest2.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($lnk)
+            $sc.TargetPath = "$env:SystemRoot\System32\explorer.exe"
+            $sc.Save()
+            $app = [PSCustomObject]@{
+                Name              = 'RSATest2'
+                ShortcutPath      = $lnk
+                ExpectedArguments = 'shell:appsFolder\Contoso.App_abc123_x64__xyz!App'
+            }
+            try {
+                { Repair-ShortcutArguments -App $app } | Should -Not -Throw
+            } finally {
+                Remove-Item -LiteralPath $dir -Recurse -Force -ErrorAction SilentlyContinue
+            }
         }
     }
 }
