@@ -35,6 +35,7 @@
 #   Wait-ForWindowByTitle polling  (NEW-TEST-24)
 #   Sync-AppsFromStartMenu guard   (NEW-TEST-25)
 #   Resolve-ConfigPath branches    (NEW-TEST-26)
+#   Invoke-FailureRecovery choice 4 (NEW-TEST-27)
 # Integration:
 #   Initialize-Shortcut            (INT-02)
 
@@ -1146,7 +1147,6 @@ Describe 'Unit' {
         }
 
         It 'does not attempt more than MaxAttempts launches' {
-            # MaxAttempts 1 means at most one real launch; must not throw
             { Start-Win32App -App $script:S32_app -MaxAttempts 1 } | Should -Not -Throw
         }
 
@@ -1222,16 +1222,13 @@ Describe 'Unit' {
         }
 
         It 'does not throw when Start Menu contains zero .lnk files' {
-            # Sync against an empty folder — nothing to process
             { Sync-AppsFromStartMenu -StartMenuPath $script:SAFS_dir } | Should -Not -Throw
         }
 
         It 'does not throw when a .lnk exists but its TargetPath is empty (BUG-G guard)' {
-            # Create a URL-style shortcut with no TargetPath
             $emptyLnk = Join-Path $script:SAFS_dir '01 EmptyTarget.lnk'
             $wsh = New-Object -ComObject WScript.Shell
             $sc  = $wsh.CreateShortcut($emptyLnk)
-            # Intentionally leave TargetPath blank
             $sc.Save()
             { Sync-AppsFromStartMenu -StartMenuPath $script:SAFS_dir } | Should -Not -Throw
         }
@@ -1242,7 +1239,6 @@ Describe 'Unit' {
             $sc  = $wsh.CreateShortcut($emptyLnk)
             $sc.Save()
             Sync-AppsFromStartMenu -StartMenuPath $script:SAFS_dir -ErrorAction SilentlyContinue
-            # No entry with blank ExpectedExe must have been added
             $badEntries = $script:apps | Where-Object { [string]::IsNullOrWhiteSpace($_.ExpectedExe) }
             $badEntries | Should -BeNullOrEmpty
         }
@@ -1299,6 +1295,51 @@ Describe 'Unit' {
 
         It 'does not throw for an empty path argument' {
             { Resolve-ConfigPath -Path '' } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-27: Invoke-FailureRecovery choice '4' -- Delete entry (TEST-GAP-06 / UX-04)
+    # -----------------------------------------------------------------------
+    Describe 'Invoke-FailureRecovery choice 4 (Delete entry)' {
+
+        BeforeEach {
+            $script:IFR4_app  = [PSCustomObject]@{ Name = 'PesterDelApp' }
+            $script:IFR4_saved = $script:apps
+            # Seed $script:apps with the app under test so choice '4' has something to remove
+            $script:apps = @(
+                [PSCustomObject]@{
+                    Name='PesterDelApp'; LaunchType='Win32'
+                    ShortcutPath='C:\Fake\01 PesterDelApp.lnk'
+                    ProcessName='pesterdelapp'; ExpectedExe='pesterdelapp.exe'
+                    ExpectedPublisher=''; ExpectedArguments=''
+                    StartAppName=''; KnownAumid=''; AppxName=''
+                }
+            )
+        }
+
+        AfterEach {
+            $script:apps = $script:IFR4_saved
+        }
+
+        It 'does not throw when user chooses 4 (Delete entry branch)' {
+            { '4' | & { Invoke-FailureRecovery -App $script:IFR4_app -Context 'test' } } | Should -Not -Throw
+        }
+
+        It 'returns $false when user chooses 4 (loop does not retry)' {
+            $result = '4' | & { Invoke-FailureRecovery -App $script:IFR4_app -Context 'test' }
+            $result | Should -Be $false
+        }
+
+        It 'removes the app entry from $script:apps when user chooses 4' {
+            '4' | & { Invoke-FailureRecovery -App $script:IFR4_app -Context 'test' }
+            $remaining = $script:apps | Where-Object { $_.Name -eq 'PesterDelApp' }
+            $remaining | Should -BeNullOrEmpty
+        }
+
+        It 'does not throw when $script:apps is already empty and user chooses 4' {
+            $script:apps = @()
+            { '4' | & { Invoke-FailureRecovery -App $script:IFR4_app -Context 'test' } } | Should -Not -Throw
         }
     }
 }

@@ -27,7 +27,7 @@ All items reference the live script at `win11-startup/Win11startup.ps1`.
 | TEST-GAP-03 | `Win11startup.Tests.ps1` | `Wait-ForWindowByTitle` (BUG-06 path) — title-match window polling logic unverified. | ✅ Closed — NEW-TEST-24 |
 | TEST-GAP-04 | `Win11startup.Tests.ps1` | `Sync-AppsFromStartMenu` with empty-target shortcut — unguarded `$scArgs` (BUG-G) not caught by any test. | ✅ Closed — NEW-TEST-25 |
 | TEST-GAP-05 | `Win11startup.Tests.ps1` | `Resolve-ConfigPath` user-input branches — custom JSON path and new-file creation paths untested. | ✅ Closed — NEW-TEST-26 |
-| TEST-GAP-06 | `Win11startup.Tests.ps1` | `Show-FailureMenu` choice `'4'` (Delete entry, UX-04) — `Invoke-FailureRecovery` switch branch for `'4'` has no test. | ⬜ Open |
+| TEST-GAP-06 | `Win11startup.Tests.ps1` | `Show-FailureMenu` choice `'4'` (Delete entry, UX-04) — `Invoke-FailureRecovery` switch branch for `'4'` has no test. | ✅ Closed — NEW-TEST-27 |
 | TEST-GAP-07 | `Win11startup.Tests.ps1` | `TEST-02` (Get-RelativeDepth) tests a function removed from the main script (AUD-01). Tests exercise dead code and should be removed. | ✅ Closed — dead TEST-02 block removed |
 
 ---
@@ -59,6 +59,7 @@ All items reference the live script at `win11-startup/Win11startup.ps1`.
 | NEW-TEST-24 | `Wait-ForWindowByTitle` |
 | NEW-TEST-25 | `Sync-AppsFromStartMenu` |
 | NEW-TEST-26 | `Resolve-ConfigPath` |
+| NEW-TEST-27 | `Invoke-FailureRecovery` choice `'4'` (Delete entry) |
 
 ---
 
