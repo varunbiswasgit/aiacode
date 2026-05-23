@@ -26,6 +26,9 @@
 #   Test-ExeAcceptable             (NEW-TEST-14)
 #   New-AppEntry                   (NEW-TEST-15)
 #   Wait-ForProcessCondition       (NEW-TEST-16)
+#   Find-ExeWithinDepth            (NEW-TEST-17)
+#   Get-ShortcutObject             (NEW-TEST-18)
+#   New-AppShortcut                (NEW-TEST-19)
 # Integration:
 #   Initialize-Shortcut            (INT-02)
 
@@ -740,11 +743,9 @@ Describe 'Unit' {
         }
 
         It 'returns false when the path is outside allowed roots even if the file exists' {
-            # Write a real signed exe? Not practical -- verify path check fires first.
-            # TEMP is never in AllowedExeRoots, so any path there must return false.
-            $fakePath = Join-Path $env:TEMP 'notepad_copy.exe'
             # We don't need the file to exist -- Test-ExePathAllowed short-circuits before
             # Test-ExeSignatureTrusted reads the file.
+            $fakePath = Join-Path $env:TEMP 'notepad_copy.exe'
             Test-ExeAcceptable -ExePath $fakePath | Should -Be $false
         }
 
@@ -755,8 +756,8 @@ Describe 'Unit' {
 
         It 'does not throw for any combination of valid inputs' {
             $notepad = Join-Path $env:SystemRoot 'System32\notepad.exe'
-            { Test-ExeAcceptable -ExePath $notepad }                                        | Should -Not -Throw
-            { Test-ExeAcceptable -ExePath $notepad -ExpectedPublisher '' }                  | Should -Not -Throw
+            { Test-ExeAcceptable -ExePath $notepad }                                           | Should -Not -Throw
+            { Test-ExeAcceptable -ExePath $notepad -ExpectedPublisher '' }                     | Should -Not -Throw
             { Test-ExeAcceptable -ExePath $notepad -ExpectedPublisher 'CN=Microsoft Windows' } | Should -Not -Throw
         }
     }
@@ -840,6 +841,190 @@ Describe 'Unit' {
 
         It 'does not throw when condition scriptblock throws internally' {
             { Wait-ForProcessCondition -Condition { throw 'oops' } -Remaining 1 } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-17: Find-ExeWithinDepth -- depth-bounded exe search
+    # -----------------------------------------------------------------------
+    Describe 'Find-ExeWithinDepth' {
+
+        BeforeEach {
+            $script:FEW_dir = Join-Path $env:TEMP ("PesterFEW_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:FEW_dir | Out-Null
+        }
+
+        AfterEach {
+            Remove-Item -LiteralPath $script:FEW_dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'finds an exe at depth 1 when MaxDepth is 1' {
+            $exePath = Join-Path $script:FEW_dir 'app.exe'
+            New-Item -ItemType File -Path $exePath | Out-Null
+            $result = Find-ExeWithinDepth -SearchRoot $script:FEW_dir -ExeName 'app.exe' -MaxDepth 1
+            $result | Should -Not -BeNullOrEmpty
+            $result | Should -Be $exePath
+        }
+
+        It 'finds an exe nested at depth 2 when MaxDepth is 2' {
+            $sub    = Join-Path $script:FEW_dir 'sub'
+            New-Item -ItemType Directory -Path $sub | Out-Null
+            $exePath = Join-Path $sub 'app.exe'
+            New-Item -ItemType File -Path $exePath | Out-Null
+            $result = Find-ExeWithinDepth -SearchRoot $script:FEW_dir -ExeName 'app.exe' -MaxDepth 2
+            $result | Should -Not -BeNullOrEmpty
+            $result | Should -Be $exePath
+        }
+
+        It 'returns $null when exe exists only beyond MaxDepth' {
+            $sub1 = Join-Path $script:FEW_dir 'a'
+            $sub2 = Join-Path $sub1 'b'
+            New-Item -ItemType Directory -Path $sub2 -Force | Out-Null
+            $exePath = Join-Path $sub2 'app.exe'
+            New-Item -ItemType File -Path $exePath | Out-Null
+            # MaxDepth 1 should NOT find the file at depth 3.
+            $result = Find-ExeWithinDepth -SearchRoot $script:FEW_dir -ExeName 'app.exe' -MaxDepth 1
+            $result | Should -BeNullOrEmpty
+        }
+
+        It 'returns $null when no matching exe exists anywhere' {
+            $result = Find-ExeWithinDepth -SearchRoot $script:FEW_dir -ExeName 'nosuchfile.exe' -MaxDepth 3
+            $result | Should -BeNullOrEmpty
+        }
+
+        It 'does not throw when SearchRoot does not exist' {
+            { Find-ExeWithinDepth -SearchRoot 'C:\PesterNonExistent_XYZ' -ExeName 'x.exe' -MaxDepth 2 } |
+                Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-18: Get-ShortcutObject -- COM wrapper contract
+    # -----------------------------------------------------------------------
+    Describe 'Get-ShortcutObject' {
+
+        BeforeEach {
+            $script:GSO_dir = Join-Path $env:TEMP ("PesterGSO_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:GSO_dir | Out-Null
+            $script:GSO_lnk = Join-Path $script:GSO_dir '01 GSOTest.lnk'
+            $wsh = New-Object -ComObject WScript.Shell
+            $sc  = $wsh.CreateShortcut($script:GSO_lnk)
+            $sc.TargetPath = "$env:SystemRoot\System32\notepad.exe"
+            $sc.Save()
+        }
+
+        AfterEach {
+            Remove-Item -LiteralPath $script:GSO_dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'returns an object with a non-empty TargetPath for a valid lnk' {
+            $sc = Get-ShortcutObject -LnkPath $script:GSO_lnk
+            $sc | Should -Not -BeNullOrEmpty
+            $sc.TargetPath | Should -Not -BeNullOrEmpty
+        }
+
+        It 'TargetPath matches the exe used when creating the shortcut' {
+            $sc = Get-ShortcutObject -LnkPath $script:GSO_lnk
+            $sc.TargetPath | Should -Be "$env:SystemRoot\System32\notepad.exe"
+        }
+
+        It 'returned object exposes a Save method' {
+            $sc = Get-ShortcutObject -LnkPath $script:GSO_lnk
+            $sc | Get-Member -Name 'Save' | Should -Not -BeNullOrEmpty
+        }
+
+        It 'throws or returns $null for a path that does not exist' {
+            $missing = Join-Path $script:GSO_dir 'ghost.lnk'
+            # The function should either throw or return null -- not silently succeed.
+            $threw = $false
+            $result = $null
+            try {
+                $result = Get-ShortcutObject -LnkPath $missing
+            } catch {
+                $threw = $true
+            }
+            ($threw -or ($null -eq $result)) | Should -Be $true
+        }
+
+        It 'does not throw for a valid lnk path' {
+            { Get-ShortcutObject -LnkPath $script:GSO_lnk } | Should -Not -Throw
+        }
+    }
+
+    # -----------------------------------------------------------------------
+    # NEW-TEST-19: New-AppShortcut -- shortcut creation contract
+    # -----------------------------------------------------------------------
+    Describe 'New-AppShortcut' {
+
+        BeforeEach {
+            $script:NAS_dir = Join-Path $env:TEMP ("PesterNAS_" + [System.IO.Path]::GetRandomFileName())
+            New-Item -ItemType Directory -Path $script:NAS_dir | Out-Null
+        }
+
+        AfterEach {
+            Remove-Item -LiteralPath $script:NAS_dir -Recurse -Force -ErrorAction SilentlyContinue
+        }
+
+        It 'creates a .lnk file at the specified ShortcutPath' {
+            $lnk = Join-Path $script:NAS_dir '01 NASTest.lnk'
+            $app = [PSCustomObject]@{
+                Name              = 'NASTest'
+                LaunchType        = 'Win32'
+                ShortcutPath      = $lnk
+                ExpectedExe       = 'notepad.exe'
+                ExpectedPublisher = ''
+                ExpectedArguments = ''
+            }
+            $target = "$env:SystemRoot\System32\notepad.exe"
+            New-AppShortcut -App $app -TargetPath $target
+            Test-Path -LiteralPath $lnk -PathType Leaf | Should -Be $true
+        }
+
+        It 'created lnk has TargetPath matching the supplied exe' {
+            $lnk = Join-Path $script:NAS_dir '01 NASTest2.lnk'
+            $app = [PSCustomObject]@{
+                Name              = 'NASTest2'
+                LaunchType        = 'Win32'
+                ShortcutPath      = $lnk
+                ExpectedExe       = 'notepad.exe'
+                ExpectedPublisher = ''
+                ExpectedArguments = ''
+            }
+            $target = "$env:SystemRoot\System32\notepad.exe"
+            New-AppShortcut -App $app -TargetPath $target
+            $wsh    = New-Object -ComObject WScript.Shell
+            $verify = $wsh.CreateShortcut($lnk)
+            $verify.TargetPath | Should -Be $target
+        }
+
+        It 'does not throw when called with valid parameters' {
+            $lnk = Join-Path $script:NAS_dir '01 NASTest3.lnk'
+            $app = [PSCustomObject]@{
+                Name              = 'NASTest3'
+                LaunchType        = 'Win32'
+                ShortcutPath      = $lnk
+                ExpectedExe       = 'notepad.exe'
+                ExpectedPublisher = ''
+                ExpectedArguments = ''
+            }
+            { New-AppShortcut -App $app -TargetPath "$env:SystemRoot\System32\notepad.exe" } |
+                Should -Not -Throw
+        }
+
+        It 'does not throw when WorkingDirectory is explicitly passed' {
+            $lnk = Join-Path $script:NAS_dir '01 NASTest4.lnk'
+            $app = [PSCustomObject]@{
+                Name              = 'NASTest4'
+                LaunchType        = 'Win32'
+                ShortcutPath      = $lnk
+                ExpectedExe       = 'notepad.exe'
+                ExpectedPublisher = ''
+                ExpectedArguments = ''
+            }
+            $target  = "$env:SystemRoot\System32\notepad.exe"
+            $workDir = "$env:SystemRoot\System32"
+            { New-AppShortcut -App $app -TargetPath $target -WorkingDirectory $workDir } |
+                Should -Not -Throw
         }
     }
 }
