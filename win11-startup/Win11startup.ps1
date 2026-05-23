@@ -123,9 +123,18 @@
 #                    Wait-ForWindowByTitle replaces Resolve-ProcessName. Once a matching window
 #                    is found, ProcessName is back-filled from that process object and persisted
 #                    to Win11startupapps.json. Future runs use the normal Wait-ForAppReady path.
+# - FIX-07         : Write-ErrorLog defined before trap block so the trap can call it on cold
+#                    errors before any other script code runs. Previously the trap fired before
+#                    the function was parsed, causing CommandNotFoundException.
+#                    Boot block now prompts user for a custom JSON path when Win11startupapps.json
+#                    is not found at the default location. If the user supplies a valid path,
+#                    $script:AppsConfigPath is updated and Import-AppsConfig loads from there.
+#                    If the user supplies a new (non-existent) path, an empty config skeleton
+#                    is written there and Sync-AppsFromStartMenu populates it. Pressing Enter
+#                    falls back to the original auto-sync behaviour.
 
 # ---------------------------------------------------------------------------
-# Error log helper
+# Error log path + Write-ErrorLog — MUST be defined before the trap block
 # ---------------------------------------------------------------------------
 $script:ErrorLogPath = Join-Path $PSScriptRoot "startup-error.log"
 
@@ -320,20 +329,79 @@ function New-AppEntry {
 }
 
 # ---------------------------------------------------------------------------
-# Boot: load config or auto-sync if missing
+# FIX-07: Boot — resolve config path before loading
+# If Win11startupapps.json is missing at the default location:
+#   1. Prompt user for an alternate path.
+#   2a. If the path exists     -> load it and update $script:AppsConfigPath.
+#   2b. If the path is new     -> write an empty skeleton there, update path, then sync.
+#   2c. If Enter pressed       -> fall back to auto-sync into the default path.
 # ---------------------------------------------------------------------------
-if (-not (Test-Path -LiteralPath $script:AppsConfigPath -PathType Leaf)) {
-    Write-Host "`n[FIRST RUN] Win11startupapps.json not found. Running sync from Start Menu..." -ForegroundColor Yellow
-    $script:WshShell = New-Object -ComObject WScript.Shell
+$script:WshShell = New-Object -ComObject WScript.Shell
+
+function Resolve-ConfigPath {
+    if (Test-Path -LiteralPath $script:AppsConfigPath -PathType Leaf) { return $true }
+
+    Write-Host "`n[CONFIG NOT FOUND] Win11startupapps.json not found at:" -ForegroundColor Yellow
+    Write-Host "  $script:AppsConfigPath" -ForegroundColor Yellow
+    Write-Host "Press Enter to auto-sync from Start Menu into the default location,"
+    Write-Host "or enter a full path to an existing or new .json file."
+    $userPath = (Read-Host "JSON path (or Enter to auto-sync)").Trim().Trim('"')
+
+    if ([string]::IsNullOrWhiteSpace($userPath)) {
+        # Fall back: auto-sync into default path
+        Write-Host "[FIRST RUN] Running sync from Start Menu..." -ForegroundColor Yellow
+        $synced = Sync-AppsFromStartMenu
+        if (-not $synced) {
+            Write-Host "[ERROR] Sync produced no entries. Create Win11startupapps.json manually or add apps via menu [2]." -ForegroundColor Red
+            Write-ErrorLog -Message "FATAL: config missing and sync found no numbered shortcuts."
+            exit 1
+        }
+        return $true
+    }
+
+    if (-not ($userPath -imatch '\.json$')) {
+        Write-Warning "Path must end in .json. Got: $userPath"
+        return $false
+    }
+
+    if (Test-Path -LiteralPath $userPath -PathType Leaf) {
+        # Existing file at custom path — use it directly
+        $script:AppsConfigPath = $userPath
+        Write-Host "Using existing config: $script:AppsConfigPath" -ForegroundColor Green
+        return $true
+    }
+
+    # New path — confirm creation
+    $confirm = Read-Host "File not found. Create new empty config at '$userPath'? (Y/N)"
+    if ($confirm -ine 'Y') { Write-Host "Cancelled."; return $false }
+
+    $dir = Split-Path $userPath -Parent
+    if (-not [string]::IsNullOrWhiteSpace($dir) -and -not (Test-Path -LiteralPath $dir -PathType Container)) {
+        try { New-Item -ItemType Directory -Path $dir -Force | Out-Null }
+        catch { Write-Warning "Cannot create directory '$dir': $_"; return $false }
+    }
+
+    # Write empty skeleton so Export-AppsConfig has a valid target
+    $script:AppsConfigPath = $userPath
+    $script:apps = @()
+    Export-AppsConfig
+    Write-Host "Empty config created. Running sync from Start Menu to populate it..." -ForegroundColor Yellow
     $synced = Sync-AppsFromStartMenu
     if (-not $synced) {
-        Write-Host "[ERROR] Sync produced no entries. Create Win11startupapps.json manually or add apps via menu [2]." -ForegroundColor Red
-        Write-ErrorLog -Message "FATAL: config missing and sync found no numbered shortcuts."
-        exit 1
+        Write-Warning "Sync produced no entries. Add apps manually via menu [2]."
     }
-} else {
+    return $true
+}
+
+$configReady = Resolve-ConfigPath
+if (-not $configReady) {
+    Write-ErrorLog -Message "FATAL: could not resolve a valid config path."
+    exit 1
+}
+
+if (-not $script:apps) {
     try {
-        $script:apps = Import-AppsConfig
+        $script:apps = Import-AppsConfig -Path $script:AppsConfigPath
     } catch {
         Write-ErrorLog -Message "FATAL: Import-AppsConfig failed" -ErrorRecord $_
         Write-Error $_
@@ -341,8 +409,6 @@ if (-not (Test-Path -LiteralPath $script:AppsConfigPath -PathType Leaf)) {
         exit 1
     }
 }
-
-if (-not $script:WshShell) { $script:WshShell = New-Object -ComObject WScript.Shell }
 
 # ---------------------------------------------------------------------------
 # Presence mode detection
