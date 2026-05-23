@@ -8,12 +8,6 @@
 |---|---|---|---|
 | **README-01** | Docs | README outdated: references `apps.json` and `$MaxRepairDepth`; missing menu `[6] Sync` workflow; missing all user menu scenario / workflow descriptions | Low |
 | **LEAN-03** | Refactor | Extract `Invoke-MenuAction` to unify `Show-AppPicker` + dispatch used by main menu and `Invoke-FailureRecovery` choice `[2]` | Low |
-| **BUG-07** | Bug | `Edit-Shortcut` update-existing branch calls `$script:WshShell.CreateShortcut()` + `.Save()` directly, bypassing `Invoke-ShortcutRepair`. Should route through `New-AppShortcut` or a dedicated `Invoke-ShortcutRepair` delegate. | High |
-| **BUG-08** | Bug | `Add-Shortcut` Win32 / no-args path calls `New-AppShortcut` outside `Initialize-Shortcut`. Breaks LEAN-02 contract. Refactor to pass prompt-supplied `$exePath` into `Initialize-Shortcut` via a parameter or pre-populated app entry. | High |
-| **BUG-09** | Bug | `Invoke-LaunchAttempt` args-validity check uses `-notlike "*$($App.ExpectedArguments)*"` (loose wildcard). A stale AUMID whose old PFN is a substring of `ExpectedArguments` skips repair. Replace with strict `-ine` equality check. | Medium |
-| **BUG-10** | Bug | `Invoke-LaunchAttempt` sets `$App.PresenceMode` in memory after detection but never calls `Export-AppsConfig`. Mode is lost on next run. Add `Export-AppsConfig` after persisting `PresenceMode`. | Medium |
-
----
 
 ## Closed
 
@@ -33,6 +27,10 @@
 | **BUG-04** | Bug | `Prompt-ForExactExePath` max-attempts warning fixed from `$AppName:` to `${AppName}` | Done |
 | **BUG-05** | Bug | `Sync-AppsFromStartMenu` now keeps `LaunchType=Win32` for `explorer.exe+shell:appsFolder` entries | Done |
 | **BUG-06** | Bug | `Wait-ForWindowByTitle` replaces `Resolve-ProcessName`; back-fills `ProcessName` from matched window and persists to JSON | Done |
+| **BUG-07** | Bug | `Edit-Shortcut` update-existing branch bypassed `Invoke-ShortcutRepair`. Routed through `Initialize-Shortcut` to honor LEAN-02 contract. | Done — sees BUG-07 fix commit |
+| **BUG-08** | Bug | `Add-Shortcut` Win32 no-args path called `New-AppShortcut` outside `Initialize-Shortcut`. Refactored to pass `$exePath` into `Initialize-Shortcut`. | Done — sees BUG-08 fix commit |
+| **BUG-09** | Bug | `Invoke-LaunchAttempt` args-validity check used `-notlike` wildcard on `ExpectedArguments`. Replaced with strict `-ine` equality. | Done — sees BUG-09 fix commit |
+| **BUG-10** | Bug | `Invoke-LaunchAttempt` set `$App.PresenceMode` in memory after detection but never called `Export-AppsConfig`. Added `Export-AppsConfig` call after persisting. | Done — sees BUG-10 fix commit |
 | **DUP-01** | Refactor | `Wait-ForProcessCondition` extracted from `Wait-ForAppReady` | Done |
 | **FIX-04** | Fix | `Test-AppAlreadyOpen` accepts `-RequireWindow` switch | Done |
 | **FIX-05** | Fix | `Repair-ShortcutArguments` uses `$pkg.PackageFamilyName` directly from `Get-AppxPackage` | Done |
@@ -55,11 +53,8 @@
 | **UX-03** | UX | `Start-Win32App` catch block calls `Invoke-FailureRecovery` | Done |
 | **UX-04** | UX | `Show-FailureMenu` adds `[4] Delete entry`; `Invoke-FailureRecovery` `'4'` branch calls `Remove-Shortcut` | Done |
 
----
-
 ## Notes
-
 - All LEAN tasks complete through LEAN-07 (LEAN-03 deprioritised — low impact).
-- BUG-07 and BUG-08 are consistency violations against the LEAN-02/LEAN-06 contracts already in place.
-- BUG-09 and BUG-10 are logic gaps in `Invoke-LaunchAttempt` introduced during the LEAN-04 extraction.
-- `Win11startup.Tests.ps1` should be reviewed for `Invoke-ShortcutRepair` delegate coverage after BUG-07/BUG-08 are resolved.
+- BUG-07 through BUG-10 resolved. LEAN-02/LEAN-06 contracts now consistently enforced across `Edit-Shortcut` and `Add-Shortcut`.
+- `Invoke-LaunchAttempt` args check is strict (`-ine`); `PresenceMode` persistence triggers `Export-AppsConfig`.
+- `Win11startup.Tests.ps1` should be reviewed for `Invoke-ShortcutRepair` delegate coverage.
