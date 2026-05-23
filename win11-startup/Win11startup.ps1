@@ -150,10 +150,10 @@
 #                    Initialize-Shortcut is the sole .lnk creation path.
 # - LEAN-06        : Invoke-ShortcutRepair -App -RepairAction owns the Get-ShortcutObject +
 #                    .Save() envelope. RepairAction receives the shortcut object and returns
-#                    the repaired value (or $null to suppress .Save()). Repair-ShortcutArguments
-#                    is now a thin wrapper: computes the new args string via RepairAction,
-#                    returns the result. Repair-ShortcutTarget keeps Update-ShortcutTarget for
-#                    its multi-field write but uses Invoke-ShortcutRepair for the read guard.
+#                    the repaired value (or $null to suppress .Save()). Both
+#                    Repair-ShortcutArguments and Repair-ShortcutTarget are thin scriptblock
+#                    delegates. Update-ShortcutTarget retired; all .lnk field writes now happen
+#                    inside RepairAction scriptblocks passed to Invoke-ShortcutRepair.
 # - LEAN-07        : Start-AppxApp intentionally has no failure recovery on timeout. Appx
 #                    failures are AUMID-resolution failures; Resolve-Aumid already exhausts
 #                    three resolution paths. A retry menu cannot produce a different AUMID
@@ -703,7 +703,9 @@ function Edit-Shortcut {
             New-AppShortcut -Path $App.ShortcutPath -TargetPath $exePath -WorkingDirectory (Split-Path $exePath -Parent)
             Write-Host "$($App.Name): shortcut created at '$($App.ShortcutPath)'."
         } else {
-            Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $exePath
+            $sc = $script:WshShell.CreateShortcut($App.ShortcutPath)
+            $sc.TargetPath = $exePath; $sc.WorkingDirectory = Split-Path -Path $exePath -Parent
+            $sc.Save()
             Write-Host "$($App.Name): shortcut updated to '$exePath'."
         }
     } else { Write-Host "$($App.Name): modify cancelled." }
@@ -760,14 +762,6 @@ function Find-ExeWithinDepth {
         Sort-Object FullName | Select-Object -First 1
 }
 
-function Update-ShortcutTarget {
-    param([string]$ShortcutPath, [string]$ExePath, [string]$Arguments = "")
-    $shortcut = Get-ShortcutObject -ShortcutPath $ShortcutPath
-    $shortcut.TargetPath = $ExePath; $shortcut.WorkingDirectory = Split-Path -Path $ExePath -Parent
-    if (-not [string]::IsNullOrWhiteSpace($Arguments)) { $shortcut.Arguments = $Arguments }
-    $shortcut.Save()
-}
-
 function Prompt-ForExactExePath {
     param([string]$AppName, [string]$ExpectedExe, [string]$ExpectedPublisher = "", [int]$MaxAttempts = 3)
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
@@ -817,6 +811,8 @@ function Initialize-Shortcut {
 # LEAN-06: Invoke-ShortcutRepair -- owns Get-ShortcutObject + .Save() envelope.
 #          RepairAction receives the shortcut COM object and returns the repaired
 #          value (any non-null). Returns $null to suppress .Save().
+#          Both Repair-ShortcutTarget and Repair-ShortcutArguments are thin
+#          scriptblock delegates; Update-ShortcutTarget is retired.
 # ---------------------------------------------------------------------------
 function Invoke-ShortcutRepair {
     param($App, [scriptblock]$RepairAction)
@@ -826,29 +822,40 @@ function Invoke-ShortcutRepair {
     return $result
 }
 
+# LEAN-06: thin wrapper -- search/prompt logic runs inside RepairAction;
+#          Get-ShortcutObject and .Save() are owned by Invoke-ShortcutRepair.
 function Repair-ShortcutTarget {
     param($App)
-    $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
-    $targetPath = $shortcut.TargetPath
-    Write-Warning "$($App.Name): shortcut target missing/invalid: $targetPath"
-    $searchRoot = Get-ParentFolder -BrokenTargetPath $targetPath
-    if ($searchRoot) {
-        Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $searchRoot..."
-        $foundExe = Find-ExeWithinDepth -RootFolder $searchRoot -ExpectedExe $App.ExpectedExe
-        if ($foundExe) {
-            if (-not (Test-ExeAcceptable -ExePath $foundExe.FullName -ExpectedPublisher $App.ExpectedPublisher)) {
-                Write-Warning "$($App.Name): exe failed validation. Skipping."
-                return $null
+    return Invoke-ShortcutRepair -App $App -RepairAction {
+        param($shortcut)
+        $targetPath = $shortcut.TargetPath
+        Write-Warning "$($App.Name): shortcut target missing/invalid: $targetPath"
+        $searchRoot = Get-ParentFolder -BrokenTargetPath $targetPath
+        if ($searchRoot) {
+            Write-Host "$($App.Name): searching for $($App.ExpectedExe) under $searchRoot..."
+            $foundExe = Find-ExeWithinDepth -RootFolder $searchRoot -ExpectedExe $App.ExpectedExe
+            if ($foundExe) {
+                if (-not (Test-ExeAcceptable -ExePath $foundExe.FullName -ExpectedPublisher $App.ExpectedPublisher)) {
+                    Write-Warning "$($App.Name): exe failed validation. Skipping."
+                    return $null
+                }
+                Write-Host "$($App.Name): found replacement at $($foundExe.FullName)."
+                $shortcut.TargetPath       = $foundExe.FullName
+                $shortcut.WorkingDirectory = Split-Path -Path $foundExe.FullName -Parent
+                if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) { $shortcut.Arguments = $App.ExpectedArguments }
+                return $foundExe.FullName
             }
-            Write-Host "$($App.Name): found replacement at $($foundExe.FullName)."
-            Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $foundExe.FullName -Arguments $App.ExpectedArguments
-            return $foundExe.FullName
+            Write-Warning "$($App.Name): $($App.ExpectedExe) not found under $searchRoot."
+        } else { Write-Warning "$($App.Name): could not determine parent folder from broken target." }
+        $manualPath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
+        if ($manualPath) {
+            $shortcut.TargetPath       = $manualPath
+            $shortcut.WorkingDirectory = Split-Path -Path $manualPath -Parent
+            if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) { $shortcut.Arguments = $App.ExpectedArguments }
+            return $manualPath
         }
-        Write-Warning "$($App.Name): $($App.ExpectedExe) not found under $searchRoot."
-    } else { Write-Warning "$($App.Name): could not determine parent folder from broken target." }
-    $manualPath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
-    if ($manualPath) { Update-ShortcutTarget -ShortcutPath $App.ShortcutPath -ExePath $manualPath -Arguments $App.ExpectedArguments; return $manualPath }
-    return $null
+        return $null
+    }
 }
 
 # LEAN-06: thin wrapper -- computes repaired args string via Invoke-ShortcutRepair;
