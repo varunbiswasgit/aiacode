@@ -175,6 +175,10 @@
 #                    (x2) which is invalid syntax in PowerShell 5.1 (Windows default) and throws
 #                    a parse error on any machine not running PS 7+. Fixed: split into standard
 #                    if/else blocks with explicit return statements on each branch.
+# - BUG-E          : Repair-ShortcutArguments extracted only the publisher suffix token from the
+#                    PFN via `(($Matches[1]) -split '_', 2)[1]`, which does not match WindowsApps
+#                    folder names or Get-AppxPackage results. Fixed: use $Matches[1] directly
+#                    (the full PackageFamilyName captured by the anchored regex).
 
 # ---------------------------------------------------------------------------
 # Error log path + Write-ErrorLog -- MUST be defined before the trap block
@@ -323,6 +327,11 @@ function Sync-AppsFromStartMenu {
             Write-Warning "'$($file.Name)': unexpected target '$target'. Review and fill in fields manually."
         }
 
+        if ([string]::IsNullOrWhiteSpace($leafName)) {
+            Write-Warning "'$($file.Name)': shortcut target is empty. Skipping entry."
+            continue
+        }
+
         $entries += New-AppEntry -Name $appName -LaunchType $launchType -ShortcutPath $file.FullName `
             -ProcessName $processName -ExpectedExe $expectedExe -ExpectedArguments $expectedArguments `
             -StartAppName $startAppName -KnownAumid $knownAumid -AppxName $appxName
@@ -443,6 +452,7 @@ if (-not $script:apps) {
 # ---------------------------------------------------------------------------
 function Get-AppPresenceMode {
     param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds)
+    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $null }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $SettleSecs) {
         $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
@@ -888,6 +898,10 @@ function Repair-ShortcutTarget {
 
 # LEAN-06: thin wrapper -- computes repaired args string via Invoke-ShortcutRepair;
 #          Get-ShortcutObject and .Save() are owned by Invoke-ShortcutRepair.
+# BUG-E  : Fixed AUMID fragment extraction. Previously split $Matches[1] on '_' and
+#          took [1] (publisher suffix only), which does not match WindowsApps folder
+#          names or Get-AppxPackage PackageFamilyName. Fix: use $Matches[1] directly
+#          (the full PFN captured by the anchored regex).
 function Repair-ShortcutArguments {
     param($App)
     return Invoke-ShortcutRepair -App $App -RepairAction {
@@ -895,7 +909,7 @@ function Repair-ShortcutArguments {
         Write-Warning "$($App.Name): shortcut Arguments invalid: '$($shortcut.Arguments)'"
         $aumidFragment = $null
         if ($App.ExpectedArguments -match '^shell:appsFolder\\([A-Za-z0-9][A-Za-z0-9._]*_[A-Za-z0-9]+)![A-Za-z0-9._-]+$') {
-            $aumidFragment = (($Matches[1]) -split '_', 2)[1]
+            $aumidFragment = $Matches[1]
         }
         if ([string]::IsNullOrWhiteSpace($aumidFragment)) {
             Write-Warning "$($App.Name): cannot extract AUMID fragment. Skipping."
