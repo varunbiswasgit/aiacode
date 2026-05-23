@@ -32,6 +32,25 @@ All items reference the live script at `win11-startup/Win11startup.ps1`.
 
 ---
 
+## Open Script/Test Signature Mismatches
+
+| ID | Function | Mismatch | Test ID |
+|----|----------|----------|---------|
+| FIX-TEST-01 | `Get-ShortcutObject` | Test calls `-LnkPath`; script has `-ShortcutPath`. Add `[Alias('LnkPath')]` to `-ShortcutPath`. | NEW-TEST-18 |
+| FIX-TEST-02 | `Find-ExeWithinDepth` | Test calls `-SearchRoot`, `-ExeName`, `-MaxDepth`; script has `-RootFolder`, `-ExpectedExe`, no depth cap. Add aliases and `-MaxDepth` with depth-bounded filtering. | NEW-TEST-17 |
+| FIX-TEST-03 | `New-AppShortcut` | Test calls `-App $app -TargetPath $target`; script has no `-App` param. Add `-App [PSCustomObject]` mapping `$App.ShortcutPath` → `-Path`. | NEW-TEST-19 |
+| FIX-TEST-04 | `Invoke-AppLaunch` | Function missing. Test calls `Invoke-AppLaunch -App $app`; script has `Invoke-LaunchAttempt`. Add thin wrapper. | NEW-TEST-20 |
+| FIX-TEST-05 | `Test-ShortcutHealthy` | Function missing. Extract as standalone: `.lnk` exists → target exists → `Test-ExeAcceptable` passes. | NEW-TEST-21 |
+| FIX-TEST-06 | `Get-AppPresence` | Function missing. Test expects `'Running'`/`'WindowVisible'`/`$null`; script has `Get-AppPresenceMode` returning `'Tray'`/`'Window'`/`$null`. Add wrapper with mapped return values. | NEW-TEST-22 |
+| FIX-TEST-07 | `Wait-ForWindowByTitle` | Test calls `-TitleFragment`/`-TimeoutSeconds` expecting `[bool]`; script has `-App`/`-WaitSecs` returning process object. Add overload returning `$true`/`$false`. | NEW-TEST-24 |
+| FIX-TEST-08 | `Sync-AppsFromStartMenu` | Test calls `-StartMenuPath $path`; script has no parameter (hardcodes `$script:startMenu`). Add optional `-StartMenuPath` param. | NEW-TEST-25 |
+| FIX-TEST-09 | `Resolve-ConfigPath` | Test calls `-Path $cfgPath`; script has no parameters. Add optional `-Path` param. | NEW-TEST-26 |
+| FIX-TEST-10 | `Start-Win32App` | Test calls `-MaxAttempts 1` and `-MaxAttempts 0`; script hardcodes loop bound. Add `-MaxAttempts [int]` param defaulting to `3`. | NEW-TEST-23 |
+
+> All FIX-TEST items are **additive only** — no existing logic changes. Apply together in one script commit.
+
+---
+
 ## Completed Items (from header comments)
 
 - BUG-01 through BUG-08, FIX-05 through FIX-07
