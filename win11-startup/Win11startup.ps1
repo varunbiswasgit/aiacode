@@ -279,28 +279,24 @@ if (-not $script:apps) {
 # ---------------------------------------------------------------------------
 # Presence / ready detection
 # ---------------------------------------------------------------------------
-function Get-AppPresenceMode {
-    param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds)
+# MERGE 1: Get-AppPresenceMode + Get-AppPresence unified.
+# Default returns raw 'Window'/'Tray'/$null (used internally by Wait-ForAppReady).
+# -Normalise returns 'WindowVisible'/'Running'/$null (FIX-TEST-06 contract).
+function Get-AppPresence {
+    param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds, [switch]$Normalise)
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $null }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $SettleSecs) {
         $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
-        if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) { return 'Window' }
+        if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) {
+            return if ($Normalise) { 'WindowVisible' } else { 'Window' }
+        }
         Start-Sleep -Seconds 1
     }
-    if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) { return 'Tray' }
-    return $null
-}
-
-# FIX-TEST-06: thin wrapper over Get-AppPresenceMode with normalised return values
-function Get-AppPresence {
-    param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds)
-    $raw = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $SettleSecs
-    switch ($raw) {
-        'Tray'   { return 'Running' }
-        'Window' { return 'WindowVisible' }
-        default  { return $null }
+    if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) {
+        return if ($Normalise) { 'Running' } else { 'Tray' }
     }
+    return $null
 }
 
 function Test-AppAlreadyOpen {
@@ -337,7 +333,7 @@ function Wait-ForAppReady {
     param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $true }
     $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
-    $mode       = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $phase1Secs
+    $mode       = Get-AppPresence -ProcessName $ProcessName -SettleSecs $phase1Secs
     $remaining  = $TimeoutSeconds - $phase1Secs
     if ($null -eq $mode) {
         return Wait-ForProcessCondition -Remaining $remaining -Condition {
@@ -352,7 +348,7 @@ function Wait-ForAppReady {
     }
 }
 
-# FIX-TEST-07: added -TitleFragment / -TimeoutSeconds overload returning [bool]
+# FIX-TEST-07: -TitleFragment / -TimeoutSeconds overload returning [bool]
 function Wait-ForWindowByTitle {
     param(
         $App = $null,
@@ -360,11 +356,9 @@ function Wait-ForWindowByTitle {
         [int]$WaitSecs = $script:SettleSeconds,
         [int]$TimeoutSeconds = -1
     )
-    # -TimeoutSeconds is an alias for -WaitSecs for the testable overload
     if ($TimeoutSeconds -ge 0) { $WaitSecs = $TimeoutSeconds }
 
     if (-not [string]::IsNullOrWhiteSpace($TitleFragment)) {
-        # Testable overload: search by title fragment only, return [bool]
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         while ($sw.Elapsed.TotalSeconds -lt $WaitSecs) {
             $match = Get-Process -ErrorAction SilentlyContinue |
@@ -376,7 +370,6 @@ function Wait-ForWindowByTitle {
         return $false
     }
 
-    # Original App-object overload: returns matched process or $null
     $searchTerms = @($App.Name, $App.StartAppName) |
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -447,7 +440,6 @@ function New-AppShortcut {
         [string]$WorkingDirectory = '',
         [PSCustomObject]$App = $null
     )
-    # -App overload: derives Path/TargetPath/Arguments/WorkingDirectory from App object
     if ($null -ne $App) {
         $Path             = $App.ShortcutPath
         $TargetPath       = if (-not [string]::IsNullOrWhiteSpace($App.ExpectedExe)) { $App.ExpectedExe } else { "$env:SystemRoot\explorer.exe" }
@@ -462,20 +454,18 @@ function New-AppShortcut {
 }
 
 # ---------------------------------------------------------------------------
-# Exe validation (allowlist + signature)
+# Exe validation  [MERGE 2: Test-ExePathAllowed + Test-ExeSignatureTrusted absorbed]
 # ---------------------------------------------------------------------------
-function Test-ExePathAllowed {
-    param([string]$ExePath)
-    $full = [System.IO.Path]::GetFullPath($ExePath)
-    foreach ($root in $script:AllowedExeRoots) {
-        $rootFull = [System.IO.Path]::GetFullPath($root.TrimEnd('\'))
-        if ($full.StartsWith($rootFull + '\', [System.StringComparison]::OrdinalIgnoreCase)) { return $true }
-    }
-    return $false
-}
-
-function Test-ExeSignatureTrusted {
+function Test-ExeAcceptable {
     param([string]$ExePath, [string]$ExpectedPublisher = "")
+    $full = [System.IO.Path]::GetFullPath($ExePath)
+    $allowed = $false
+    foreach ($root in $script:AllowedExeRoots) {
+        if ($full.StartsWith([System.IO.Path]::GetFullPath($root.TrimEnd('\')) + '\', [System.StringComparison]::OrdinalIgnoreCase)) {
+            $allowed = $true; break
+        }
+    }
+    if (-not $allowed) { Write-Warning "Path outside allowed roots: $ExePath"; return $false }
     try {
         $sig = Get-AuthenticodeSignature -FilePath $ExePath -ErrorAction Stop
         if ($sig.Status -ne 'Valid') { Write-Warning "Signature '$($sig.Status)' for '$ExePath'."; return $false }
@@ -486,17 +476,6 @@ function Test-ExeSignatureTrusted {
         }
         return $true
     } catch { Write-Warning "Cannot verify signature for '$ExePath'. $_"; return $false }
-}
-
-function Test-ExeAcceptable {
-    param([string]$ExePath, [string]$ExpectedPublisher = "")
-    if (-not (Test-ExePathAllowed -ExePath $ExePath)) {
-        Write-Warning "Path outside allowed roots: $ExePath"; return $false
-    }
-    if (-not (Test-ExeSignatureTrusted -ExePath $ExePath -ExpectedPublisher $ExpectedPublisher)) {
-        return $false
-    }
-    return $true
 }
 
 # ---------------------------------------------------------------------------
@@ -638,7 +617,7 @@ function Resolve-Aumid {
     return $null
 }
 
-# FIX-TEST-01: added [Alias('LnkPath')] to -ShortcutPath param
+# FIX-TEST-01: [Alias('LnkPath')] on -ShortcutPath
 function Get-ShortcutObject {
     param([Alias('LnkPath')][string]$ShortcutPath)
     if (-not (Test-Path -LiteralPath $ShortcutPath)) { throw "Shortcut not found: $ShortcutPath" }
@@ -656,7 +635,7 @@ function Get-ParentFolder {
     return $parent
 }
 
-# FIX-TEST-02: added -SearchRoot / -ExeName aliases; optional -MaxDepth param
+# FIX-TEST-02: -SearchRoot / -ExeName aliases; optional -MaxDepth param
 function Find-ExeWithinDepth {
     param(
         [Alias('SearchRoot')][string]$RootFolder,
@@ -811,17 +790,8 @@ function Repair-ShortcutArguments {
 }
 
 # ---------------------------------------------------------------------------
-# Failure menu / recovery
+# Failure recovery  [MERGE 3: Show-FailureMenu inlined]
 # ---------------------------------------------------------------------------
-function Show-FailureMenu {
-    param([string]$AppName, [string]$Context)
-    Write-Host "  [1] Add / fix shortcut for $AppName and retry"
-    Write-Host "  [2] Modify a different shortcut"
-    Write-Host "  [3] Skip"
-    Write-Host "  [4] Delete '$AppName' entry from config"
-    return (Read-Host "Select ($Context)")
-}
-
 function Invoke-AppLaunchWait {
     param($App, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
     if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $TimeoutSeconds) {
@@ -833,7 +803,11 @@ function Invoke-AppLaunchWait {
 
 function Invoke-FailureRecovery {
     param($App, [string]$Context, [scriptblock]$PreRetryAction = $null)
-    $choice = Show-FailureMenu -AppName $App.Name -Context $Context
+    Write-Host "  [1] Add / fix shortcut for $($App.Name) and retry"
+    Write-Host "  [2] Modify a different shortcut"
+    Write-Host "  [3] Skip"
+    Write-Host "  [4] Delete '$($App.Name)' entry from config"
+    $choice = Read-Host "Select ($Context)"
     switch ($choice) {
         '1' { if ($PreRetryAction) { & $PreRetryAction }; return $true }
         '2' { $target = Show-AppPicker -Prompt "Select shortcut to modify:"; if ($target) { Edit-Shortcut -App $target }; return $false }
@@ -858,12 +832,6 @@ function Start-AppxApp {
         Start-Process explorer.exe "shell:appsFolder\$aumid" -ErrorAction Stop
         return Invoke-AppLaunchWait -App $App
     } catch { Write-Warning "$($App.Name): launch failed. $_`n"; return $false }
-}
-
-# FIX-TEST-04: thin wrapper Invoke-AppLaunch over Invoke-LaunchAttempt
-function Invoke-AppLaunch {
-    param($App)
-    return Invoke-LaunchAttempt -App $App
 }
 
 function Invoke-LaunchAttempt {
@@ -910,7 +878,7 @@ function Invoke-LaunchAttempt {
 
         $ready = Invoke-AppLaunchWait -App $App
         if ($null -eq $App.PresenceMode -and -not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
-            $resolvedMode = Get-AppPresenceMode -ProcessName $App.ProcessName -SettleSecs 0
+            $resolvedMode = Get-AppPresence -ProcessName $App.ProcessName -SettleSecs 0
             if ($resolvedMode) { $App.PresenceMode = $resolvedMode }
             Export-AppsConfig
         }
@@ -928,6 +896,7 @@ function Invoke-LaunchAttempt {
 }
 
 # FIX-TEST-10: -MaxAttempts [int] param defaulting to 3
+# MERGE 4: Invoke-AppLaunch wrapper removed; Start-Win32App calls Invoke-LaunchAttempt directly.
 function Start-Win32App {
     param($App, [int]$MaxAttempts = 3)
     $requireWin = ($App.PresenceMode -eq 'Window')
