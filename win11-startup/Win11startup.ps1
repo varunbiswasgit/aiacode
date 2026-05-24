@@ -430,11 +430,18 @@ function Show-AppPicker {
 }
 
 function Show-AppList {
+    # Pre-compute separator strings to avoid PS5.1 -f operator precedence bug
+    # with expressions like '-'*3 inside a format string argument list.
+    $sep0 = '---'
+    $sep1 = '---------------------'
+    $sep2 = '-----'
+    $sep3 = '--------'
+    $sep4 = '---------------'
     Write-Host "`n================================================"
     Write-Host "  Configured Startup Apps ($($script:apps.Count) total)"
     Write-Host "================================================"
     Write-Host ("{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f '#', 'Name', 'Type', 'Shortcut', 'Process')
-    Write-Host ("{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f '-'*3, '-'*21, '-'*5, '-'*8, '-'*15)
+    Write-Host ("{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f $sep0, $sep1, $sep2, $sep3, $sep4)
     for ($i = 0; $i -lt $script:apps.Count; $i++) {
         $app    = $script:apps[$i]
         $status = if (Test-Path -LiteralPath $app.ShortcutPath -PathType Leaf) { 'OK' } else { 'MISSING' }
