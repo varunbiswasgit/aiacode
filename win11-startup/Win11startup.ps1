@@ -127,6 +127,13 @@ function Sync-AppsFromStartMenu {
     }
 
     Write-Host "Found $($lnkFiles.Count) numbered shortcut(s). Scanning..."
+
+    # Load existing config so we can preserve back-filled ProcessName values.
+    $existingApps = @()
+    if (Test-Path -LiteralPath $script:AppsConfigPath -PathType Leaf) {
+        try { $existingApps = @(Import-AppsConfig -Path $script:AppsConfigPath) } catch {}
+    }
+
     $entries = @()
 
     foreach ($file in $lnkFiles) {
@@ -146,12 +153,19 @@ function Sync-AppsFromStartMenu {
 
         if ($leafName -ieq 'explorer.exe' -and $scArgs -like 'shell:appsFolder\*') {
             $expectedExe       = 'explorer.exe'
-            $processName       = ''
             $expectedArguments = $scArgs.Trim()
             $knownAumid        = ($scArgs -replace '^shell:appsFolder\\', '').Trim()
             $startAppName      = $appName
             $appxName          = ($knownAumid -split '_')[0]
-            Write-Warning "${appName}: ProcessName unknown after sync. Will be auto-detected on first run."
+
+            # Preserve ProcessName if it was already back-filled by a previous run sequence.
+            $known = $existingApps | Where-Object { $_.ShortcutPath -eq $file.FullName } | Select-Object -First 1
+            if ($known -and -not [string]::IsNullOrWhiteSpace($known.ProcessName)) {
+                $processName = $known.ProcessName
+            } else {
+                $processName = ''
+                Write-Warning "${appName}: ProcessName unknown after sync. Will be auto-detected on first run."
+            }
         } elseif ($leafName -notlike '*.exe') {
             Write-Warning "'$($file.Name)': unexpected target '$target'. Review and fill in fields manually."
         }
