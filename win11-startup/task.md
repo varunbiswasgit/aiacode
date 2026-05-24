@@ -18,6 +18,12 @@ All items reference `win11-startup/Win11startup.ps1`.
 
 **Testability fixes (2026-05-24):** FIX-TEST-01–FIX-TEST-10
 
+**Live run validated (2026-05-24):**
+- Phone Link — launched via .lnk; ProcessName back-filled as `PhoneExperienceHost`; config saved ✅
+- Microsoft Edge — already open, skipped ✅
+- Google Chrome — already open, skipped ✅
+- Startup sequence completed successfully (no failures) ✅
+
 ---
 
 ## Principles
