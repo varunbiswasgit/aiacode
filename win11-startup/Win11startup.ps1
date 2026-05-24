@@ -112,16 +112,17 @@ function Export-AppsConfig {
 }
 
 # ---------------------------------------------------------------------------
-# Sync from Start Menu
+# Sync from Start Menu  [FIX-TEST-08: optional -StartMenuPath param]
 # ---------------------------------------------------------------------------
 function Sync-AppsFromStartMenu {
+    param([string]$StartMenuPath = $script:startMenu)
     Write-Host "`n--- Sync from Start Menu ---"
-    $lnkFiles = Get-ChildItem -LiteralPath $script:startMenu -Filter '*.lnk' -ErrorAction SilentlyContinue |
+    $lnkFiles = Get-ChildItem -LiteralPath $StartMenuPath -Filter '*.lnk' -ErrorAction SilentlyContinue |
         Where-Object { $_.BaseName -match '^\d{1,2}\s' } |
         Sort-Object Name
 
     if ($lnkFiles.Count -eq 0) {
-        Write-Warning "No numbered .lnk files found in '$script:startMenu'. Nothing to sync."
+        Write-Warning "No numbered .lnk files found in '$StartMenuPath'. Nothing to sync."
         return $false
     }
 
@@ -205,15 +206,16 @@ function New-AppEntry {
 }
 
 # ---------------------------------------------------------------------------
-# Boot: resolve config path, then load
+# Boot: resolve config path, then load  [FIX-TEST-09: optional -Path param]
 # ---------------------------------------------------------------------------
 $script:WshShell = New-Object -ComObject WScript.Shell
 
 function Resolve-ConfigPath {
-    if (Test-Path -LiteralPath $script:AppsConfigPath -PathType Leaf) { return $true }
+    param([string]$Path = $script:AppsConfigPath)
+    if (Test-Path -LiteralPath $Path -PathType Leaf) { return $true }
 
     Write-Host "`n[CONFIG NOT FOUND] Win11startupapps.json not found at:" -ForegroundColor Yellow
-    Write-Host "  $script:AppsConfigPath" -ForegroundColor Yellow
+    Write-Host "  $Path" -ForegroundColor Yellow
     Write-Host "Press Enter to auto-sync from Start Menu into the default location,"
     Write-Host "or enter a full path to an existing or new .json file."
     $userPath = (Read-Host "JSON path (or Enter to auto-sync)").Trim().Trim('"')
@@ -290,6 +292,17 @@ function Get-AppPresenceMode {
     return $null
 }
 
+# FIX-TEST-06: thin wrapper over Get-AppPresenceMode with normalised return values
+function Get-AppPresence {
+    param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds)
+    $raw = Get-AppPresenceMode -ProcessName $ProcessName -SettleSecs $SettleSecs
+    switch ($raw) {
+        'Tray'   { return 'Running' }
+        'Window' { return 'WindowVisible' }
+        default  { return $null }
+    }
+}
+
 function Test-AppAlreadyOpen {
     param(
         [string]$ProcessName,
@@ -339,8 +352,31 @@ function Wait-ForAppReady {
     }
 }
 
+# FIX-TEST-07: added -TitleFragment / -TimeoutSeconds overload returning [bool]
 function Wait-ForWindowByTitle {
-    param($App, [int]$WaitSecs = $script:SettleSeconds)
+    param(
+        $App = $null,
+        [string]$TitleFragment = '',
+        [int]$WaitSecs = $script:SettleSeconds,
+        [int]$TimeoutSeconds = -1
+    )
+    # -TimeoutSeconds is an alias for -WaitSecs for the testable overload
+    if ($TimeoutSeconds -ge 0) { $WaitSecs = $TimeoutSeconds }
+
+    if (-not [string]::IsNullOrWhiteSpace($TitleFragment)) {
+        # Testable overload: search by title fragment only, return [bool]
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($sw.Elapsed.TotalSeconds -lt $WaitSecs) {
+            $match = Get-Process -ErrorAction SilentlyContinue |
+                Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $_.MainWindowTitle -like "*$TitleFragment*" } |
+                Select-Object -First 1
+            if ($match) { return $true }
+            Start-Sleep -Seconds 1
+        }
+        return $false
+    }
+
+    # Original App-object overload: returns matched process or $null
     $searchTerms = @($App.Name, $App.StartAppName) |
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
@@ -401,10 +437,23 @@ function Show-AppList {
 }
 
 # ---------------------------------------------------------------------------
-# Shortcut writer (single .lnk creation point)
+# Shortcut writer (single .lnk creation point)  [FIX-TEST-03: -App param overload]
 # ---------------------------------------------------------------------------
 function New-AppShortcut {
-    param([string]$Path, [string]$TargetPath, [string]$Arguments = "", [string]$WorkingDirectory = "")
+    param(
+        [string]$Path = '',
+        [string]$TargetPath = '',
+        [string]$Arguments = '',
+        [string]$WorkingDirectory = '',
+        [PSCustomObject]$App = $null
+    )
+    # -App overload: derives Path/TargetPath/Arguments/WorkingDirectory from App object
+    if ($null -ne $App) {
+        $Path             = $App.ShortcutPath
+        $TargetPath       = if (-not [string]::IsNullOrWhiteSpace($App.ExpectedExe)) { $App.ExpectedExe } else { "$env:SystemRoot\explorer.exe" }
+        $Arguments        = if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) { $App.ExpectedArguments } else { '' }
+        $WorkingDirectory = if (Test-Path -LiteralPath $TargetPath -PathType Leaf -ErrorAction SilentlyContinue) { Split-Path $TargetPath -Parent } else { '' }
+    }
     $sc = $script:WshShell.CreateShortcut($Path)
     $sc.TargetPath = $TargetPath
     if (-not [string]::IsNullOrWhiteSpace($Arguments))        { $sc.Arguments        = $Arguments }
@@ -448,6 +497,20 @@ function Test-ExeAcceptable {
         return $false
     }
     return $true
+}
+
+# ---------------------------------------------------------------------------
+# Shortcut health check  [FIX-TEST-05: standalone Test-ShortcutHealthy]
+# ---------------------------------------------------------------------------
+function Test-ShortcutHealthy {
+    param([string]$ShortcutPath, [string]$ExpectedPublisher = '')
+    if (-not (Test-Path -LiteralPath $ShortcutPath -PathType Leaf)) { return $false }
+    try {
+        $sc = $script:WshShell.CreateShortcut($ShortcutPath)
+        $target = $sc.TargetPath
+        if ([string]::IsNullOrWhiteSpace($target) -or -not (Test-Path -LiteralPath $target -PathType Leaf)) { return $false }
+        return Test-ExeAcceptable -ExePath $target -ExpectedPublisher $ExpectedPublisher
+    } catch { return $false }
 }
 
 # ---------------------------------------------------------------------------
@@ -575,8 +638,9 @@ function Resolve-Aumid {
     return $null
 }
 
+# FIX-TEST-01: added [Alias('LnkPath')] to -ShortcutPath param
 function Get-ShortcutObject {
-    param([string]$ShortcutPath)
+    param([Alias('LnkPath')][string]$ShortcutPath)
     if (-not (Test-Path -LiteralPath $ShortcutPath)) { throw "Shortcut not found: $ShortcutPath" }
     return $script:WshShell.CreateShortcut($ShortcutPath)
 }
@@ -592,11 +656,22 @@ function Get-ParentFolder {
     return $parent
 }
 
+# FIX-TEST-02: added -SearchRoot / -ExeName aliases; optional -MaxDepth param
 function Find-ExeWithinDepth {
-    param([string]$RootFolder, [string]$ExpectedExe)
+    param(
+        [Alias('SearchRoot')][string]$RootFolder,
+        [Alias('ExeName')][string]$ExpectedExe,
+        [int]$MaxDepth = [int]::MaxValue
+    )
     if (-not (Test-Path -LiteralPath $RootFolder -PathType Container)) { return $null }
-    return Get-ChildItem -LiteralPath $RootFolder -Filter $ExpectedExe -File -Recurse -ErrorAction SilentlyContinue |
-        Sort-Object FullName | Select-Object -First 1
+    $items = Get-ChildItem -LiteralPath $RootFolder -Filter $ExpectedExe -File -Recurse -ErrorAction SilentlyContinue
+    if ($MaxDepth -ne [int]::MaxValue) {
+        $baseDepth = ($RootFolder.TrimEnd('\') -split '\\').Count
+        $items = $items | Where-Object {
+            ($_.FullName -split '\\').Count - $baseDepth - 1 -le $MaxDepth
+        }
+    }
+    return $items | Sort-Object FullName | Select-Object -First 1
 }
 
 function Prompt-ForExactExePath {
@@ -785,6 +860,12 @@ function Start-AppxApp {
     } catch { Write-Warning "$($App.Name): launch failed. $_`n"; return $false }
 }
 
+# FIX-TEST-04: thin wrapper Invoke-AppLaunch over Invoke-LaunchAttempt
+function Invoke-AppLaunch {
+    param($App)
+    return Invoke-LaunchAttempt -App $App
+}
+
 function Invoke-LaunchAttempt {
     # One repair+launch+wait cycle. Returns 'Success', 'Retry', or 'Abort'.
     param($App)
@@ -846,13 +927,14 @@ function Invoke-LaunchAttempt {
     }
 }
 
+# FIX-TEST-10: -MaxAttempts [int] param defaulting to 3
 function Start-Win32App {
-    param($App)
+    param($App, [int]$MaxAttempts = 3)
     $requireWin = ($App.PresenceMode -eq 'Window')
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe -RequireWindow:$requireWin) {
         Write-Host "$($App.Name): already open. Skipping.`n"; return $true
     }
-    for ($attempt = 0; $attempt -le 2; $attempt++) {
+    for ($attempt = 0; $attempt -lt $MaxAttempts; $attempt++) {
         switch (Invoke-LaunchAttempt -App $App) {
             'Success' { return $true }
             'Abort'   { return $false }
