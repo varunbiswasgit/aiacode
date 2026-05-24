@@ -282,6 +282,7 @@ if (-not $script:apps) {
 # MERGE 1: Get-AppPresenceMode + Get-AppPresence unified.
 # Default returns raw 'Window'/'Tray'/$null (used internally by Wait-ForAppReady).
 # -Normalise returns 'WindowVisible'/'Running'/$null (FIX-TEST-06 contract).
+# FIX: replaced inline ternary 'return if (...)' with explicit if/else blocks (PS5.1 compat).
 function Get-AppPresence {
     param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds, [switch]$Normalise)
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $null }
@@ -289,12 +290,12 @@ function Get-AppPresence {
     while ($sw.Elapsed.TotalSeconds -lt $SettleSecs) {
         $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
         if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) {
-            return if ($Normalise) { 'WindowVisible' } else { 'Window' }
+            if ($Normalise) { return 'WindowVisible' } else { return 'Window' }
         }
         Start-Sleep -Seconds 1
     }
     if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) {
-        return if ($Normalise) { 'Running' } else { 'Tray' }
+        if ($Normalise) { return 'Running' } else { return 'Tray' }
     }
     return $null
 }
@@ -873,10 +874,22 @@ function Invoke-LaunchAttempt {
                 Write-Host "$($App.Name): active window detected. ProcessName back-filled as '$($App.ProcessName)' and saved."
             } else {
                 Write-Warning "$($App.Name): no matching active window detected within $script:SettleSeconds seconds. Launch assumed but ready-check skipped."
+                return 'Success'
             }
         }
 
-        $ready = Invoke-AppLaunchWait -App $App
+        # If process is already confirmed running (e.g. back-filled above), check directly.
+        if (-not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
+            if (Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue) {
+                Write-Host "$($App.Name): process '$($App.ProcessName)' confirmed running."
+                $ready = $true
+            } else {
+                $ready = Invoke-AppLaunchWait -App $App
+            }
+        } else {
+            $ready = $true
+        }
+
         if ($null -eq $App.PresenceMode -and -not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
             $resolvedMode = Get-AppPresence -ProcessName $App.ProcessName -SettleSecs 0
             if ($resolvedMode) { $App.PresenceMode = $resolvedMode }
