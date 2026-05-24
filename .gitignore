@@ -40,4 +40,5 @@ secrets.json
 *.config
 *.key
 
-
+# Local-only runtime config (never commit - machine-specific app list)
+win11-startup/Win11startupapps.json
