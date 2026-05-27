@@ -103,7 +103,6 @@ function Import-AppsConfig {
         if ($null -eq $entry.StartAppName)       { $entry | Add-Member -NotePropertyName StartAppName       -NotePropertyValue '' -Force }
         if ($null -eq $entry.KnownAumid)         { $entry | Add-Member -NotePropertyName KnownAumid         -NotePropertyValue '' -Force }
         if ($null -eq $entry.AppxName)           { $entry | Add-Member -NotePropertyName AppxName           -NotePropertyValue '' -Force }
-        if ($null -eq $entry.PresenceMode)       { $entry | Add-Member -NotePropertyName PresenceMode       -NotePropertyValue $null -Force }
 
         # Auto-correct LaunchType: if the shortcut pattern is Appx but was saved as Win32, fix it here
         # so every downstream code path routes it correctly without requiring a re-sync.
@@ -243,7 +242,6 @@ function New-AppEntry {
         StartAppName      = $StartAppName
         KnownAumid        = $KnownAumid
         AppxName          = $AppxName
-        PresenceMode      = $null
     }
 }
 
@@ -332,25 +330,23 @@ function Get-AppPresence {
         }
         Start-Sleep -Seconds 1
     }
-    if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) {
-        if ($Normalise) { return 'Running' } else { return 'Tray' }
-    }
     return $null
 }
 
 # ---------------------------------------------------------------------------
 # Test-AppAlreadyOpen
 # DESIGN RULE: an app is only considered "already open" when it has a visible
-# window (MainWindowHandle != Zero). A background process entry in Task Manager
-# is NOT sufficient -- Appx apps like Phone Link always have background host
-# processes that must not prevent the UI from being launched.
-# The -RequireWindow switch is therefore always forced to $true regardless of
-# caller intent, enforcing this rule uniformly.
+# window (MainWindowHandle != Zero) whose title matches the app name.
+# A background host process (e.g. PhoneExperienceHost) running permanently in
+# Task Manager must never trigger a false "already open" skip -- it has no
+# matching window title even if MainWindowHandle is briefly non-zero.
 # ---------------------------------------------------------------------------
 function Test-AppAlreadyOpen {
     param(
         [string]$ProcessName,
         [string]$ExpectedExe = "",
+        [string]$AppName = "",
+        [string]$StartAppName = "",
         [switch]$RequireWindow   # kept for call-site compatibility; window check is always applied
     )
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $false }
@@ -363,8 +359,17 @@ function Test-AppAlreadyOpen {
         }
         if (-not $procs) { return $false }
     }
-    # Always require a visible window -- never return $true for a background-only process.
-    return [bool]($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
+    # Require a visible window. When app name fragments are available, the window
+    # title must match -- prevents background host processes from being mistaken
+    # for the real app UI (e.g. PhoneExperienceHost vs Phone Link UI window).
+    $windowProcs = $procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
+    if (-not $windowProcs) { return $false }
+    $terms = @($AppName, $StartAppName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+    if ($terms.Count -eq 0) { return $true }
+    return [bool]($windowProcs | Where-Object {
+        $t = $_.MainWindowTitle
+        $terms | Where-Object { $t -like "*$_*" }
+    })
 }
 
 function Wait-ForProcessCondition {
@@ -390,12 +395,6 @@ function Wait-ForAppReady {
         }
     }
     Write-Host "  (presence mode: $mode)"
-    if ($mode -eq 'Tray') {
-        # Tray-mode apps (e.g. OneDrive) have no window -- wait for any process instance.
-        return Wait-ForProcessCondition -Remaining $remaining -Condition {
-            [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)
-        }
-    }
     return Wait-ForProcessCondition -Remaining $remaining -Condition {
         [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
             Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
@@ -1087,9 +1086,10 @@ function Invoke-FailureRecovery {
 # ---------------------------------------------------------------------------
 function Start-AppxApp {
     param($App)
-    # Appx apps are confirmed open only when a visible window exists.
-    # A background process (e.g. PhoneExperienceHost) is not sufficient.
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) {
+    # Appx apps are confirmed open only when a visible window with a matching
+    # title exists. Background host processes (e.g. PhoneExperienceHost) must
+    # not prevent the UI from being launched.
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -AppName $App.Name -StartAppName $App.StartAppName) {
         Write-Host "$($App.Name): already open (window visible). Skipping.`n"; return $true
     }
     $aumid = Resolve-Aumid -App $App
@@ -1173,11 +1173,6 @@ function Invoke-LaunchAttempt {
             $ready = $true
         }
 
-        if ($null -eq $App.PresenceMode -and -not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
-            $resolvedMode = Get-AppPresence -ProcessName $App.ProcessName -SettleSecs 0
-            if ($resolvedMode) { $App.PresenceMode = $resolvedMode }
-            Export-AppsConfig
-        }
         if ($ready) { return 'Success' }
 
         $recover = Invoke-FailureRecovery -App $App -Context "launch timeout" -PreRetryAction { Edit-Shortcut -App $App }
@@ -1193,8 +1188,8 @@ function Invoke-LaunchAttempt {
 
 function Start-Win32App {
     param($App, [int]$MaxAttempts = 3)
-    # Win32 apps: also confirm via visible window for consistency.
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe) {
+    # Win32 apps: confirm via visible window with matching title for consistency.
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe -AppName $App.Name) {
         Write-Host "$($App.Name): already open (window visible). Skipping.`n"; return $true
     }
     for ($attempt = 0; $attempt -lt $MaxAttempts; $attempt++) {
