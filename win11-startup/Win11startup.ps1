@@ -93,6 +93,16 @@ function Import-AppsConfig {
         if ($null -eq $entry.KnownAumid)         { $entry | Add-Member -NotePropertyName KnownAumid         -NotePropertyValue '' -Force }
         if ($null -eq $entry.AppxName)           { $entry | Add-Member -NotePropertyName AppxName           -NotePropertyValue '' -Force }
         if ($null -eq $entry.PresenceMode)       { $entry | Add-Member -NotePropertyName PresenceMode       -NotePropertyValue $null -Force }
+
+        # FIX: auto-correct LaunchType if entry has shell:appsFolder arguments but was saved as Win32.
+        # Prevents miscategorisation surviving a sync or manual JSON edit.
+        if ($entry.LaunchType -eq 'Win32' -and
+            $entry.ExpectedExe -ieq 'explorer.exe' -and
+            $entry.ExpectedArguments -like 'shell:appsFolder\*') {
+            Write-Warning "$($entry.Name): LaunchType was 'Win32' but shortcut uses shell:appsFolder. Auto-correcting to 'Appx'."
+            $entry.LaunchType = 'Appx'
+        }
+
         $validated += $entry
     }
     return $validated
@@ -112,7 +122,9 @@ function Export-AppsConfig {
 }
 
 # ---------------------------------------------------------------------------
-# Sync from Start Menu  [FIX-TEST-08: optional -StartMenuPath param]
+# Sync from Start Menu
+# FIX: $launchType now set to 'Appx' when shortcut target is explorer.exe
+# with shell:appsFolder args -- previously stayed 'Win32' causing miscategorisation.
 # ---------------------------------------------------------------------------
 function Sync-AppsFromStartMenu {
     param([string]$StartMenuPath = $script:startMenu)
@@ -152,6 +164,8 @@ function Sync-AppsFromStartMenu {
         $appxName          = ''
 
         if ($leafName -ieq 'explorer.exe' -and $scArgs -like 'shell:appsFolder\*') {
+            # FIX: set LaunchType to Appx -- was missing, causing Win32 miscategorisation on sync.
+            $launchType        = 'Appx'
             $expectedExe       = 'explorer.exe'
             $expectedArguments = $scArgs.Trim()
             $knownAumid        = ($scArgs -replace '^shell:appsFolder\\', '').Trim()
@@ -220,7 +234,7 @@ function New-AppEntry {
 }
 
 # ---------------------------------------------------------------------------
-# Boot: resolve config path, then load  [FIX-TEST-09: optional -Path param]
+# Boot: resolve config path, then load
 # ---------------------------------------------------------------------------
 $script:WshShell = New-Object -ComObject WScript.Shell
 
@@ -293,10 +307,6 @@ if (-not $script:apps) {
 # ---------------------------------------------------------------------------
 # Presence / ready detection
 # ---------------------------------------------------------------------------
-# MERGE 1: Get-AppPresenceMode + Get-AppPresence unified.
-# Default returns raw 'Window'/'Tray'/$null (used internally by Wait-ForAppReady).
-# -Normalise returns 'WindowVisible'/'Running'/$null (FIX-TEST-06 contract).
-# FIX: replaced inline ternary 'return if (...)' with explicit if/else blocks (PS5.1 compat).
 function Get-AppPresence {
     param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds, [switch]$Normalise)
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $null }
@@ -363,7 +373,6 @@ function Wait-ForAppReady {
     }
 }
 
-# FIX-TEST-07: -TitleFragment / -TimeoutSeconds overload returning [bool]
 function Wait-ForWindowByTitle {
     param(
         $App = $null,
@@ -430,8 +439,6 @@ function Show-AppPicker {
 }
 
 function Show-AppList {
-    # Pre-compute separator strings to avoid PS5.1 -f operator precedence bug
-    # with expressions like '-'*3 inside a format string argument list.
     $sep0 = '---'
     $sep1 = '---------------------'
     $sep2 = '-----'
@@ -452,7 +459,7 @@ function Show-AppList {
 }
 
 # ---------------------------------------------------------------------------
-# Shortcut writer (single .lnk creation point)  [FIX-TEST-03: -App param overload]
+# Shortcut writer
 # ---------------------------------------------------------------------------
 function New-AppShortcut {
     param(
@@ -476,7 +483,7 @@ function New-AppShortcut {
 }
 
 # ---------------------------------------------------------------------------
-# Exe validation  [MERGE 2: Test-ExePathAllowed + Test-ExeSignatureTrusted absorbed]
+# Exe validation
 # ---------------------------------------------------------------------------
 function Test-ExeAcceptable {
     param([string]$ExePath, [string]$ExpectedPublisher = "")
@@ -501,7 +508,7 @@ function Test-ExeAcceptable {
 }
 
 # ---------------------------------------------------------------------------
-# Shortcut health check  [FIX-TEST-05: standalone Test-ShortcutHealthy]
+# Shortcut health check
 # ---------------------------------------------------------------------------
 function Test-ShortcutHealthy {
     param([string]$ShortcutPath, [string]$ExpectedPublisher = '')
@@ -645,7 +652,6 @@ function Resolve-Aumid {
     return $null
 }
 
-# FIX-TEST-01: [Alias('LnkPath')] on -ShortcutPath
 function Get-ShortcutObject {
     param([Alias('LnkPath')][string]$ShortcutPath)
     if (-not (Test-Path -LiteralPath $ShortcutPath)) { throw "Shortcut not found: $ShortcutPath" }
@@ -663,7 +669,6 @@ function Get-ParentFolder {
     return $parent
 }
 
-# FIX-TEST-02: -SearchRoot / -ExeName aliases; optional -MaxDepth param
 function Find-ExeWithinDepth {
     param(
         [Alias('SearchRoot')][string]$RootFolder,
@@ -706,8 +711,24 @@ function Find-MisnumberedShortcut {
         Select-Object -First 1
 }
 
+# ---------------------------------------------------------------------------
+# Initialize-Shortcut
+# FIX: auto-corrects LaunchType to Appx when ExpectedArguments contains
+# shell:appsFolder but the entry is still marked Win32. Saves correction
+# to JSON so it persists without needing a full re-sync.
+# ---------------------------------------------------------------------------
 function Initialize-Shortcut {
     param($App)
+
+    # Auto-correct miscategorised Appx entries before any shortcut work.
+    if ($App.LaunchType -eq 'Win32' -and
+        $App.ExpectedExe -ieq 'explorer.exe' -and
+        $App.ExpectedArguments -like 'shell:appsFolder\*') {
+        Write-Warning "$($App.Name): LaunchType was 'Win32' but uses shell:appsFolder. Auto-correcting to 'Appx' and saving."
+        $App.LaunchType = 'Appx'
+        Export-AppsConfig
+    }
+
     if (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf) { return }
     $misnumbered = Find-MisnumberedShortcut -ExpectedPath $App.ShortcutPath -AppName $App.Name
     if ($misnumbered) {
@@ -733,7 +754,7 @@ function Initialize-Shortcut {
 }
 
 # ---------------------------------------------------------------------------
-# Shortcut repair (Invoke-ShortcutRepair owns Get-ShortcutObject + .Save())
+# Shortcut repair
 # ---------------------------------------------------------------------------
 function Invoke-ShortcutRepair {
     param($App, [scriptblock]$RepairAction)
@@ -777,9 +798,8 @@ function Repair-ShortcutTarget {
     }
 }
 
-
 # ---------------------------------------------------------------------------
-# Shared AUMID fallback resolver  Steps 2-4 after auto search fails
+# Shared AUMID fallback resolver
 # ---------------------------------------------------------------------------
 function Resolve-AumidWithFallback {
     param($App, [int]$CountdownSeconds = 30)
@@ -864,7 +884,6 @@ function Resolve-AumidWithFallback {
         Write-Host ("$($App.Name): AUMID saved as '{0}'." -f $detectedAumid) -ForegroundColor Green
         $result.Resolved=$true; $result.Aumid=$detectedAumid; return $result
     }
-    # Step 4: manual entry
     Write-Host ""
     Write-Host "-----------------------------------------------------" -ForegroundColor DarkGray
     Write-Host "  $($App.Name): could not detect automatically." -ForegroundColor Yellow
@@ -908,11 +927,8 @@ function Resolve-AumidWithFallback {
     return $result
 }
 
-
 # ---------------------------------------------------------------------------
-# FIX: Repair-ShortcutArguments -- removed erroneous 'return' keyword that made
-# the fallback calls (Resolve-AumidWithFallback) dead/unreachable code.
-# Auto-repair now correctly escalates to interactive fallback on failure.
+# Repair-ShortcutArguments
 # ---------------------------------------------------------------------------
 function Repair-ShortcutArguments {
     param($App)
@@ -953,14 +969,13 @@ function Repair-ShortcutArguments {
         return $repairedArgs
     }
     if ($repaired) { return $repaired }
-    # Auto-repair failed -- escalate to interactive fallback (launch manually / enter AUMID / convert to Win32)
     $fb = Resolve-AumidWithFallback -App $App
     if ($fb.Resolved) { return $fb.Aumid }
     return $null
 }
 
 # ---------------------------------------------------------------------------
-# Failure recovery  [MERGE 3: Show-FailureMenu inlined]
+# Failure recovery
 # ---------------------------------------------------------------------------
 function Invoke-AppLaunchWait {
     param($App, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
@@ -990,9 +1005,6 @@ function Invoke-FailureRecovery {
 # Launch functions
 # ---------------------------------------------------------------------------
 function Start-AppxApp {
-    # Appx has no failure-recovery retry by design: failures are AUMID-resolution
-    # failures that Resolve-Aumid already exhausts three paths for. Use menu [4]
-    # Modify to update Win11startupapps.json directly if AUMID changes.
     param($App)
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) { Write-Host "$($App.Name): already open. Skipping.`n"; return $true }
     $aumid = Resolve-Aumid -App $App
@@ -1011,7 +1023,6 @@ function Start-AppxApp {
 }
 
 function Invoke-LaunchAttempt {
-    # One repair+launch+wait cycle. Returns 'Success', 'Retry', or 'Abort'.
     param($App)
 
     if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
@@ -1053,7 +1064,6 @@ function Invoke-LaunchAttempt {
             }
         }
 
-        # If process is already confirmed running (e.g. back-filled above), check directly.
         if (-not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
             if (Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue) {
                 Write-Host "$($App.Name): process '$($App.ProcessName)' confirmed running."
@@ -1083,8 +1093,6 @@ function Invoke-LaunchAttempt {
     }
 }
 
-# FIX-TEST-10: -MaxAttempts [int] param defaulting to 3
-# MERGE 4: Invoke-AppLaunch wrapper removed; Start-Win32App calls Invoke-LaunchAttempt directly.
 function Start-Win32App {
     param($App, [int]$MaxAttempts = 3)
     $requireWin = ($App.PresenceMode -eq 'Window')

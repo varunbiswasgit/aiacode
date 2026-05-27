@@ -41,6 +41,19 @@
       "PresenceMode": null
     },
     {
+      "Name": "ShareFile",
+      "LaunchType": "Win32",
+      "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\04 ShareFile.lnk",
+      "ProcessName": "ShareFile",
+      "ExpectedExe": "ShareFile.exe",
+      "ExpectedPublisher": "CN=Citrix Systems, Inc.",
+      "ExpectedArguments": "",
+      "StartAppName": "",
+      "KnownAumid": "",
+      "AppxName": "",
+      "PresenceMode": null
+    },
+    {
       "Name": "Sticky Notes",
       "LaunchType": "Appx",
       "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\04 Sticky Notes.lnk",
@@ -51,6 +64,19 @@
       "StartAppName": "Sticky Notes",
       "KnownAumid": "Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe!App",
       "AppxName": "MicrosoftStickyNotes",
+      "PresenceMode": null
+    },
+    {
+      "Name": "Greenshot",
+      "LaunchType": "Win32",
+      "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\05 Greenshot.lnk",
+      "ProcessName": "Greenshot",
+      "ExpectedExe": "Greenshot.exe",
+      "ExpectedPublisher": "",
+      "ExpectedArguments": "",
+      "StartAppName": "",
+      "KnownAumid": "",
+      "AppxName": "",
       "PresenceMode": null
     },
     {
@@ -68,7 +94,7 @@
     },
     {
       "Name": "Phone Link",
-      "LaunchType": "Win32",
+      "LaunchType": "Appx",
       "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\06 Phone Link.lnk",
       "ProcessName": "PhoneExperienceHost",
       "ExpectedExe": "explorer.exe",
@@ -99,6 +125,32 @@
       "ProcessName": "chrome",
       "ExpectedExe": "chrome.exe",
       "ExpectedPublisher": "CN=Google LLC",
+      "ExpectedArguments": "",
+      "StartAppName": "",
+      "KnownAumid": "",
+      "AppxName": "",
+      "PresenceMode": null
+    },
+    {
+      "Name": "SAP GUI",
+      "LaunchType": "Win32",
+      "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\08 SAP GUI.lnk",
+      "ProcessName": "saplogon",
+      "ExpectedExe": "saplogon.exe",
+      "ExpectedPublisher": "CN=SAP SE",
+      "ExpectedArguments": "",
+      "StartAppName": "",
+      "KnownAumid": "",
+      "AppxName": "",
+      "PresenceMode": null
+    },
+    {
+      "Name": "notepad++",
+      "LaunchType": "Win32",
+      "ShortcutPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs\\09 notepad++.lnk",
+      "ProcessName": "notepad++",
+      "ExpectedExe": "notepad++.exe",
+      "ExpectedPublisher": "",
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
