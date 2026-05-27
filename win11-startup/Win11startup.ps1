@@ -603,7 +603,11 @@ function Edit-Shortcut {
         }
         Write-Host "$($App.Name): re-running argument repair..."
         $repaired = Repair-ShortcutArguments -App $App
-        if ($repaired) { Write-Host "$($App.Name): argument repair complete." -ForegroundColor Green }
+        if ($repaired) {
+            Write-Host "$($App.Name): argument repair complete." -ForegroundColor Green
+        } else {
+            Write-Warning "$($App.Name): automatic repair failed and fallback was not resolved."
+        }
         return
     }
     $exePath = Prompt-ForExactExePath -AppName $App.Name -ExpectedExe $App.ExpectedExe -ExpectedPublisher $App.ExpectedPublisher
@@ -905,9 +909,14 @@ function Resolve-AumidWithFallback {
 }
 
 
+# ---------------------------------------------------------------------------
+# FIX: Repair-ShortcutArguments -- removed erroneous 'return' keyword that made
+# the fallback calls (Resolve-AumidWithFallback) dead/unreachable code.
+# Auto-repair now correctly escalates to interactive fallback on failure.
+# ---------------------------------------------------------------------------
 function Repair-ShortcutArguments {
     param($App)
-    return Invoke-ShortcutRepair -App $App -RepairAction {
+    $repaired = Invoke-ShortcutRepair -App $App -RepairAction {
         param($shortcut)
         Write-Warning "$($App.Name): shortcut Arguments invalid: '$($shortcut.Arguments)'"
         $aumidFragment = $null
@@ -944,6 +953,7 @@ function Repair-ShortcutArguments {
         return $repairedArgs
     }
     if ($repaired) { return $repaired }
+    # Auto-repair failed -- escalate to interactive fallback (launch manually / enter AUMID / convert to Win32)
     $fb = Resolve-AumidWithFallback -App $App
     if ($fb.Resolved) { return $fb.Aumid }
     return $null
