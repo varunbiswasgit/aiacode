@@ -575,7 +575,7 @@ function Add-Shortcut {
     # Safety net: if user entered Win32 but the args reveal it is an Appx app, correct it.
     if ($launchType -ne 'Appx' -and
         (Test-IsAppxShortcut -ExpectedExe $expectedExe -ExpectedArguments $expectedArguments)) {
-        Write-Warning "$name: arguments indicate an Appx app. Correcting LaunchType to 'Appx'."
+        Write-Warning "$($name): arguments indicate an Appx app. Correcting LaunchType to 'Appx'."
         $launchType = 'Appx'
     }
 
