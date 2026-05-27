@@ -5,7 +5,7 @@
 # Bootstrap   : ensures every Win32 .lnk exists before launch; renames misnumbered or creates fresh.
 # Config      : Win11startupapps.json (same folder). Add/Delete/Modify via main menu.
 # Test mode   : set $env:PS_STARTUP_TESTMODE = '1' to dot-source without running the menu/sequence.
-
+cls
 # ---------------------------------------------------------------------------
 # Error log + trap (defined before trap so cold errors can call Write-ErrorLog)
 # ---------------------------------------------------------------------------
