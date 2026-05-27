@@ -461,13 +461,16 @@ function Show-AppList {
     Write-Host "`n================================================"
     Write-Host "  Configured Startup Apps ($($script:apps.Count) total)"
     Write-Host "================================================"
-    Write-Host ("{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f '#', 'Name', 'Type', 'Shortcut', 'Process')
-    Write-Host ("{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f $sep0, $sep1, $sep2, $sep3, $sep4)
+    Write-Host ("{0,-5} {1,-22} {2,-6} {3,-10} {4}" -f '#No', 'Name', 'Type', 'Shortcut', 'Process')
+    Write-Host ("{0,-5} {1,-22} {2,-6} {3,-10} {4}" -f $sep0, $sep1, $sep2, $sep3, $sep4)
     for ($i = 0; $i -lt $script:apps.Count; $i++) {
-        $app    = $script:apps[$i]
-        $status = if (Test-Path -LiteralPath $app.ShortcutPath -PathType Leaf) { 'OK' } else { 'MISSING' }
-        $color  = if ($status -eq 'OK') { 'Green' } else { 'Yellow' }
-        Write-Host ("{0,-4} {1,-22} {2,-6} {3,-10} {4}" -f ($i+1), $app.Name, $app.LaunchType, $status, $app.ProcessName) -ForegroundColor $color
+        $app      = $script:apps[$i]
+        $status   = if (Test-Path -LiteralPath $app.ShortcutPath -PathType Leaf) { 'OK' } else { 'MISSING' }
+        $color    = if ($status -eq 'OK') { 'Green' } else { 'Yellow' }
+        # Extract the leading number from the shortcut filename (e.g. "06" from "06 Phone Link.lnk")
+        $lnkBase  = [System.IO.Path]::GetFileNameWithoutExtension($app.ShortcutPath)
+        $fileNum  = if ($lnkBase -match '^(\d{1,2})') { $Matches[1] } else { '-' }
+        Write-Host ("{0,-5} {1,-22} {2,-6} {3,-10} {4}" -f $fileNum, $app.Name, $app.LaunchType, $status, $app.ProcessName) -ForegroundColor $color
     }
     Write-Host ""
 }
