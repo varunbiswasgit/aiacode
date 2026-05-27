@@ -4,3 +4,4 @@
 # Appx apps   : AUMID resolved at runtime (Get-StartApps -> KnownAumid -> AppxPackage manifest).
 # Bootstrap   : ensures every Win32 .lnk exists before launch; renames misnumbered or creates fresh.
 # Config      : Win11startupapps.json (same folder). Add/Delete/Modify via main menu.
+# Test mode   : set $env:PS_STARTUP_TESTMODE = '1' to dot-source without running the menu/sequence.
