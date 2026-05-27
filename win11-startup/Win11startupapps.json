@@ -12,7 +12,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "Window"
     },
     {
       "Name": "Teams",
@@ -25,7 +25,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "Window"
     },
     {
       "Name": "OneDrive",
@@ -38,7 +38,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "WindowOrTray"
     },
     {
       "Name": "ShareFile",
@@ -51,7 +51,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "Tray"
     },
     {
       "Name": "Sticky Notes",
@@ -64,7 +64,7 @@
       "StartAppName": "Sticky Notes",
       "KnownAumid": "Microsoft.MicrosoftStickyNotes_8wekyb3d8bbwe!App",
       "AppxName": "MicrosoftStickyNotes",
-      "PresenceMode": null
+      "PresenceMode": "Window"
     },
     {
       "Name": "Greenshot",
@@ -77,7 +77,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "Tray"
     },
     {
       "Name": "OneNote",
@@ -90,7 +90,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "Window"
     },
     {
       "Name": "Phone Link",
@@ -116,7 +116,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "Window"
     },
     {
       "Name": "Google Chrome",
@@ -129,7 +129,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "Window"
     },
     {
       "Name": "SAP GUI",
@@ -142,7 +142,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "Window"
     },
     {
       "Name": "notepad++",
@@ -155,7 +155,7 @@
       "StartAppName": "",
       "KnownAumid": "",
       "AppxName": "",
-      "PresenceMode": null
+      "PresenceMode": "Window"
     }
   ]
 }
