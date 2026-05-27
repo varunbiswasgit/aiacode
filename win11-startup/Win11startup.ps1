@@ -49,6 +49,17 @@ $script:AllowedExeRoots = @(
 ) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
 
 # ---------------------------------------------------------------------------
+# Helper: detect if a shortcut entry should be Appx-typed
+# Returns $true when the exe is explorer.exe and args start with shell:appsFolder
+# Used in Import-AppsConfig, Sync-AppsFromStartMenu, and Initialize-Shortcut
+# to guarantee consistent classification at every entry point.
+# ---------------------------------------------------------------------------
+function Test-IsAppxShortcut {
+    param([string]$ExpectedExe, [string]$ExpectedArguments)
+    return ($ExpectedExe -ieq 'explorer.exe' -and $ExpectedArguments -like 'shell:appsFolder\*')
+}
+
+# ---------------------------------------------------------------------------
 # Config loader / exporter
 # ---------------------------------------------------------------------------
 function Import-AppsConfig {
@@ -94,12 +105,11 @@ function Import-AppsConfig {
         if ($null -eq $entry.AppxName)           { $entry | Add-Member -NotePropertyName AppxName           -NotePropertyValue '' -Force }
         if ($null -eq $entry.PresenceMode)       { $entry | Add-Member -NotePropertyName PresenceMode       -NotePropertyValue $null -Force }
 
-        # FIX: auto-correct LaunchType if entry has shell:appsFolder arguments but was saved as Win32.
-        # Prevents miscategorisation surviving a sync or manual JSON edit.
-        if ($entry.LaunchType -eq 'Win32' -and
-            $entry.ExpectedExe -ieq 'explorer.exe' -and
-            $entry.ExpectedArguments -like 'shell:appsFolder\*') {
-            Write-Warning "$($entry.Name): LaunchType was 'Win32' but shortcut uses shell:appsFolder. Auto-correcting to 'Appx'."
+        # Auto-correct LaunchType: if the shortcut pattern is Appx but was saved as Win32, fix it here
+        # so every downstream code path routes it correctly without requiring a re-sync.
+        if ($entry.LaunchType -ne 'Appx' -and
+            (Test-IsAppxShortcut -ExpectedExe $entry.ExpectedExe -ExpectedArguments $entry.ExpectedArguments)) {
+            Write-Warning "$($entry.Name): LaunchType was '$($entry.LaunchType)' but shortcut uses shell:appsFolder. Auto-correcting to 'Appx'."
             $entry.LaunchType = 'Appx'
         }
 
@@ -123,8 +133,10 @@ function Export-AppsConfig {
 
 # ---------------------------------------------------------------------------
 # Sync from Start Menu
-# FIX: $launchType now set to 'Appx' when shortcut target is explorer.exe
-# with shell:appsFolder args -- previously stayed 'Win32' causing miscategorisation.
+# FIX: $launchType is now set via Test-IsAppxShortcut inside the detection
+# block, so explorer.exe + shell:appsFolder shortcuts are always written as
+# LaunchType='Appx'. Previously the variable stayed 'Win32' causing
+# Phone Link and Sticky Notes to be miscategorised on every sync.
 # ---------------------------------------------------------------------------
 function Sync-AppsFromStartMenu {
     param([string]$StartMenuPath = $script:startMenu)
@@ -163,8 +175,10 @@ function Sync-AppsFromStartMenu {
         $knownAumid        = ''
         $appxName          = ''
 
-        if ($leafName -ieq 'explorer.exe' -and $scArgs -like 'shell:appsFolder\*') {
-            # FIX: set LaunchType to Appx -- was missing, causing Win32 miscategorisation on sync.
+        if (Test-IsAppxShortcut -ExpectedExe $leafName -ExpectedArguments $scArgs) {
+            # FIX: set LaunchType to Appx for all shell:appsFolder shortcuts.
+            # Previously this block ran but never updated $launchType, leaving
+            # every Appx app written as Win32 in the JSON after a sync.
             $launchType        = 'Appx'
             $expectedExe       = 'explorer.exe'
             $expectedArguments = $scArgs.Trim()
@@ -558,6 +572,13 @@ function Add-Shortcut {
         $expectedArguments = Read-Host "Expected arguments (optional, press Enter to skip)"
     }
 
+    # Safety net: if user entered Win32 but the args reveal it is an Appx app, correct it.
+    if ($launchType -ne 'Appx' -and
+        (Test-IsAppxShortcut -ExpectedExe $expectedExe -ExpectedArguments $expectedArguments)) {
+        Write-Warning "$name: arguments indicate an Appx app. Correcting LaunchType to 'Appx'."
+        $launchType = 'Appx'
+    }
+
     $newEntry = New-AppEntry -Name $name -LaunchType $launchType -ShortcutPath $shortcutPath `
         -ProcessName $processName -ExpectedExe $expectedExe -ExpectedPublisher $expectedPublisher `
         -ExpectedArguments $expectedArguments -StartAppName $startAppName `
@@ -713,18 +734,17 @@ function Find-MisnumberedShortcut {
 
 # ---------------------------------------------------------------------------
 # Initialize-Shortcut
-# FIX: auto-corrects LaunchType to Appx when ExpectedArguments contains
-# shell:appsFolder but the entry is still marked Win32. Saves correction
-# to JSON so it persists without needing a full re-sync.
+# FIX: calls Test-IsAppxShortcut to auto-correct LaunchType before any
+# shortcut work, so Phone Link and other Appx apps miscategorised as Win32
+# are silently fixed and saved the first time this function runs for them.
 # ---------------------------------------------------------------------------
 function Initialize-Shortcut {
     param($App)
 
     # Auto-correct miscategorised Appx entries before any shortcut work.
-    if ($App.LaunchType -eq 'Win32' -and
-        $App.ExpectedExe -ieq 'explorer.exe' -and
-        $App.ExpectedArguments -like 'shell:appsFolder\*') {
-        Write-Warning "$($App.Name): LaunchType was 'Win32' but uses shell:appsFolder. Auto-correcting to 'Appx' and saving."
+    if ($App.LaunchType -ne 'Appx' -and
+        (Test-IsAppxShortcut -ExpectedExe $App.ExpectedExe -ExpectedArguments $App.ExpectedArguments)) {
+        Write-Warning "$($App.Name): LaunchType was '$($App.LaunchType)' but uses shell:appsFolder. Auto-correcting to 'Appx' and saving."
         $App.LaunchType = 'Appx'
         Export-AppsConfig
     }
