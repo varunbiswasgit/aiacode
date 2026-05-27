@@ -338,11 +338,20 @@ function Get-AppPresence {
     return $null
 }
 
+# ---------------------------------------------------------------------------
+# Test-AppAlreadyOpen
+# DESIGN RULE: an app is only considered "already open" when it has a visible
+# window (MainWindowHandle != Zero). A background process entry in Task Manager
+# is NOT sufficient -- Appx apps like Phone Link always have background host
+# processes that must not prevent the UI from being launched.
+# The -RequireWindow switch is therefore always forced to $true regardless of
+# caller intent, enforcing this rule uniformly.
+# ---------------------------------------------------------------------------
 function Test-AppAlreadyOpen {
     param(
         [string]$ProcessName,
         [string]$ExpectedExe = "",
-        [switch]$RequireWindow
+        [switch]$RequireWindow   # kept for call-site compatibility; window check is always applied
     )
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $false }
     $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
@@ -354,8 +363,8 @@ function Test-AppAlreadyOpen {
         }
         if (-not $procs) { return $false }
     }
-    if ($RequireWindow) { return [bool]($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) }
-    return $true
+    # Always require a visible window -- never return $true for a background-only process.
+    return [bool]($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
 }
 
 function Wait-ForProcessCondition {
@@ -376,11 +385,17 @@ function Wait-ForAppReady {
     $remaining  = $TimeoutSeconds - $phase1Secs
     if ($null -eq $mode) {
         return Wait-ForProcessCondition -Remaining $remaining -Condition {
-            [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)
+            [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
+                Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
         }
     }
     Write-Host "  (presence mode: $mode)"
-    if ($mode -eq 'Tray') { return $true }
+    if ($mode -eq 'Tray') {
+        # Tray-mode apps (e.g. OneDrive) have no window -- wait for any process instance.
+        return Wait-ForProcessCondition -Remaining $remaining -Condition {
+            [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue)
+        }
+    }
     return Wait-ForProcessCondition -Remaining $remaining -Condition {
         [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
             Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
@@ -542,6 +557,8 @@ function Test-ShortcutHealthy {
 # Shared manual-AUMID prompt helper
 # Called by Edit-Shortcut and Invoke-LaunchAttempt when auto-repair fails.
 # Returns the repaired argument string, or $null if the user skips.
+# FIX: clears ProcessName when AUMID is corrected so stale process names
+# from the old broken AUMID cannot cause a false "already open" result.
 # ---------------------------------------------------------------------------
 function Invoke-ManualAumidPrompt {
     param($App)
@@ -563,8 +580,13 @@ function Invoke-ManualAumidPrompt {
     $sc.Arguments = $manualArgs
     $sc.Save()
     $App.ExpectedArguments = $manualArgs
+    $App.KnownAumid        = ($manualArgs -replace '^shell:appsFolder\\', '')
+    # Clear ProcessName so it is re-detected via open window on the next run.
+    # This prevents a stale ProcessName from the old AUMID causing a false
+    # "already open" skip when the corrected app is launched.
+    $App.ProcessName = ''
     Export-AppsConfig
-    Write-Host "$($App.Name): argument updated to '$manualArgs' and saved." -ForegroundColor Green
+    Write-Host "$($App.Name): AUMID updated, ProcessName cleared for re-detection on next run." -ForegroundColor Green
     return $manualArgs
 }
 
@@ -667,7 +689,7 @@ function Edit-Shortcut {
         if ($repaired) {
             Write-Host "$($App.Name): argument repair complete." -ForegroundColor Green
         } else {
-            # FIX: automatic repair failed -- offer manual AUMID entry instead of silently returning.
+            # Automatic repair failed -- offer manual AUMID entry instead of silently returning.
             $manual = Invoke-ManualAumidPrompt -App $App
             if (-not $manual) {
                 Write-Warning "$($App.Name): repair not resolved. Shortcut argument unchanged."
@@ -966,8 +988,10 @@ function Resolve-AumidWithFallback {
             }
             $App.ExpectedArguments = $repairedArgs
             $App | Add-Member -NotePropertyName KnownAumid -NotePropertyValue $raw -Force
+            # Clear ProcessName so it is re-detected via open window on next run.
+            $App.ProcessName = ''
             Export-AppsConfig
-            Write-Host ("$($App.Name): AUMID saved as '{0}'." -f $raw) -ForegroundColor Green
+            Write-Host ("$($App.Name): AUMID saved, ProcessName cleared for re-detection." ) -ForegroundColor Green
             $result.Resolved=$true; $result.Aumid=$raw
         }
         '2' {
@@ -1063,7 +1087,11 @@ function Invoke-FailureRecovery {
 # ---------------------------------------------------------------------------
 function Start-AppxApp {
     param($App)
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) { Write-Host "$($App.Name): already open. Skipping.`n"; return $true }
+    # Appx apps are confirmed open only when a visible window exists.
+    # A background process (e.g. PhoneExperienceHost) is not sufficient.
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName) {
+        Write-Host "$($App.Name): already open (window visible). Skipping.`n"; return $true
+    }
     $aumid = Resolve-Aumid -App $App
     if (-not $aumid) {
         Write-Warning "$($App.Name): primary AUMID resolution exhausted. Trying fallback..."
@@ -1102,7 +1130,7 @@ function Invoke-LaunchAttempt {
             if ([string]::IsNullOrWhiteSpace($currentArgs) -or $currentArgs -notlike "*$($App.ExpectedArguments)*") {
                 $repairedArgs = Repair-ShortcutArguments -App $App
                 if (-not $repairedArgs) {
-                    # FIX: automatic repair failed -- offer manual AUMID entry before aborting.
+                    # Automatic repair failed -- offer manual AUMID entry before aborting.
                     Write-Warning "$($App.Name): automatic argument repair failed."
                     $manual = Invoke-ManualAumidPrompt -App $App
                     if ($manual) {
@@ -1132,8 +1160,11 @@ function Invoke-LaunchAttempt {
         }
 
         if (-not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
-            if (Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue) {
-                Write-Host "$($App.Name): process '$($App.ProcessName)' confirmed running."
+            # Confirm via visible window only -- not just process existence.
+            $hasWindow = [bool](Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue |
+                Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
+            if ($hasWindow) {
+                Write-Host "$($App.Name): window confirmed for '$($App.ProcessName)'."
                 $ready = $true
             } else {
                 $ready = Invoke-AppLaunchWait -App $App
@@ -1162,9 +1193,9 @@ function Invoke-LaunchAttempt {
 
 function Start-Win32App {
     param($App, [int]$MaxAttempts = 3)
-    $requireWin = ($App.PresenceMode -eq 'Window')
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe -RequireWindow:$requireWin) {
-        Write-Host "$($App.Name): already open. Skipping.`n"; return $true
+    # Win32 apps: also confirm via visible window for consistency.
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe) {
+        Write-Host "$($App.Name): already open (window visible). Skipping.`n"; return $true
     }
     for ($attempt = 0; $attempt -lt $MaxAttempts; $attempt++) {
         switch (Invoke-LaunchAttempt -App $App) {
