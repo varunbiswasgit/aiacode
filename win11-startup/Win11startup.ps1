@@ -539,6 +539,36 @@ function Test-ShortcutHealthy {
 }
 
 # ---------------------------------------------------------------------------
+# Shared manual-AUMID prompt helper
+# Called by Edit-Shortcut and Invoke-LaunchAttempt when auto-repair fails.
+# Returns the repaired argument string, or $null if the user skips.
+# ---------------------------------------------------------------------------
+function Invoke-ManualAumidPrompt {
+    param($App)
+    Write-Host ""
+    Write-Host "$($App.Name): automatic repair could not resolve the AUMID." -ForegroundColor Yellow
+    Write-Host "You can enter the correct argument string manually." -ForegroundColor Yellow
+    Write-Host "Expected format: shell:appsFolder\<PackageFamilyName>!<AppId>" -ForegroundColor Cyan
+    Write-Host "Tip: run  Get-StartApps | Where-Object { `$_.Name -like '*$($App.Name)*' }  to find it." -ForegroundColor DarkGray
+    Write-Host "Current stored value: $($App.ExpectedArguments)" -ForegroundColor Gray
+    Write-Host "  [1] Enter argument string manually"
+    Write-Host "  [2] Skip (leave unchanged)"
+    $manualChoice = Read-Host "Select"
+    if ($manualChoice -ne '1') { Write-Host "$($App.Name): skipped."; return $null }
+
+    $manualArgs = (Read-Host "Enter argument string").Trim().Trim('"')
+    if ([string]::IsNullOrWhiteSpace($manualArgs)) { Write-Host "$($App.Name): no input provided. Skipping."; return $null }
+
+    $sc = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
+    $sc.Arguments = $manualArgs
+    $sc.Save()
+    $App.ExpectedArguments = $manualArgs
+    Export-AppsConfig
+    Write-Host "$($App.Name): argument updated to '$manualArgs' and saved." -ForegroundColor Green
+    return $manualArgs
+}
+
+# ---------------------------------------------------------------------------
 # Shortcut management
 # ---------------------------------------------------------------------------
 function Add-Shortcut {
@@ -637,7 +667,11 @@ function Edit-Shortcut {
         if ($repaired) {
             Write-Host "$($App.Name): argument repair complete." -ForegroundColor Green
         } else {
-            Write-Warning "$($App.Name): automatic repair failed and fallback was not resolved."
+            # FIX: automatic repair failed -- offer manual AUMID entry instead of silently returning.
+            $manual = Invoke-ManualAumidPrompt -App $App
+            if (-not $manual) {
+                Write-Warning "$($App.Name): repair not resolved. Shortcut argument unchanged."
+            }
         }
         return
     }
@@ -1067,7 +1101,17 @@ function Invoke-LaunchAttempt {
             $currentArgs = $shortcut.Arguments
             if ([string]::IsNullOrWhiteSpace($currentArgs) -or $currentArgs -notlike "*$($App.ExpectedArguments)*") {
                 $repairedArgs = Repair-ShortcutArguments -App $App
-                if (-not $repairedArgs) { Write-Warning "$($App.Name): argument repair failed. Skipping.`n"; return 'Abort' }
+                if (-not $repairedArgs) {
+                    # FIX: automatic repair failed -- offer manual AUMID entry before aborting.
+                    Write-Warning "$($App.Name): automatic argument repair failed."
+                    $manual = Invoke-ManualAumidPrompt -App $App
+                    if ($manual) {
+                        # User provided a fix; treat as Retry so the launch sequence re-checks the shortcut.
+                        return 'Retry'
+                    }
+                    Write-Warning "$($App.Name): argument not resolved. Skipping.`n"
+                    return 'Abort'
+                }
             }
         }
 
