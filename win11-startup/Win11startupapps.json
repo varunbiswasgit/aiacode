@@ -103,7 +103,7 @@
       "StartAppName": "Phone Link",
       "KnownAumid": "Microsoft.YourPhone_8wekyb3d8bbwe!App",
       "AppxName": "YourPhone",
-      "PresenceMode": null
+      "PresenceMode": "Window"
     },
     {
       "Name": "Microsoft Edge",
