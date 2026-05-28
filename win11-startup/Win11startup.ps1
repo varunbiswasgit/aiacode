@@ -1163,10 +1163,10 @@ function Repair-ShortcutArguments {
 # FIX 2/3: passes $App.PresenceMode to Test-AppAlreadyOpen so tray apps
 # (OneDrive, ShareFile, Greenshot) are correctly identified as running
 # via process presence alone, without requiring a visible window.
-# FIX (baseline): snapshots ALL window-bearing PIDs before launch (not just
-# by ProcessName) so Appx apps with an empty ProcessName still get a valid
-# baseline. All detection functions receive this baseline so only the NEWLY
-# spawned process is used for detection, eliminating false "already open"
+# FIX (baseline): snapshots ALL running PIDs (not just window-bearing ones)
+# before launch so tray apps and windowless processes are also excluded from
+# post-launch detection. All detection functions receive this baseline so
+# only the NEWLY spawned process is used, eliminating false "already open"
 # results and the spurious 20-second timeout warning.
 # ---------------------------------------------------------------------------
 function Invoke-LaunchAttempt {
@@ -1175,13 +1175,12 @@ function Invoke-LaunchAttempt {
     # Bootstrap: ensure the .lnk exists before any launch or health-check.
     Initialize-Shortcut -App $App
 
-    # FIX (baseline): snapshot ALL window-bearing PIDs before launching, not
-    # just by ProcessName. When ProcessName is empty (Appx apps not yet
-    # back-filled), the old snapshot returned [] and pre-existing windows of
-    # the same process were not excluded from detection.
+    # FIX (baseline): snapshot ALL running PIDs -- not just window-bearing ones.
+    # The previous version only captured PIDs with MainWindowHandle != Zero, which
+    # missed tray processes and background hosts. Those could then be picked up
+    # as "new" after launch, causing false already-open detection or timeout errors.
     $baselinePIDs = @(
         Get-Process -ErrorAction SilentlyContinue |
-            Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } |
             Select-Object -ExpandProperty Id
     )
 
@@ -1269,6 +1268,9 @@ function Invoke-LaunchAttempt {
 # manual AUMID update, WshShell.Run has already fired in the first attempt.
 # Without this guard the loop immediately re-launches the app, causing the
 # double-launch symptom reported by users.
+# FIX (double-launch guard retry baseline): on retry iterations, a fresh
+# full-process baseline is taken so the already-open check in the guard
+# reflects the actual state after the first launch attempt settled.
 # ---------------------------------------------------------------------------
 function Start-AppSequence {
     Write-Host "`n=== Starting app launch sequence ==="
@@ -1283,10 +1285,14 @@ function Start-AppSequence {
             # FIX (double-launch guard): on retry iterations (attempt > 1),
             # skip the relaunch if the app is already running from the previous
             # attempt's WshShell.Run call.
+            # FIX (retry baseline): take a fresh full-process baseline here so
+            # the guard sees processes that started during the first attempt,
+            # not the stale baseline captured before the sequence began.
             if ($attempt -gt 1) {
+                $retryBaseline = @(Get-Process -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
                 if (Test-AppAlreadyOpen -ProcessName $app.ProcessName -ExpectedExe $app.ExpectedExe `
                         -AppName $app.Name -StartAppName $app.StartAppName `
-                        -PresenceMode $app.PresenceMode) {
+                        -PresenceMode $app.PresenceMode -BaselinePIDs $retryBaseline) {
                     Write-Host "$($app.Name): already running after AUMID update. Skipping relaunch."
                     break
                 }
