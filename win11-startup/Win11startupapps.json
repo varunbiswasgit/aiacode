@@ -11,7 +11,8 @@
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
-      "AppxName": ""
+      "AppxName": "",
+      "PresenceMode": "Window"
     },
     {
       "Name": "Team Chat",
@@ -23,7 +24,8 @@
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
-      "AppxName": ""
+      "AppxName": "",
+      "PresenceMode": "Window"
     },
     {
       "Name": "Cloud Storage",
@@ -35,7 +37,8 @@
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
-      "AppxName": ""
+      "AppxName": "",
+      "PresenceMode": "Tray"
     },
     {
       "Name": "File Sync",
@@ -47,7 +50,8 @@
       "ExpectedArguments": "shell:appsFolder\\Contoso.FileSync_8wekyb3d8bbwe!App",
       "StartAppName": "File Sync",
       "KnownAumid": "Contoso.FileSync_8wekyb3d8bbwe!App",
-      "AppxName": "Contoso.FileSync"
+      "AppxName": "Contoso.FileSync",
+      "PresenceMode": "Tray"
     },
     {
       "Name": "Sticky Notes",
@@ -59,7 +63,8 @@
       "ExpectedArguments": "shell:appsFolder\\Contoso.StickyNotes_8wekyb3d8bbwe!App",
       "StartAppName": "Sticky Notes",
       "KnownAumid": "Contoso.StickyNotes_8wekyb3d8bbwe!App",
-      "AppxName": "Contoso.StickyNotes"
+      "AppxName": "Contoso.StickyNotes",
+      "PresenceMode": "Window"
     },
     {
       "Name": "Screenshot Tool",
@@ -71,7 +76,8 @@
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
-      "AppxName": ""
+      "AppxName": "",
+      "PresenceMode": "Tray"
     },
     {
       "Name": "Note Taking",
@@ -83,7 +89,8 @@
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
-      "AppxName": ""
+      "AppxName": "",
+      "PresenceMode": "Window"
     },
     {
       "Name": "Phone Companion",
@@ -95,7 +102,8 @@
       "ExpectedArguments": "shell:appsFolder\\Contoso.PhoneCompanion_8wekyb3d8bbwe!App",
       "StartAppName": "Phone Companion",
       "KnownAumid": "Contoso.PhoneCompanion_8wekyb3d8bbwe!App",
-      "AppxName": "Contoso.PhoneCompanion"
+      "AppxName": "Contoso.PhoneCompanion",
+      "PresenceMode": "Window"
     },
     {
       "Name": "Web Browser",
@@ -107,7 +115,8 @@
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
-      "AppxName": ""
+      "AppxName": "",
+      "PresenceMode": "Window"
     },
     {
       "Name": "Alt Browser",
@@ -119,7 +128,8 @@
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
-      "AppxName": ""
+      "AppxName": "",
+      "PresenceMode": "Window"
     },
     {
       "Name": "ERP Client",
@@ -131,7 +141,8 @@
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
-      "AppxName": ""
+      "AppxName": "",
+      "PresenceMode": "Window"
     },
     {
       "Name": "Text Editor",
@@ -143,7 +154,8 @@
       "ExpectedArguments": "",
       "StartAppName": "",
       "KnownAumid": "",
-      "AppxName": ""
+      "AppxName": "",
+      "PresenceMode": "Window"
     }
   ]
 }
