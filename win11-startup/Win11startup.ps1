@@ -1035,218 +1035,172 @@ function Repair-ShortcutArguments {
                 $manifest = [xml]::new(); $manifest.Load($manifestPath)
                 $appIds = $manifest.Package.Applications.Application.Id
                 $appId  = if ($appIds -contains 'App') { 'App' } else { $appIds | Select-Object -First 1 }
-            } catch { Write-Warning "$($App.Name): cannot read manifest. $_" }
+            } catch { Write-Warning "$($App.Name): failed to parse AppxManifest.xml. $_" }
         }
-        if ([string]::IsNullOrWhiteSpace($appId)) {
-            Write-Warning "$($App.Name): manifest unreadable. Falling back to ExpectedArguments AppId."
-            $appId = ($App.ExpectedArguments -split '!') | Select-Object -Last 1
+        if ([string]::IsNullOrWhiteSpace($pfn) -or [string]::IsNullOrWhiteSpace($appId)) {
+            Write-Warning "$($App.Name): could not build new AUMID from manifest/package."
+            return $null
         }
-        if ([string]::IsNullOrWhiteSpace($pfn)) { Write-Warning "$($App.Name): package not found for '$aumidFragment'."; return $null }
-        $repairedArgs = "shell:appsFolder\$pfn!$appId"
-        Write-Host "$($App.Name): AUMID repaired to $pfn!$appId."
-        $shortcut.Arguments        = $repairedArgs
-        $shortcut.WorkingDirectory = Split-Path -Path $shortcut.TargetPath -Parent
-        return $repairedArgs
+        $newAumid = "$pfn!$appId"
+        $newArgs  = "shell:appsFolder\$newAumid"
+        Write-Host "$($App.Name): repaired Arguments -> '$newArgs'"
+        $shortcut.Arguments = $newArgs
+        $App.ExpectedArguments = $newArgs
+        $App.KnownAumid        = $newAumid
+        Export-AppsConfig
+        return $newArgs
     }
-    if ($repaired) { return $repaired }
-    $fb = Resolve-AumidWithFallback -App $App
-    if ($fb.Resolved) { return $fb.Aumid }
-    return $null
+    return $repaired
 }
 
 # ---------------------------------------------------------------------------
-# Failure recovery
+# Invoke-LaunchAttempt
+# FIX: when Repair-ShortcutArguments returns $null, calls
+# Invoke-ManualAumidPrompt instead of silently returning 'Abort'.
+# Returns 'Retry' if the user provides a valid AUMID so the caller
+# can re-attempt the launch immediately.
 # ---------------------------------------------------------------------------
-function Invoke-AppLaunchWait {
-    param($App, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
-    if (Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $TimeoutSeconds) {
-        Write-Host "$($App.Name): ready.`n"; Start-Sleep -Seconds $script:PostLaunchPauseSeconds; return $true
-    }
-    Write-Warning "$($App.Name): did not become ready within $TimeoutSeconds seconds."
-    return $false
-}
-
-function Invoke-FailureRecovery {
-    param($App, [string]$Context, [scriptblock]$PreRetryAction = $null)
-    Write-Host "  [1] Add / fix shortcut for $($App.Name) and retry"
-    Write-Host "  [2] Modify a different shortcut"
-    Write-Host "  [3] Skip"
-    Write-Host "  [4] Delete '$($App.Name)' entry from config"
-    $choice = Read-Host "Select ($Context)"
-    switch ($choice) {
-        '1' { if ($PreRetryAction) { & $PreRetryAction }; return $true }
-        '2' { $target = Show-AppPicker -Prompt "Select shortcut to modify:"; if ($target) { Edit-Shortcut -App $target }; return $false }
-        '4' { Remove-Shortcut -App $App; return $false }
-        default { Write-Host "$($App.Name): skipped.`n"; return $false }
-    }
-}
-
-# ---------------------------------------------------------------------------
-# Launch functions
-# ---------------------------------------------------------------------------
-function Start-AppxApp {
-    param($App)
-    # Appx apps are confirmed open only when a visible window with a matching
-    # title exists. Background host processes (e.g. PhoneExperienceHost) must
-    # not prevent the UI from being launched.
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -AppName $App.Name -StartAppName $App.StartAppName) {
-        Write-Host "$($App.Name): already open (window visible). Skipping.`n"; return $true
-    }
-    $aumid = Resolve-Aumid -App $App
-    if (-not $aumid) {
-        Write-Warning "$($App.Name): primary AUMID resolution exhausted. Trying fallback..."
-        $fb = Resolve-AumidWithFallback -App $App
-        if (-not $fb.Resolved) { Write-Warning "$($App.Name): no AUMID found. Skipping.`n"; return $false }
-        if ($fb.LaunchType -eq 'Win32') { return Invoke-LaunchAttempt -App $App }
-        $aumid = $fb.Aumid
-    }
-    try {
-        Write-Host "$($App.Name): launching via shell:appsFolder\$aumid"
-        Start-Process explorer.exe "shell:appsFolder\$aumid" -ErrorAction Stop
-        return Invoke-AppLaunchWait -App $App
-    } catch { Write-Warning "$($App.Name): launch failed. $_`n"; return $false }
-}
-
 function Invoke-LaunchAttempt {
     param($App)
 
-    if (-not (Test-Path -LiteralPath $App.ShortcutPath -PathType Leaf)) {
-        Write-Warning "$($App.Name): shortcut not found: $($App.ShortcutPath)"
-        $recover = Invoke-FailureRecovery -App $App -Context "missing shortcut" -PreRetryAction { Initialize-Shortcut -App $App }
-        if ($recover) { return 'Retry' } else { return 'Abort' }
+    # Bootstrap: ensure the .lnk exists before any launch or health-check.
+    Initialize-Shortcut -App $App
+
+    # Already open?
+    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe `
+            -AppName $App.Name -StartAppName $App.StartAppName) {
+        Write-Host "$($App.Name): already open. Skipping.`n"
+        return 'Skip'
     }
 
-    try {
-        $shortcut   = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
-        $targetPath = $shortcut.TargetPath
-        if ([string]::IsNullOrWhiteSpace($targetPath) -or -not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
-            $repairedPath = Repair-ShortcutTarget -App $App
-            if (-not $repairedPath) { Write-Warning "$($App.Name): repair failed. Skipping.`n"; return 'Abort' }
-            $shortcut = Get-ShortcutObject -ShortcutPath $App.ShortcutPath
+    if ($App.LaunchType -eq 'Appx') {
+
+        $aumid = Resolve-Aumid -App $App
+        if (-not $aumid) {
+            $fallback = Resolve-AumidWithFallback -App $App
+            if (-not $fallback.Resolved) { return 'Abort' }
+            if ($fallback.LaunchType -eq 'Win32') {
+                Write-Host "$($App.Name): launching as Win32 after conversion.`n"
+                $script:WshShell.Run("`"$($fallback.ExePath)`"", 1, $false)
+                Start-Sleep -Seconds $script:PostLaunchPauseSeconds
+                return 'Launched'
+            }
+            $aumid = $fallback.Aumid
         }
 
-        if (-not [string]::IsNullOrWhiteSpace($App.ExpectedArguments)) {
-            $currentArgs = $shortcut.Arguments
-            if ([string]::IsNullOrWhiteSpace($currentArgs) -or $currentArgs -notlike "*$($App.ExpectedArguments)*") {
-                $repairedArgs = Repair-ShortcutArguments -App $App
-                if (-not $repairedArgs) {
-                    # Automatic repair failed -- offer manual AUMID entry before aborting.
-                    Write-Warning "$($App.Name): automatic argument repair failed."
-                    $manual = Invoke-ManualAumidPrompt -App $App
-                    if ($manual) {
-                        # User provided a fix; treat as Retry so the launch sequence re-checks the shortcut.
-                        return 'Retry'
-                    }
-                    Write-Warning "$($App.Name): argument not resolved. Skipping.`n"
-                    return 'Abort'
-                }
+        # Verify the shortcut argument matches the resolved AUMID; repair if stale.
+        $expectedArgs = "shell:appsFolder\$aumid"
+        if ($App.ExpectedArguments -ne $expectedArgs) {
+            Write-Host "$($App.Name): stale AUMID in shortcut. Repairing..."
+            $repairedArgs = Repair-ShortcutArguments -App $App
+            if (-not $repairedArgs) {
+                # Automatic repair failed -- offer manual AUMID entry.
+                $manual = Invoke-ManualAumidPrompt -App $App
+                if ($manual) { return 'Retry' }
+                Write-Warning "$($App.Name): argument repair failed. Skipping.`n"
+                return 'Abort'
             }
         }
 
-        Write-Host "$($App.Name): launching via $($App.ShortcutPath)"
+        Write-Host "$($App.Name): launching via Start Menu shortcut (Appx)..."
         $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
 
-        if ([string]::IsNullOrWhiteSpace($App.ProcessName)) {
-            Write-Host "$($App.Name): ProcessName blank - waiting for active window to confirm launch..."
-            $matchedProc = Wait-ForWindowByTitle -App $App -WaitSecs $script:SettleSeconds
-            if ($matchedProc) {
-                $App.ProcessName = $matchedProc.ProcessName
-                Export-AppsConfig
-                Write-Host "$($App.Name): active window detected. ProcessName back-filled as '$($App.ProcessName)' and saved."
-            } else {
-                Write-Warning "$($App.Name): no matching active window detected within $script:SettleSeconds seconds. Launch assumed but ready-check skipped."
-                return 'Success'
+    } else {
+
+        # Win32 path
+        if (-not (Test-ShortcutHealthy -ShortcutPath $App.ShortcutPath -ExpectedPublisher $App.ExpectedPublisher)) {
+            Write-Warning "$($App.Name): shortcut unhealthy. Attempting repair..."
+            Repair-ShortcutTarget -App $App
+            if (-not (Test-ShortcutHealthy -ShortcutPath $App.ShortcutPath -ExpectedPublisher $App.ExpectedPublisher)) {
+                Write-Warning "$($App.Name): repair unsuccessful. Skipping.`n"; return 'Abort'
             }
         }
+        Write-Host "$($App.Name): launching via shortcut (Win32)..."
+        $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
+    }
 
-        if (-not [string]::IsNullOrWhiteSpace($App.ProcessName)) {
-            # Confirm via visible window only -- not just process existence.
-            $hasWindow = [bool](Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue |
-                Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
-            if ($hasWindow) {
-                Write-Host "$($App.Name): window confirmed for '$($App.ProcessName)'."
-                $ready = $true
-            } else {
-                $ready = Invoke-AppLaunchWait -App $App
-            }
+    # Back-fill ProcessName from the first visible window if it was empty.
+    if ([string]::IsNullOrWhiteSpace($App.ProcessName)) {
+        Write-Host "$($App.Name): ProcessName unknown; waiting for window to detect process..."
+        $detected = Wait-ForWindowByTitle -App $App -TimeoutSeconds $script:LaunchTimeoutSeconds
+        if ($detected -and -not [string]::IsNullOrWhiteSpace($detected.ProcessName)) {
+            $App.ProcessName = $detected.ProcessName
+            Write-Host "$($App.Name): ProcessName detected as '$($App.ProcessName)'. Saving."
+            Export-AppsConfig
         } else {
-            $ready = $true
+            Write-Warning "$($App.Name): could not detect ProcessName. Will retry on next run."
         }
-
-        if ($ready) { return 'Success' }
-
-        $recover = Invoke-FailureRecovery -App $App -Context "launch timeout" -PreRetryAction { Edit-Shortcut -App $App }
-        if ($recover) { return 'Retry' } else { return 'Abort' }
-
-    } catch {
-        Write-Warning "$($App.Name): launch exception. $_`n"
-        Write-ErrorLog -Message "$($App.Name): launch exception" -ErrorRecord $_
-        $recover = Invoke-FailureRecovery -App $App -Context "launch exception" -PreRetryAction { Edit-Shortcut -App $App }
-        if ($recover) { return 'Retry' } else { return 'Abort' }
+    } else {
+        $ready = Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $script:LaunchTimeoutSeconds
+        if (-not $ready) { Write-Warning "$($App.Name): did not become ready within $($script:LaunchTimeoutSeconds)s." }
     }
-}
 
-function Start-Win32App {
-    param($App, [int]$MaxAttempts = 3)
-    # Win32 apps: confirm via visible window with matching title for consistency.
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe -AppName $App.Name) {
-        Write-Host "$($App.Name): already open (window visible). Skipping.`n"; return $true
-    }
-    for ($attempt = 0; $attempt -lt $MaxAttempts; $attempt++) {
-        switch (Invoke-LaunchAttempt -App $App) {
-            'Success' { return $true }
-            'Abort'   { return $false }
-        }
-    }
-    Write-Warning "$($App.Name): max attempts reached. Skipping.`n"
-    return $false
+    Start-Sleep -Seconds $script:PostLaunchPauseSeconds
+    return 'Launched'
 }
 
 # ---------------------------------------------------------------------------
-# Main menu + startup sequence
+# Launch sequence
 # ---------------------------------------------------------------------------
-if ($env:PS_STARTUP_TESTMODE -eq '1') { return }
+function Start-AppSequence {
+    Write-Host "`n=== Starting app launch sequence ==="
+    Write-Host "Initial delay: $script:InitialDelaySeconds seconds..."
+    Start-Sleep -Seconds $script:InitialDelaySeconds
 
-Write-Host "`n================================================"
-Write-Host "  Win11 Startup Manager"
-Write-Host "================================================"
-Write-Host "  [1] Run startup sequence"
-Write-Host "  [2] Add shortcut"
-Write-Host "  [3] Delete shortcut"
-Write-Host "  [4] Modify shortcut"
-Write-Host "  [5] List startup apps"
-Write-Host "  [6] Sync from Start Menu"
-Write-Host "  [7] Exit"
-Write-Host "------------------------------------------------"
-$mainChoice = Read-Host "Select"
+    foreach ($app in $script:apps) {
+        $maxRetries = 2
+        $attempt    = 0
+        do {
+            $attempt++
+            $outcome = Invoke-LaunchAttempt -App $app
+            if ($outcome -eq 'Retry' -and $attempt -le $maxRetries) {
+                Write-Host "$($app.Name): retrying launch (attempt $attempt of $maxRetries)..."
+            }
+        } while ($outcome -eq 'Retry' -and $attempt -le $maxRetries)
 
-switch ($mainChoice) {
-    '2' { $app = Show-AppPicker -Prompt "Select app to re-initialise, or [N] to add a new entry:" -AllowNew; Add-Shortcut -App $app; exit }
-    '3' { $app = Show-AppPicker -Prompt "Select app to DELETE shortcut for:"; if ($app) { Remove-Shortcut -App $app }; exit }
-    '4' { $app = Show-AppPicker -Prompt "Select app to MODIFY shortcut for:"; if ($app) { Edit-Shortcut -App $app }; exit }
-    '5' { Show-AppList; exit }
-    '6' { Sync-AppsFromStartMenu; exit }
-    '7' { exit }
+        if ($outcome -eq 'Retry') {
+            Write-Warning "$($app.Name): max retries reached after manual AUMID update. Skipping."
+        }
+    }
+
+    Write-Host "`n=== Launch sequence complete ===`n"
 }
 
-Write-Host "Waiting $script:InitialDelaySeconds seconds for system to stabilize..."
-Start-Sleep -Seconds $script:InitialDelaySeconds
-
-Write-Host "`n--- Shortcut bootstrap ---"
-foreach ($app in $script:apps) {
-    if ($app.LaunchType -eq 'Win32') { Initialize-Shortcut -App $app }
+# ---------------------------------------------------------------------------
+# Main menu
+# ---------------------------------------------------------------------------
+function Show-MainMenu {
+    while ($true) {
+        Write-Host "`n========================================="
+        Write-Host "  Win11 Startup Manager"
+        Write-Host "========================================="
+        Write-Host "  [1] Show configured apps"
+        Write-Host "  [2] Add shortcut"
+        Write-Host "  [3] Remove shortcut"
+        Write-Host "  [4] Modify shortcut"
+        Write-Host "  [5] Sync apps from Start Menu"
+        Write-Host "  [6] Launch all apps now"
+        Write-Host "  [0] Exit"
+        $choice = Read-Host "`nSelect"
+        switch ($choice) {
+            '1' { Show-AppList }
+            '2' { Add-Shortcut  -App (Show-AppPicker -Prompt "Select app to ADD shortcut for:"    -AllowNew) }
+            '3' { Remove-Shortcut -App (Show-AppPicker -Prompt "Select app to REMOVE shortcut for:") }
+            '4' { $picked = Show-AppPicker -Prompt "Select app to MODIFY shortcut for:"
+                  if ($picked) { Edit-Shortcut -App $picked } }
+            '5' { Sync-AppsFromStartMenu }
+            '6' { Start-AppSequence }
+            '0' { Write-Host "Exiting."; return }
+            default { Write-Warning "Invalid selection. Enter 0-6." }
+        }
+    }
 }
-Write-Host "--- Bootstrap complete ---`n"
 
-$failedApps = @()
-foreach ($app in $script:apps) {
-    $ok = if ($app.LaunchType -eq 'Appx') { Start-AppxApp -App $app } else { Start-Win32App -App $app }
-    if (-not $ok) { $failedApps += "$($app.Name) [$($app.ProcessName)]" }
-}
-
-if ($failedApps.Count -gt 0) {
-    Write-Host "`n--- Startup completed with failures ---"
-    foreach ($entry in $failedApps) { Write-Host "  - $entry" }
+# ---------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------
+if ($env:PS_STARTUP_TESTMODE -eq '1') {
+    Write-Host "[TEST MODE] Functions loaded. Menu and launch sequence skipped."
 } else {
-    Write-Host "`nStartup sequence completed successfully."
+    Show-MainMenu
 }
