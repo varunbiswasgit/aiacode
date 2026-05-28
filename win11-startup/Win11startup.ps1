@@ -346,14 +346,21 @@ function Get-AppPresence {
 # A background host process (e.g. PhoneExperienceHost) running permanently in
 # Task Manager must never trigger a false "already open" skip -- it has no
 # matching window title even if MainWindowHandle is briefly non-zero.
+#
+# FIX 2/3: Add PresenceMode parameter.
+# Tray apps (OneDrive, ShareFile, Greenshot) never open a window during startup
+# so the window-title check would always return $false, causing them to be
+# relaunched on every startup run. When PresenceMode='Tray', return $true as
+# soon as any matching process is found -- no window or title check needed.
 # ---------------------------------------------------------------------------
 function Test-AppAlreadyOpen {
     param(
         [string]$ProcessName,
-        [string]$ExpectedExe = "",
-        [string]$AppName = "",
-        [string]$StartAppName = "",
-        [switch]$RequireWindow   # kept for call-site compatibility; window check is always applied
+        [string]$ExpectedExe  = '',
+        [string]$AppName      = '',
+        [string]$StartAppName = '',
+        [string]$PresenceMode = 'Window',  # 'Window' (default) or 'Tray'
+        [switch]$RequireWindow             # kept for call-site compatibility
     )
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $false }
     $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
@@ -365,9 +372,15 @@ function Test-AppAlreadyOpen {
         }
         if (-not $procs) { return $false }
     }
-    # Require a visible window. When app name fragments are available, the window
-    # title must match -- prevents background host processes from being mistaken
-    # for the real app UI (e.g. PhoneExperienceHost vs Phone Link UI window).
+    # FIX 2/3: tray apps live in the system tray and never raise a window.
+    # Treat process presence alone as sufficient proof they are already running.
+    if ($PresenceMode -ieq 'Tray') {
+        Write-Host "$AppName: tray process already running. Skipping."
+        return $true
+    }
+    # Window mode: require a visible window whose title matches the app name.
+    # Prevents background host processes from being mistaken for the real app UI
+    # (e.g. PhoneExperienceHost running permanently vs Phone Link UI window).
     $windowProcs = $procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
     if (-not $windowProcs) { return $false }
     $terms = @($AppName, $StartAppName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
@@ -1065,6 +1078,9 @@ function Repair-ShortcutArguments {
 # Invoke-ManualAumidPrompt instead of silently returning 'Abort'.
 # Returns 'Retry' if the user provides a valid AUMID so the caller
 # can re-attempt the launch immediately.
+# FIX 2/3: passes $App.PresenceMode to Test-AppAlreadyOpen so tray apps
+# (OneDrive, ShareFile, Greenshot) are correctly identified as running
+# via process presence alone, without requiring a visible window.
 # ---------------------------------------------------------------------------
 function Invoke-LaunchAttempt {
     param($App)
@@ -1072,9 +1088,10 @@ function Invoke-LaunchAttempt {
     # Bootstrap: ensure the .lnk exists before any launch or health-check.
     Initialize-Shortcut -App $App
 
-    # Already open?
+    # Already open? Pass PresenceMode so tray apps are not relaunched.
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe `
-            -AppName $App.Name -StartAppName $App.StartAppName) {
+            -AppName $App.Name -StartAppName $App.StartAppName `
+            -PresenceMode $App.PresenceMode) {
         Write-Host "$($App.Name): already open. Skipping.`n"
         return 'Skip'
     }
