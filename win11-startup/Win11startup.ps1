@@ -103,6 +103,12 @@ function Import-AppsConfig {
         if ($null -eq $entry.StartAppName)       { $entry | Add-Member -NotePropertyName StartAppName       -NotePropertyValue '' -Force }
         if ($null -eq $entry.KnownAumid)         { $entry | Add-Member -NotePropertyName KnownAumid         -NotePropertyValue '' -Force }
         if ($null -eq $entry.AppxName)           { $entry | Add-Member -NotePropertyName AppxName           -NotePropertyValue '' -Force }
+        # FIX 1/3: default PresenceMode to 'Window' when absent from JSON.
+        # Tray apps (OneDrive, ShareFile, Greenshot) store 'Tray' here so
+        # Test-AppAlreadyOpen can skip the window-title check for them.
+        if ($null -eq $entry.PresenceMode -or [string]::IsNullOrWhiteSpace($entry.PresenceMode)) {
+            $entry | Add-Member -NotePropertyName PresenceMode -NotePropertyValue 'Window' -Force
+        }
 
         # Auto-correct LaunchType: if the shortcut pattern is Appx but was saved as Win32, fix it here
         # so every downstream code path routes it correctly without requiring a re-sync.
