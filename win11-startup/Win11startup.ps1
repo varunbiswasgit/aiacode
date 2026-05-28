@@ -7,7 +7,7 @@
 # Test mode   : set $env:PS_STARTUP_TESTMODE = '1' to dot-source without running the menu/sequence.
 cls
 # ---------------------------------------------------------------------------
-# Error log + trap (defined before trap so cold errors can call Write-ErrorLog)
+# Error log + trap
 # ---------------------------------------------------------------------------
 $script:ErrorLogPath = Join-Path $PSScriptRoot "startup-error.log"
 
@@ -50,9 +50,6 @@ $script:AllowedExeRoots = @(
 
 # ---------------------------------------------------------------------------
 # Helper: detect if a shortcut entry should be Appx-typed
-# Returns $true when the exe is explorer.exe and args start with shell:appsFolder
-# Used in Import-AppsConfig, Sync-AppsFromStartMenu, and Initialize-Shortcut
-# to guarantee consistent classification at every entry point.
 # ---------------------------------------------------------------------------
 function Test-IsAppxShortcut {
     param([string]$ExpectedExe, [string]$ExpectedArguments)
@@ -103,21 +100,14 @@ function Import-AppsConfig {
         if ($null -eq $entry.StartAppName)       { $entry | Add-Member -NotePropertyName StartAppName       -NotePropertyValue '' -Force }
         if ($null -eq $entry.KnownAumid)         { $entry | Add-Member -NotePropertyName KnownAumid         -NotePropertyValue '' -Force }
         if ($null -eq $entry.AppxName)           { $entry | Add-Member -NotePropertyName AppxName           -NotePropertyValue '' -Force }
-        # FIX 1/3: default PresenceMode to 'Window' when absent from JSON.
-        # Tray apps (OneDrive, ShareFile, Greenshot) store 'Tray' here so
-        # Test-AppAlreadyOpen can skip the window-title check for them.
         if ($null -eq $entry.PresenceMode -or [string]::IsNullOrWhiteSpace($entry.PresenceMode)) {
             $entry | Add-Member -NotePropertyName PresenceMode -NotePropertyValue 'Window' -Force
         }
-
-        # Auto-correct LaunchType: if the shortcut pattern is Appx but was saved as Win32, fix it here
-        # so every downstream code path routes it correctly without requiring a re-sync.
         if ($entry.LaunchType -ne 'Appx' -and
             (Test-IsAppxShortcut -ExpectedExe $entry.ExpectedExe -ExpectedArguments $entry.ExpectedArguments)) {
             Write-Warning "$($entry.Name): LaunchType was '$($entry.LaunchType)' but shortcut uses shell:appsFolder. Auto-correcting to 'Appx'."
             $entry.LaunchType = 'Appx'
         }
-
         $validated += $entry
     }
     return $validated
@@ -138,10 +128,6 @@ function Export-AppsConfig {
 
 # ---------------------------------------------------------------------------
 # Sync from Start Menu
-# FIX: $launchType is now set via Test-IsAppxShortcut inside the detection
-# block, so explorer.exe + shell:appsFolder shortcuts are always written as
-# LaunchType='Appx'. Previously the variable stayed 'Win32' causing
-# Phone Link and Sticky Notes to be miscategorised on every sync.
 # ---------------------------------------------------------------------------
 function Sync-AppsFromStartMenu {
     param([string]$StartMenuPath = $script:startMenu)
@@ -157,7 +143,6 @@ function Sync-AppsFromStartMenu {
 
     Write-Host "Found $($lnkFiles.Count) numbered shortcut(s). Scanning..."
 
-    # Load existing config so we can preserve back-filled ProcessName values.
     $existingApps = @()
     if (Test-Path -LiteralPath $script:AppsConfigPath -PathType Leaf) {
         try { $existingApps = @(Import-AppsConfig -Path $script:AppsConfigPath) } catch {}
@@ -181,9 +166,6 @@ function Sync-AppsFromStartMenu {
         $appxName          = ''
 
         if (Test-IsAppxShortcut -ExpectedExe $leafName -ExpectedArguments $scArgs) {
-            # FIX: set LaunchType to Appx for all shell:appsFolder shortcuts.
-            # Previously this block ran but never updated $launchType, leaving
-            # every Appx app written as Win32 in the JSON after a sync.
             $launchType        = 'Appx'
             $expectedExe       = 'explorer.exe'
             $expectedArguments = $scArgs.Trim()
@@ -191,7 +173,6 @@ function Sync-AppsFromStartMenu {
             $startAppName      = $appName
             $appxName          = ($knownAumid -split '_')[0]
 
-            # Preserve ProcessName if it was already back-filled by a previous run sequence.
             $known = $existingApps | Where-Object { $_.ShortcutPath -eq $file.FullName } | Select-Object -First 1
             if ($known -and -not [string]::IsNullOrWhiteSpace($known.ProcessName)) {
                 $processName = $known.ProcessName
@@ -223,12 +204,6 @@ function Sync-AppsFromStartMenu {
 
 # ---------------------------------------------------------------------------
 # App entry constructor
-# FIX 2/3: PresenceMode added to New-AppEntry output object.
-# Without this, entries created programmatically (Add-Shortcut, Sync) were
-# missing the field, so $App.PresenceMode was $null when Invoke-LaunchAttempt
-# passed it to Test-AppAlreadyOpen -- defaulting to 'Window' silently only
-# after a JSON round-trip via Import-AppsConfig.  Now the field is present
-# from the moment the entry is constructed in memory.
 # ---------------------------------------------------------------------------
 function New-AppEntry {
     param(
@@ -242,7 +217,7 @@ function New-AppEntry {
         [string]$StartAppName      = '',
         [string]$KnownAumid        = '',
         [string]$AppxName          = '',
-        [string]$PresenceMode      = 'Window'   # FIX 2/3: emit field so in-memory entries behave identically to JSON-loaded ones
+        [string]$PresenceMode      = 'Window'
     )
     return [PSCustomObject]@{
         Name              = $Name
@@ -255,7 +230,7 @@ function New-AppEntry {
         StartAppName      = $StartAppName
         KnownAumid        = $KnownAumid
         AppxName          = $AppxName
-        PresenceMode      = $PresenceMode       # FIX 2/3: always present; 'Window' default matches Import-AppsConfig
+        PresenceMode      = $PresenceMode
     }
 }
 
@@ -332,118 +307,11 @@ if (-not $script:apps) {
 
 # ---------------------------------------------------------------------------
 # Presence / ready detection
-# FIX (baseline): Get-AppPresence now accepts BaselinePIDs so the phase-1
-# settle check only counts windows belonging to NEW processes, not ones that
-# were already running before the launch call.
-# FIX (splash-gate): TitleFragment parameter added. When supplied, the
-# phase-1 settle check requires the new window title to match before
-# declaring the app ready. Prevents a transient splash or loading window
-# from triggering a premature 'ready' result for apps like Outlook or Teams
-# that show a splash before the main window appears.
 # ---------------------------------------------------------------------------
-function Get-AppPresence {
-    param(
-        [string]$ProcessName,
-        [int]$SettleSecs = $script:SettleSeconds,
-        [switch]$Normalise,
-        [int[]]$BaselinePIDs  = @(),   # FIX (baseline): ignore pre-existing instances
-        [string]$TitleFragment = ''    # FIX (splash-gate): require title match before declaring ready
-    )
-    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $null }
-    $sw = [System.Diagnostics.Stopwatch]::StartNew()
-    while ($sw.Elapsed.TotalSeconds -lt $SettleSecs) {
-        $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
-            Where-Object { $BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs }
-        $ready = $procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
-        # FIX (splash-gate): if a title fragment is specified, only count windows
-        # whose title matches. This prevents a splash/loading window from being
-        # mistaken for the fully ready app window.
-        if ($ready -and -not [string]::IsNullOrWhiteSpace($TitleFragment)) {
-            $ready = $ready | Where-Object { $_.MainWindowTitle -like "*$TitleFragment*" }
-        }
-        if ($ready) {
-            if ($Normalise) { return 'WindowVisible' } else { return 'Window' }
-        }
-        Start-Sleep -Seconds 1
-    }
-    return $null
-}
 
-# ---------------------------------------------------------------------------
-# Test-AppAlreadyOpen
-# DESIGN RULE: an app is only considered "already open" when it has a visible
-# window (MainWindowHandle != Zero) whose title matches the app name.
-# A background host process (e.g. PhoneExperienceHost) running permanently in
-# Task Manager must never trigger a false "already open" skip -- it has no
-# matching window title even if MainWindowHandle is briefly non-zero.
-#
-# FIX 2/3: Add PresenceMode parameter.
-# Tray apps (OneDrive, ShareFile, Greenshot) never open a window during startup
-# so the window-title check would always return $false, causing them to be
-# relaunched on every startup run. When PresenceMode='Tray', return $true as
-# soon as any matching process is found -- no window or title check needed.
-#
-# FIX (baseline): BaselinePIDs parameter added. In Window mode, only PIDs
-# NOT in the baseline are considered when checking for an open window.
-# This prevents a pre-existing instance (e.g. Outlook already open from a
-# previous session) from being mistaken for a freshly launched one, which
-# was causing the 20-second timeout and double-launch symptoms.
-# ---------------------------------------------------------------------------
-function Test-AppAlreadyOpen {
-    param(
-        [string]$ProcessName,
-        [string]$ExpectedExe  = '',
-        [string]$AppName      = '',
-        [string]$StartAppName = '',
-        [string]$PresenceMode = 'Window',  # 'Window' (default) or 'Tray'
-        [switch]$RequireWindow,            # kept for call-site compatibility
-        [int[]]$BaselinePIDs  = @()        # FIX: PIDs present before this launch attempt
-    )
-    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $false }
-    $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
-    if (-not $procs) { return $false }
-    if (-not [string]::IsNullOrWhiteSpace($ExpectedExe)) {
-        $procs = $procs | Where-Object {
-            try   { [System.IO.Path]::GetFileName($_.MainModule.FileName) -ieq $ExpectedExe }
-            catch { $false }
-        }
-        if (-not $procs) { return $false }
-    }
-    # FIX 2/3: tray apps live in the system tray and never raise a window.
-    # Treat process presence alone as sufficient proof they are already running.
-    if ($PresenceMode -ieq 'Tray') {
-        Write-Host "$AppName: tray process already running. Skipping."
-        return $true
-    }
-    # Window mode: require a visible window whose title matches the app name.
-    # Prevents background host processes from being mistaken for the real app UI
-    # (e.g. PhoneExperienceHost running permanently vs Phone Link UI window).
-    # FIX (baseline): exclude PIDs that existed before the launch call so a
-    # pre-existing window of the same app does not trigger a false skip.
-    $windowProcs = $procs | Where-Object {
-        $_.MainWindowHandle -ne [IntPtr]::Zero -and
-        ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
-    }
-    if (-not $windowProcs) { return $false }
-    $terms = @($AppName, $StartAppName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
-    if ($terms.Count -eq 0) { return $true }
-    return [bool]($windowProcs | Where-Object {
-        $t = $_.MainWindowTitle
-        $terms | Where-Object { $t -like "*$_*" }
-    })
-}
-
-# ---------------------------------------------------------------------------
-# Wait-ForProcessCondition
-# FIX (baseline): BaselinePIDs parameter added so the condition only fires
-# for NEW processes, not ones that were already running before the launch.
-# ---------------------------------------------------------------------------
+# Wait-ForProcessCondition: generic poller used by Wait-ForAppReady and back-fill.
 function Wait-ForProcessCondition {
-    param(
-        [scriptblock]$Condition,
-        [int]$Remaining,
-        [int[]]$BaselinePIDs = @()   # FIX: forwarded from Wait-ForAppReady
-    )
+    param([scriptblock]$Condition, [int]$Remaining)
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $Remaining) {
         if (& $Condition) { return $true }
@@ -452,55 +320,71 @@ function Wait-ForProcessCondition {
     return $false
 }
 
-# ---------------------------------------------------------------------------
-# Wait-ForAppReady
-# FIX (baseline): BaselinePIDs parameter added and threaded through to both
-# Get-AppPresence (phase-1 settle) and Wait-ForProcessCondition (phase-2
-# poll) so the 20-second timeout is only triggered when the NEWLY launched
-# process fails to raise a window -- not when a pre-existing window is found.
-# ---------------------------------------------------------------------------
+# Wait-ForAppReady: unified presence check used for both pre-launch (already-running)
+# and post-launch (readiness) detection.
+#
+# -CheckOnly    : returns $true/$false immediately with no polling (replaces Test-AppAlreadyOpen).
+# PresenceMode  : 'Window' requires a visible window; 'Tray' requires process existence only.
+#                 Tray apps (OneDrive, ShareFile, Greenshot) never open a titled window at startup,
+#                 so Window mode would always time out and falsely report a launch failure.
 function Wait-ForAppReady {
     param(
         [string]$ProcessName,
-        [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds,
-        [int[]]$BaselinePIDs = @()   # FIX: PIDs present before WshShell.Run
+        [int]$TimeoutSeconds  = $script:LaunchTimeoutSeconds,
+        [string]$PresenceMode = 'Window',
+        [string]$AppName      = '',
+        [string]$StartAppName = '',
+        [string]$ExpectedExe  = '',
+        [switch]$CheckOnly
     )
-    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $true }
-    $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
-    $mode       = Get-AppPresence -ProcessName $ProcessName -SettleSecs $phase1Secs -BaselinePIDs $BaselinePIDs
-    $remaining  = $TimeoutSeconds - $phase1Secs
-    if ($null -eq $mode) {
-        return Wait-ForProcessCondition -Remaining $remaining -BaselinePIDs $BaselinePIDs -Condition {
-            [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
-                Where-Object {
-                    $_.MainWindowHandle -ne [IntPtr]::Zero -and
-                    ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
-                })
+    if ([string]::IsNullOrWhiteSpace($ProcessName)) { return (-not $CheckOnly) }
+
+    $condition = if ($PresenceMode -ieq 'Tray') {
+        {
+            $p = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
+            if (-not $p) { return $false }
+            if (-not [string]::IsNullOrWhiteSpace($ExpectedExe)) {
+                $p = $p | Where-Object {
+                    try   { [System.IO.Path]::GetFileName($_.MainModule.FileName) -ieq $ExpectedExe }
+                    catch { $false }
+                }
+            }
+            [bool]$p
+        }
+    } else {
+        {
+            $p = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
+            if (-not $p) { return $false }
+            if (-not [string]::IsNullOrWhiteSpace($ExpectedExe)) {
+                $p = $p | Where-Object {
+                    try   { [System.IO.Path]::GetFileName($_.MainModule.FileName) -ieq $ExpectedExe }
+                    catch { $false }
+                }
+            }
+            $w = $p | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
+            if (-not $w) { return $false }
+            $terms = @($AppName, $StartAppName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+            if ($terms.Count -eq 0) { return [bool]$w }
+            [bool]($w | Where-Object { $t = $_.MainWindowTitle; $terms | Where-Object { $t -like "*$_*" } })
         }
     }
-    Write-Host "  (presence mode: $mode)"
-    return Wait-ForProcessCondition -Remaining $remaining -BaselinePIDs $BaselinePIDs -Condition {
-        [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
-            Where-Object {
-                $_.MainWindowHandle -ne [IntPtr]::Zero -and
-                ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
-            })
-    }
+
+    if ($CheckOnly) { return (& $condition) }
+
+    $result = Wait-ForProcessCondition -Remaining $TimeoutSeconds -Condition $condition
+    if ($result) { Write-Host "  (presence confirmed: $PresenceMode)" }
+    return $result
 }
 
-# ---------------------------------------------------------------------------
-# Wait-ForWindowByTitle
-# FIX (baseline): BaselinePIDs parameter added so ProcessName back-fill
-# only captures the window of the NEWLY launched process, not a pre-existing
-# window of the same app that was open before the startup sequence began.
-# ---------------------------------------------------------------------------
+# Wait-ForWindowByTitle: used only for ProcessName back-fill when ProcessName is unknown.
+# Searches all processes for a window title matching $TitleFragment or the App's name/StartAppName.
+# For tray apps with unknown ProcessName, matches by ExpectedExe path instead.
 function Wait-ForWindowByTitle {
     param(
         $App = $null,
         [string]$TitleFragment = '',
         [int]$WaitSecs = $script:SettleSeconds,
-        [int]$TimeoutSeconds = -1,
-        [int[]]$BaselinePIDs = @()   # FIX: exclude pre-launch windows
+        [int]$TimeoutSeconds = -1
     )
     if ($TimeoutSeconds -ge 0) { $WaitSecs = $TimeoutSeconds }
 
@@ -508,11 +392,7 @@ function Wait-ForWindowByTitle {
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         while ($sw.Elapsed.TotalSeconds -lt $WaitSecs) {
             $match = Get-Process -ErrorAction SilentlyContinue |
-                Where-Object {
-                    $_.MainWindowHandle -ne [IntPtr]::Zero -and
-                    $_.MainWindowTitle -like "*$TitleFragment*" -and
-                    ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
-                } |
+                Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $_.MainWindowTitle -like "*$TitleFragment*" } |
                 Select-Object -First 1
             if ($match) { return $true }
             Start-Sleep -Seconds 1
@@ -520,15 +400,26 @@ function Wait-ForWindowByTitle {
         return $false
     }
 
+    # Tray app back-fill: no window to match by title; find by ExpectedExe path.
+    if ($null -ne $App -and $App.PresenceMode -ieq 'Tray') {
+        $sw = [System.Diagnostics.Stopwatch]::StartNew()
+        while ($sw.Elapsed.TotalSeconds -lt $WaitSecs) {
+            $match = Get-Process -ErrorAction SilentlyContinue |
+                Where-Object { $_.Path -and $_.Path -ilike "*$($App.ExpectedExe)*" } |
+                Select-Object -First 1
+            if ($match) { return $match }
+            Start-Sleep -Seconds 1
+        }
+        return $null
+    }
+
+    # Window app back-fill: match by window title.
     $searchTerms = @($App.Name, $App.StartAppName) |
         Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $WaitSecs) {
         $match = Get-Process -ErrorAction SilentlyContinue |
-            Where-Object {
-                $_.MainWindowHandle -ne [IntPtr]::Zero -and
-                ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
-            } |
+            Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } |
             Where-Object {
                 $title = $_.MainWindowTitle
                 $searchTerms | Where-Object { $title -like "*$_*" }
@@ -582,7 +473,6 @@ function Show-AppList {
         $app      = $script:apps[$i]
         $status   = if (Test-Path -LiteralPath $app.ShortcutPath -PathType Leaf) { 'OK' } else { 'MISSING' }
         $color    = if ($status -eq 'OK') { 'Green' } else { 'Yellow' }
-        # Extract the leading number from the shortcut filename (e.g. "06" from "06 Phone Link.lnk")
         $lnkBase  = [System.IO.Path]::GetFileNameWithoutExtension($app.ShortcutPath)
         $fileNum  = if ($lnkBase -match '^(\d{1,2})') { $Matches[1] } else { '-' }
         Write-Host ("{0,-5} {1,-22} {2,-6} {3,-10} {4}" -f $fileNum, $app.Name, $app.LaunchType, $status, $app.ProcessName) -ForegroundColor $color
@@ -655,10 +545,6 @@ function Test-ShortcutHealthy {
 
 # ---------------------------------------------------------------------------
 # Shared manual-AUMID prompt helper
-# Called by Edit-Shortcut and Invoke-LaunchAttempt when auto-repair fails.
-# Returns the repaired argument string, or $null if the user skips.
-# FIX: clears ProcessName when AUMID is corrected so stale process names
-# from the old broken AUMID cannot cause a false "already open" result.
 # ---------------------------------------------------------------------------
 function Invoke-ManualAumidPrompt {
     param($App)
@@ -681,9 +567,6 @@ function Invoke-ManualAumidPrompt {
     $sc.Save()
     $App.ExpectedArguments = $manualArgs
     $App.KnownAumid        = ($manualArgs -replace '^shell:appsFolder\\', '')
-    # Clear ProcessName so it is re-detected via open window on the next run.
-    # This prevents a stale ProcessName from the old AUMID causing a false
-    # "already open" skip when the corrected app is launched.
     $App.ProcessName = ''
     Export-AppsConfig
     Write-Host "$($App.Name): AUMID updated, ProcessName cleared for re-detection on next run." -ForegroundColor Green
@@ -727,7 +610,6 @@ function Add-Shortcut {
         $expectedArguments = Read-Host "Expected arguments (optional, press Enter to skip)"
     }
 
-    # Safety net: if user entered Win32 but the args reveal it is an Appx app, correct it.
     if ($launchType -ne 'Appx' -and
         (Test-IsAppxShortcut -ExpectedExe $expectedExe -ExpectedArguments $expectedArguments)) {
         Write-Warning "$($name): arguments indicate an Appx app. Correcting LaunchType to 'Appx'."
@@ -789,7 +671,6 @@ function Edit-Shortcut {
         if ($repaired) {
             Write-Host "$($App.Name): argument repair complete." -ForegroundColor Green
         } else {
-            # Automatic repair failed -- offer manual AUMID entry instead of silently returning.
             $manual = Invoke-ManualAumidPrompt -App $App
             if (-not $manual) {
                 Write-Warning "$($App.Name): repair not resolved. Shortcut argument unchanged."
@@ -893,14 +774,10 @@ function Find-MisnumberedShortcut {
 
 # ---------------------------------------------------------------------------
 # Initialize-Shortcut
-# FIX: calls Test-IsAppxShortcut to auto-correct LaunchType before any
-# shortcut work, so Phone Link and other Appx apps miscategorised as Win32
-# are silently fixed and saved the first time this function runs for them.
 # ---------------------------------------------------------------------------
 function Initialize-Shortcut {
     param($App)
 
-    # Auto-correct miscategorised Appx entries before any shortcut work.
     if ($App.LaunchType -ne 'Appx' -and
         (Test-IsAppxShortcut -ExpectedExe $App.ExpectedExe -ExpectedArguments $App.ExpectedArguments)) {
         Write-Warning "$($App.Name): LaunchType was '$($App.LaunchType)' but uses shell:appsFolder. Auto-correcting to 'Appx' and saving."
@@ -1088,7 +965,6 @@ function Resolve-AumidWithFallback {
             }
             $App.ExpectedArguments = $repairedArgs
             $App | Add-Member -NotePropertyName KnownAumid -NotePropertyValue $raw -Force
-            # Clear ProcessName so it is re-detected via open window on next run.
             $App.ProcessName = ''
             Export-AppsConfig
             Write-Host ("$($App.Name): AUMID saved, ProcessName cleared for re-detection." ) -ForegroundColor Green
@@ -1156,40 +1032,19 @@ function Repair-ShortcutArguments {
 
 # ---------------------------------------------------------------------------
 # Invoke-LaunchAttempt
-# FIX: when Repair-ShortcutArguments returns $null, calls
-# Invoke-ManualAumidPrompt instead of silently returning 'Abort'.
-# Returns 'Retry' if the user provides a valid AUMID so the caller
-# can re-attempt the launch immediately.
-# FIX 2/3: passes $App.PresenceMode to Test-AppAlreadyOpen so tray apps
-# (OneDrive, ShareFile, Greenshot) are correctly identified as running
-# via process presence alone, without requiring a visible window.
-# FIX (baseline): snapshots ALL running PIDs (not just window-bearing ones)
-# before launch so tray apps and windowless processes are also excluded from
-# post-launch detection. All detection functions receive this baseline so
-# only the NEWLY spawned process is used, eliminating false "already open"
-# results and the spurious 20-second timeout warning.
 # ---------------------------------------------------------------------------
 function Invoke-LaunchAttempt {
     param($App)
 
-    # Bootstrap: ensure the .lnk exists before any launch or health-check.
     Initialize-Shortcut -App $App
 
-    # FIX (baseline): snapshot ALL running PIDs -- not just window-bearing ones.
-    # The previous version only captured PIDs with MainWindowHandle != Zero, which
-    # missed tray processes and background hosts. Those could then be picked up
-    # as "new" after launch, causing false already-open detection or timeout errors.
-    $baselinePIDs = @(
-        Get-Process -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty Id
-    )
-
-    # Already open? Pass PresenceMode so tray apps are not relaunched,
-    # and BaselinePIDs so pre-existing windows are not counted.
-    if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe `
+    # Use Wait-ForAppReady with -CheckOnly to replace the old Test-AppAlreadyOpen.
+    # For tray apps (PresenceMode='Tray'), process existence is sufficient.
+    # For window apps, requires a visible window with a matching title.
+    if (Wait-ForAppReady -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe `
             -AppName $App.Name -StartAppName $App.StartAppName `
-            -PresenceMode $App.PresenceMode -BaselinePIDs $baselinePIDs) {
-        Write-Host "$($App.Name): already open. Skipping.`n"
+            -PresenceMode $App.PresenceMode -CheckOnly) {
+        Write-Host "$($App.Name): already running. Skipping.`n"
         return 'Skip'
     }
 
@@ -1208,13 +1063,11 @@ function Invoke-LaunchAttempt {
             $aumid = $fallback.Aumid
         }
 
-        # Verify the shortcut argument matches the resolved AUMID; repair if stale.
         $expectedArgs = "shell:appsFolder\$aumid"
         if ($App.ExpectedArguments -ne $expectedArgs) {
             Write-Host "$($App.Name): stale AUMID in shortcut. Repairing..."
             $repairedArgs = Repair-ShortcutArguments -App $App
             if (-not $repairedArgs) {
-                # Automatic repair failed -- offer manual AUMID entry.
                 $manual = Invoke-ManualAumidPrompt -App $App
                 if ($manual) { return 'Retry' }
                 Write-Warning "$($App.Name): argument repair failed. Skipping.`n"
@@ -1227,7 +1080,6 @@ function Invoke-LaunchAttempt {
 
     } else {
 
-        # Win32 path
         if (-not (Test-ShortcutHealthy -ShortcutPath $App.ShortcutPath -ExpectedPublisher $App.ExpectedPublisher)) {
             Write-Warning "$($App.Name): shortcut unhealthy. Attempting repair..."
             Repair-ShortcutTarget -App $App
@@ -1239,11 +1091,10 @@ function Invoke-LaunchAttempt {
         $script:WshShell.Run("`"$($App.ShortcutPath)`"", 1, $false)
     }
 
-    # Back-fill ProcessName from the first visible window if it was empty.
+    # Back-fill ProcessName if unknown.
     if ([string]::IsNullOrWhiteSpace($App.ProcessName)) {
-        Write-Host "$($App.Name): ProcessName unknown; waiting for window to detect process..."
-        $detected = Wait-ForWindowByTitle -App $App -TimeoutSeconds $script:LaunchTimeoutSeconds `
-            -BaselinePIDs $baselinePIDs
+        Write-Host "$($App.Name): ProcessName unknown; waiting for process to appear..."
+        $detected = Wait-ForWindowByTitle -App $App -TimeoutSeconds $script:LaunchTimeoutSeconds
         if ($detected -and -not [string]::IsNullOrWhiteSpace($detected.ProcessName)) {
             $App.ProcessName = $detected.ProcessName
             Write-Host "$($App.Name): ProcessName detected as '$($App.ProcessName)'. Saving."
@@ -1252,8 +1103,12 @@ function Invoke-LaunchAttempt {
             Write-Warning "$($App.Name): could not detect ProcessName. Will retry on next run."
         }
     } else {
+        # Wait for the app to become ready, respecting PresenceMode.
+        # Tray apps confirm on process presence; window apps confirm on visible window.
         $ready = Wait-ForAppReady -ProcessName $App.ProcessName `
-            -TimeoutSeconds $script:LaunchTimeoutSeconds -BaselinePIDs $baselinePIDs
+                                  -TimeoutSeconds $script:LaunchTimeoutSeconds `
+                                  -PresenceMode $App.PresenceMode `
+                                  -AppName $App.Name -StartAppName $App.StartAppName
         if (-not $ready) { Write-Warning "$($App.Name): did not become ready within $($script:LaunchTimeoutSeconds)s." }
     }
 
@@ -1263,14 +1118,6 @@ function Invoke-LaunchAttempt {
 
 # ---------------------------------------------------------------------------
 # Launch sequence
-# FIX (double-launch guard): before each retry iteration, check whether the
-# app is already running. When Invoke-LaunchAttempt returns 'Retry' after a
-# manual AUMID update, WshShell.Run has already fired in the first attempt.
-# Without this guard the loop immediately re-launches the app, causing the
-# double-launch symptom reported by users.
-# FIX (double-launch guard retry baseline): on retry iterations, a fresh
-# full-process baseline is taken so the already-open check in the guard
-# reflects the actual state after the first launch attempt settled.
 # ---------------------------------------------------------------------------
 function Start-AppSequence {
     Write-Host "`n=== Starting app launch sequence ==="
@@ -1282,23 +1129,10 @@ function Start-AppSequence {
         $attempt    = 0
         do {
             $attempt++
-            # FIX (double-launch guard): on retry iterations (attempt > 1),
-            # skip the relaunch if the app is already running from the previous
-            # attempt's WshShell.Run call.
-            # FIX (retry baseline): take a fresh full-process baseline here so
-            # the guard sees processes that started during the first attempt,
-            # not the stale baseline captured before the sequence began.
-            if ($attempt -gt 1) {
-                $retryBaseline = @(Get-Process -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
-                if (Test-AppAlreadyOpen -ProcessName $app.ProcessName -ExpectedExe $app.ExpectedExe `
-                        -AppName $app.Name -StartAppName $app.StartAppName `
-                        -PresenceMode $app.PresenceMode -BaselinePIDs $retryBaseline) {
-                    Write-Host "$($app.Name): already running after AUMID update. Skipping relaunch."
-                    break
-                }
+            $outcome = Invoke-LaunchAttempt -App $app
+            if ($outcome -eq 'Retry' -and $attempt -le $maxRetries) {
                 Write-Host "$($app.Name): retrying launch (attempt $attempt of $maxRetries)..."
             }
-            $outcome = Invoke-LaunchAttempt -App $app
         } while ($outcome -eq 'Retry' -and $attempt -le $maxRetries)
 
         if ($outcome -eq 'Retry') {
