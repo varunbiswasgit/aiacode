@@ -223,6 +223,12 @@ function Sync-AppsFromStartMenu {
 
 # ---------------------------------------------------------------------------
 # App entry constructor
+# FIX 2/3: PresenceMode added to New-AppEntry output object.
+# Without this, entries created programmatically (Add-Shortcut, Sync) were
+# missing the field, so $App.PresenceMode was $null when Invoke-LaunchAttempt
+# passed it to Test-AppAlreadyOpen -- defaulting to 'Window' silently only
+# after a JSON round-trip via Import-AppsConfig.  Now the field is present
+# from the moment the entry is constructed in memory.
 # ---------------------------------------------------------------------------
 function New-AppEntry {
     param(
@@ -235,7 +241,8 @@ function New-AppEntry {
         [string]$ExpectedArguments = '',
         [string]$StartAppName      = '',
         [string]$KnownAumid        = '',
-        [string]$AppxName          = ''
+        [string]$AppxName          = '',
+        [string]$PresenceMode      = 'Window'   # FIX 2/3: emit field so in-memory entries behave identically to JSON-loaded ones
     )
     return [PSCustomObject]@{
         Name              = $Name
@@ -248,6 +255,7 @@ function New-AppEntry {
         StartAppName      = $StartAppName
         KnownAumid        = $KnownAumid
         AppxName          = $AppxName
+        PresenceMode      = $PresenceMode       # FIX 2/3: always present; 'Window' default matches Import-AppsConfig
     }
 }
 
