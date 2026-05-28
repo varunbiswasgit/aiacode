@@ -335,20 +335,33 @@ if (-not $script:apps) {
 # FIX (baseline): Get-AppPresence now accepts BaselinePIDs so the phase-1
 # settle check only counts windows belonging to NEW processes, not ones that
 # were already running before the launch call.
+# FIX (splash-gate): TitleFragment parameter added. When supplied, the
+# phase-1 settle check requires the new window title to match before
+# declaring the app ready. Prevents a transient splash or loading window
+# from triggering a premature 'ready' result for apps like Outlook or Teams
+# that show a splash before the main window appears.
 # ---------------------------------------------------------------------------
 function Get-AppPresence {
     param(
         [string]$ProcessName,
         [int]$SettleSecs = $script:SettleSeconds,
         [switch]$Normalise,
-        [int[]]$BaselinePIDs = @()   # FIX: ignore pre-existing instances
+        [int[]]$BaselinePIDs  = @(),   # FIX (baseline): ignore pre-existing instances
+        [string]$TitleFragment = ''    # FIX (splash-gate): require title match before declaring ready
     )
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $null }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $SettleSecs) {
         $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
             Where-Object { $BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs }
-        if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) {
+        $ready = $procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
+        # FIX (splash-gate): if a title fragment is specified, only count windows
+        # whose title matches. This prevents a splash/loading window from being
+        # mistaken for the fully ready app window.
+        if ($ready -and -not [string]::IsNullOrWhiteSpace($TitleFragment)) {
+            $ready = $ready | Where-Object { $_.MainWindowTitle -like "*$TitleFragment*" }
+        }
+        if ($ready) {
             if ($Normalise) { return 'WindowVisible' } else { return 'Window' }
         }
         Start-Sleep -Seconds 1
@@ -1150,11 +1163,11 @@ function Repair-ShortcutArguments {
 # FIX 2/3: passes $App.PresenceMode to Test-AppAlreadyOpen so tray apps
 # (OneDrive, ShareFile, Greenshot) are correctly identified as running
 # via process presence alone, without requiring a visible window.
-# FIX (baseline): snapshots pre-launch PIDs and passes them to
-# Test-AppAlreadyOpen, Wait-ForAppReady, and Wait-ForWindowByTitle so
-# only the NEWLY spawned process is used for detection. This eliminates
-# false "already open" results and the spurious 20-second timeout warning
-# caused by pre-existing instances of the same application.
+# FIX (baseline): snapshots ALL window-bearing PIDs before launch (not just
+# by ProcessName) so Appx apps with an empty ProcessName still get a valid
+# baseline. All detection functions receive this baseline so only the NEWLY
+# spawned process is used for detection, eliminating false "already open"
+# results and the spurious 20-second timeout warning.
 # ---------------------------------------------------------------------------
 function Invoke-LaunchAttempt {
     param($App)
@@ -1162,11 +1175,13 @@ function Invoke-LaunchAttempt {
     # Bootstrap: ensure the .lnk exists before any launch or health-check.
     Initialize-Shortcut -App $App
 
-    # Snapshot PIDs of any existing instances BEFORE launching.
-    # This baseline is threaded through all detection functions so they
-    # ignore pre-existing processes and only match the new launch.
+    # FIX (baseline): snapshot ALL window-bearing PIDs before launching, not
+    # just by ProcessName. When ProcessName is empty (Appx apps not yet
+    # back-filled), the old snapshot returned [] and pre-existing windows of
+    # the same process were not excluded from detection.
     $baselinePIDs = @(
-        Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue |
+        Get-Process -ErrorAction SilentlyContinue |
+            Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } |
             Select-Object -ExpandProperty Id
     )
 
@@ -1249,6 +1264,11 @@ function Invoke-LaunchAttempt {
 
 # ---------------------------------------------------------------------------
 # Launch sequence
+# FIX (double-launch guard): before each retry iteration, check whether the
+# app is already running. When Invoke-LaunchAttempt returns 'Retry' after a
+# manual AUMID update, WshShell.Run has already fired in the first attempt.
+# Without this guard the loop immediately re-launches the app, causing the
+# double-launch symptom reported by users.
 # ---------------------------------------------------------------------------
 function Start-AppSequence {
     Write-Host "`n=== Starting app launch sequence ==="
@@ -1260,10 +1280,19 @@ function Start-AppSequence {
         $attempt    = 0
         do {
             $attempt++
-            $outcome = Invoke-LaunchAttempt -App $app
-            if ($outcome -eq 'Retry' -and $attempt -le $maxRetries) {
+            # FIX (double-launch guard): on retry iterations (attempt > 1),
+            # skip the relaunch if the app is already running from the previous
+            # attempt's WshShell.Run call.
+            if ($attempt -gt 1) {
+                if (Test-AppAlreadyOpen -ProcessName $app.ProcessName -ExpectedExe $app.ExpectedExe `
+                        -AppName $app.Name -StartAppName $app.StartAppName `
+                        -PresenceMode $app.PresenceMode) {
+                    Write-Host "$($app.Name): already running after AUMID update. Skipping relaunch."
+                    break
+                }
                 Write-Host "$($app.Name): retrying launch (attempt $attempt of $maxRetries)..."
             }
+            $outcome = Invoke-LaunchAttempt -App $app
         } while ($outcome -eq 'Retry' -and $attempt -le $maxRetries)
 
         if ($outcome -eq 'Retry') {
