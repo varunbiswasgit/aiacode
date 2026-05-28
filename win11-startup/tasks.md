@@ -6,6 +6,12 @@
 
 ## Completed
 
+- [x] **Option 4 → Modify: no user option to fix WARNING after repair failure**
+  When `Repair-ShortcutArguments` returned `$null` inside `Edit-Shortcut` (e.g. Phone Link — AUMID no longer matches any WindowsApps folder), the script emitted two WARNING lines and silently returned with no user action offered.
+  When `Repair-ShortcutArguments` returned `$null` inside `Invoke-LaunchAttempt`, the app was silently aborted.
+  Fix: extracted shared helper `Invoke-ManualAumidPrompt`; both `Edit-Shortcut` and `Invoke-LaunchAttempt` now call it on repair failure. `Invoke-ManualAumidPrompt` also clears `ProcessName` after a successful AUMID correction so stale process names cannot cause a false "already open" skip. `Invoke-LaunchAttempt` returns `'Retry'` when the user supplies a valid AUMID.
+  Committed: 2026-05-28
+
 - [x] **Invoke-LaunchAttempt: manual AUMID prompt on repair failure**
   When `Repair-ShortcutArguments` returns `$null` during auto-launch, the script silently aborted the app instead of offering the user a manual fix path.
   Fix: replaced the silent `return 'Abort'` block with a call to `Invoke-ManualAumidPrompt`; if the user provides a valid AUMID, returns `'Retry'` so the launch sequence re-attempts.
