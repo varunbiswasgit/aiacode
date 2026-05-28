@@ -2,11 +2,14 @@
 
 ## Pending
 
-- [ ] **Invoke-LaunchAttempt: manual AUMID prompt on repair failure**
-  When `Repair-ShortcutArguments` returns `$null` during auto-launch, the script silently aborts the app instead of offering the user a manual fix path.
-  Fix: replace the silent `return 'Abort'` block with a call to `Invoke-ManualAumidPrompt`; if the user provides a valid AUMID, return `'Retry'` so the launch sequence re-attempts.
+*(no pending tasks)*
 
 ## Completed
+
+- [x] **Invoke-LaunchAttempt: manual AUMID prompt on repair failure**
+  When `Repair-ShortcutArguments` returns `$null` during auto-launch, the script silently aborted the app instead of offering the user a manual fix path.
+  Fix: replaced the silent `return 'Abort'` block with a call to `Invoke-ManualAumidPrompt`; if the user provides a valid AUMID, returns `'Retry'` so the launch sequence re-attempts.
+  Committed: 2026-05-28
 
 - [x] **Edit-Shortcut: manual AUMID prompt on repair failure**
   Option 4 → Modify → Appx app (e.g. Phone Link) showed WARNING messages but gave no user option to correct the broken AUMID.
