@@ -332,13 +332,22 @@ if (-not $script:apps) {
 
 # ---------------------------------------------------------------------------
 # Presence / ready detection
+# FIX (baseline): Get-AppPresence now accepts BaselinePIDs so the phase-1
+# settle check only counts windows belonging to NEW processes, not ones that
+# were already running before the launch call.
 # ---------------------------------------------------------------------------
 function Get-AppPresence {
-    param([string]$ProcessName, [int]$SettleSecs = $script:SettleSeconds, [switch]$Normalise)
+    param(
+        [string]$ProcessName,
+        [int]$SettleSecs = $script:SettleSeconds,
+        [switch]$Normalise,
+        [int[]]$BaselinePIDs = @()   # FIX: ignore pre-existing instances
+    )
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $null }
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $SettleSecs) {
-        $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
+        $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
+            Where-Object { $BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs }
         if ($procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }) {
             if ($Normalise) { return 'WindowVisible' } else { return 'Window' }
         }
@@ -360,6 +369,12 @@ function Get-AppPresence {
 # so the window-title check would always return $false, causing them to be
 # relaunched on every startup run. When PresenceMode='Tray', return $true as
 # soon as any matching process is found -- no window or title check needed.
+#
+# FIX (baseline): BaselinePIDs parameter added. In Window mode, only PIDs
+# NOT in the baseline are considered when checking for an open window.
+# This prevents a pre-existing instance (e.g. Outlook already open from a
+# previous session) from being mistaken for a freshly launched one, which
+# was causing the 20-second timeout and double-launch symptoms.
 # ---------------------------------------------------------------------------
 function Test-AppAlreadyOpen {
     param(
@@ -368,7 +383,8 @@ function Test-AppAlreadyOpen {
         [string]$AppName      = '',
         [string]$StartAppName = '',
         [string]$PresenceMode = 'Window',  # 'Window' (default) or 'Tray'
-        [switch]$RequireWindow             # kept for call-site compatibility
+        [switch]$RequireWindow,            # kept for call-site compatibility
+        [int[]]$BaselinePIDs  = @()        # FIX: PIDs present before this launch attempt
     )
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $false }
     $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
@@ -389,7 +405,12 @@ function Test-AppAlreadyOpen {
     # Window mode: require a visible window whose title matches the app name.
     # Prevents background host processes from being mistaken for the real app UI
     # (e.g. PhoneExperienceHost running permanently vs Phone Link UI window).
-    $windowProcs = $procs | Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero }
+    # FIX (baseline): exclude PIDs that existed before the launch call so a
+    # pre-existing window of the same app does not trigger a false skip.
+    $windowProcs = $procs | Where-Object {
+        $_.MainWindowHandle -ne [IntPtr]::Zero -and
+        ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
+    }
     if (-not $windowProcs) { return $false }
     $terms = @($AppName, $StartAppName) | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     if ($terms.Count -eq 0) { return $true }
@@ -399,8 +420,17 @@ function Test-AppAlreadyOpen {
     })
 }
 
+# ---------------------------------------------------------------------------
+# Wait-ForProcessCondition
+# FIX (baseline): BaselinePIDs parameter added so the condition only fires
+# for NEW processes, not ones that were already running before the launch.
+# ---------------------------------------------------------------------------
 function Wait-ForProcessCondition {
-    param([scriptblock]$Condition, [int]$Remaining)
+    param(
+        [scriptblock]$Condition,
+        [int]$Remaining,
+        [int[]]$BaselinePIDs = @()   # FIX: forwarded from Wait-ForAppReady
+    )
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $Remaining) {
         if (& $Condition) { return $true }
@@ -409,31 +439,55 @@ function Wait-ForProcessCondition {
     return $false
 }
 
+# ---------------------------------------------------------------------------
+# Wait-ForAppReady
+# FIX (baseline): BaselinePIDs parameter added and threaded through to both
+# Get-AppPresence (phase-1 settle) and Wait-ForProcessCondition (phase-2
+# poll) so the 20-second timeout is only triggered when the NEWLY launched
+# process fails to raise a window -- not when a pre-existing window is found.
+# ---------------------------------------------------------------------------
 function Wait-ForAppReady {
-    param([string]$ProcessName, [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds)
+    param(
+        [string]$ProcessName,
+        [int]$TimeoutSeconds = $script:LaunchTimeoutSeconds,
+        [int[]]$BaselinePIDs = @()   # FIX: PIDs present before WshShell.Run
+    )
     if ([string]::IsNullOrWhiteSpace($ProcessName)) { return $true }
     $phase1Secs = [Math]::Min($script:SettleSeconds, $TimeoutSeconds)
-    $mode       = Get-AppPresence -ProcessName $ProcessName -SettleSecs $phase1Secs
+    $mode       = Get-AppPresence -ProcessName $ProcessName -SettleSecs $phase1Secs -BaselinePIDs $BaselinePIDs
     $remaining  = $TimeoutSeconds - $phase1Secs
     if ($null -eq $mode) {
-        return Wait-ForProcessCondition -Remaining $remaining -Condition {
+        return Wait-ForProcessCondition -Remaining $remaining -BaselinePIDs $BaselinePIDs -Condition {
             [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
-                Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
+                Where-Object {
+                    $_.MainWindowHandle -ne [IntPtr]::Zero -and
+                    ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
+                })
         }
     }
     Write-Host "  (presence mode: $mode)"
-    return Wait-ForProcessCondition -Remaining $remaining -Condition {
+    return Wait-ForProcessCondition -Remaining $remaining -BaselinePIDs $BaselinePIDs -Condition {
         [bool](Get-Process -Name $ProcessName -ErrorAction SilentlyContinue |
-            Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero })
+            Where-Object {
+                $_.MainWindowHandle -ne [IntPtr]::Zero -and
+                ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
+            })
     }
 }
 
+# ---------------------------------------------------------------------------
+# Wait-ForWindowByTitle
+# FIX (baseline): BaselinePIDs parameter added so ProcessName back-fill
+# only captures the window of the NEWLY launched process, not a pre-existing
+# window of the same app that was open before the startup sequence began.
+# ---------------------------------------------------------------------------
 function Wait-ForWindowByTitle {
     param(
         $App = $null,
         [string]$TitleFragment = '',
         [int]$WaitSecs = $script:SettleSeconds,
-        [int]$TimeoutSeconds = -1
+        [int]$TimeoutSeconds = -1,
+        [int[]]$BaselinePIDs = @()   # FIX: exclude pre-launch windows
     )
     if ($TimeoutSeconds -ge 0) { $WaitSecs = $TimeoutSeconds }
 
@@ -441,7 +495,11 @@ function Wait-ForWindowByTitle {
         $sw = [System.Diagnostics.Stopwatch]::StartNew()
         while ($sw.Elapsed.TotalSeconds -lt $WaitSecs) {
             $match = Get-Process -ErrorAction SilentlyContinue |
-                Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero -and $_.MainWindowTitle -like "*$TitleFragment*" } |
+                Where-Object {
+                    $_.MainWindowHandle -ne [IntPtr]::Zero -and
+                    $_.MainWindowTitle -like "*$TitleFragment*" -and
+                    ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
+                } |
                 Select-Object -First 1
             if ($match) { return $true }
             Start-Sleep -Seconds 1
@@ -454,7 +512,10 @@ function Wait-ForWindowByTitle {
     $sw = [System.Diagnostics.Stopwatch]::StartNew()
     while ($sw.Elapsed.TotalSeconds -lt $WaitSecs) {
         $match = Get-Process -ErrorAction SilentlyContinue |
-            Where-Object { $_.MainWindowHandle -ne [IntPtr]::Zero } |
+            Where-Object {
+                $_.MainWindowHandle -ne [IntPtr]::Zero -and
+                ($BaselinePIDs.Count -eq 0 -or $_.Id -notin $BaselinePIDs)
+            } |
             Where-Object {
                 $title = $_.MainWindowTitle
                 $searchTerms | Where-Object { $title -like "*$_*" }
@@ -1089,6 +1150,11 @@ function Repair-ShortcutArguments {
 # FIX 2/3: passes $App.PresenceMode to Test-AppAlreadyOpen so tray apps
 # (OneDrive, ShareFile, Greenshot) are correctly identified as running
 # via process presence alone, without requiring a visible window.
+# FIX (baseline): snapshots pre-launch PIDs and passes them to
+# Test-AppAlreadyOpen, Wait-ForAppReady, and Wait-ForWindowByTitle so
+# only the NEWLY spawned process is used for detection. This eliminates
+# false "already open" results and the spurious 20-second timeout warning
+# caused by pre-existing instances of the same application.
 # ---------------------------------------------------------------------------
 function Invoke-LaunchAttempt {
     param($App)
@@ -1096,10 +1162,19 @@ function Invoke-LaunchAttempt {
     # Bootstrap: ensure the .lnk exists before any launch or health-check.
     Initialize-Shortcut -App $App
 
-    # Already open? Pass PresenceMode so tray apps are not relaunched.
+    # Snapshot PIDs of any existing instances BEFORE launching.
+    # This baseline is threaded through all detection functions so they
+    # ignore pre-existing processes and only match the new launch.
+    $baselinePIDs = @(
+        Get-Process -Name $App.ProcessName -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty Id
+    )
+
+    # Already open? Pass PresenceMode so tray apps are not relaunched,
+    # and BaselinePIDs so pre-existing windows are not counted.
     if (Test-AppAlreadyOpen -ProcessName $App.ProcessName -ExpectedExe $App.ExpectedExe `
             -AppName $App.Name -StartAppName $App.StartAppName `
-            -PresenceMode $App.PresenceMode) {
+            -PresenceMode $App.PresenceMode -BaselinePIDs $baselinePIDs) {
         Write-Host "$($App.Name): already open. Skipping.`n"
         return 'Skip'
     }
@@ -1153,7 +1228,8 @@ function Invoke-LaunchAttempt {
     # Back-fill ProcessName from the first visible window if it was empty.
     if ([string]::IsNullOrWhiteSpace($App.ProcessName)) {
         Write-Host "$($App.Name): ProcessName unknown; waiting for window to detect process..."
-        $detected = Wait-ForWindowByTitle -App $App -TimeoutSeconds $script:LaunchTimeoutSeconds
+        $detected = Wait-ForWindowByTitle -App $App -TimeoutSeconds $script:LaunchTimeoutSeconds `
+            -BaselinePIDs $baselinePIDs
         if ($detected -and -not [string]::IsNullOrWhiteSpace($detected.ProcessName)) {
             $App.ProcessName = $detected.ProcessName
             Write-Host "$($App.Name): ProcessName detected as '$($App.ProcessName)'. Saving."
@@ -1162,7 +1238,8 @@ function Invoke-LaunchAttempt {
             Write-Warning "$($App.Name): could not detect ProcessName. Will retry on next run."
         }
     } else {
-        $ready = Wait-ForAppReady -ProcessName $App.ProcessName -TimeoutSeconds $script:LaunchTimeoutSeconds
+        $ready = Wait-ForAppReady -ProcessName $App.ProcessName `
+            -TimeoutSeconds $script:LaunchTimeoutSeconds -BaselinePIDs $baselinePIDs
         if (-not $ready) { Write-Warning "$($App.Name): did not become ready within $($script:LaunchTimeoutSeconds)s." }
     }
 
