@@ -1,6 +1,8 @@
 # Win11 Startup Launcher — Testing Guide
 
-All tests are manual. No automated Pester test file exists — core behaviour involves process detection, shortcut COM objects (`WshShell`), and AUMID resolution that require a live Windows environment.
+All tests are manual and require a live Windows 10/11 environment. The script relies on `WScript.Shell` COM objects, filesystem `.lnk` inspection, and `Get-Process` — behaviours that cannot be fully exercised outside a real Windows session.
+
+Automated Pester unit tests covering discovery logic, config I/O, and guard conditions are in `Win11startup.Tests.ps1`.
 
 ---
 
@@ -8,148 +10,180 @@ All tests are manual. No automated Pester test file exists — core behaviour in
 
 - Windows 10 or Windows 11
 - PowerShell 5.1 or later
-- `Get-AppxPackage` and `Get-StartApps` available (standard on Windows 10/11)
-- All Win32 shortcut files present in `C:\ProgramData\Microsoft\Windows\Start Menu\Programs\` with numbered naming convention
-- Entry 04 shortcut (`04 Sticky Notes.lnk`) Target field set to `"...\ONENOTE.EXE" /memoryWindow start`
-- Entry 06 shortcut (`06 Phone Link.lnk`) Target = `C:\Windows\explorer.exe`; Arguments = `shell:appsFolder\Microsoft.YourPhone_8wekyb3d8bbwe!App`
-- Phone Link installed (for TC-11 through TC-15)
+- `WScript.Shell` COM object available (standard inbox)
+- Numbered `.lnk` shortcut files present in the configured Start Menu folder, using the naming convention `NN AppName.lnk` (1–2 digit prefix followed by a space)
+- `Win11StartupConfig.json` absent or pre-populated (see individual test cases)
 
 ---
 
 ## Test Cases
 
-### TC-01 — Normal Win32 launch: shortcut target valid, process not running
+### TC-01 — First run: config file absent, user provides paths
 
-**Setup:** Shortcut target exists. App not running.
+**Setup:** Delete or rename `Win11StartupConfig.json` so it does not exist.
+**Action:** Run the script. When prompted, press Enter to accept the default config path, then enter the Start Menu folder path.
+**Expected:** Config file created at the default path with `StartMenuPath` and an empty `Shortcuts` array. Startup sequence proceeds.
+**Pass criteria:** `Win11StartupConfig.json` created. Shortcuts discovered and launched.
+
+---
+
+### TC-02 — First run: user supplies a custom config path
+
+**Setup:** Delete `Win11StartupConfig.json`.
+**Action:** Run the script. When prompted, enter a custom path (e.g., `C:\MyConfig\startup.json`). Provide the Start Menu folder path.
+**Expected:** Config written to the supplied path. Startup sequence proceeds using that config.
+**Pass criteria:** Custom config file exists. Shortcuts launched.
+
+---
+
+### TC-03 — Subsequent run: valid config loaded, no prompts
+
+**Setup:** `Win11StartupConfig.json` present with a valid `StartMenuPath` and at least one entry in `Shortcuts`.
 **Action:** Run the script.
-**Expected:** `[Name]: launching via shortcut: <path>.lnk` then `(presence mode: Window)` or `(presence mode: Tray)` then `[Name]: ready.`
-**Pass criteria:** App process visible in Task Manager within 30 seconds.
+**Expected:** No prompts shown. Script reads config, discovers `.lnk` files, and launches apps immediately.
+**Pass criteria:** Startup sequence begins without any user input.
 
-### TC-02 — Sticky Notes: baked-in arguments honoured via WshShell.Run
+---
 
-**Setup:** Entry 04 shortcut Target contains `"...\ONENOTE.EXE" /memoryWindow start`. `ONENOTE` not running.
+### TC-04 — Config file present but contains invalid JSON
+
+**Setup:** Open `Win11StartupConfig.json` and corrupt it (e.g., delete a closing brace).
 **Action:** Run the script.
-**Expected:** `Sticky Notes: launching via shortcut: ...\04 Sticky Notes.lnk` then `(presence mode: Window)` then `Sticky Notes: ready.` A sticky note window (not full OneNote UI) opens.
-**Pass criteria:** Sticky note window visible. `ONENOTE` process running. Full OneNote UI NOT open.
+**Expected:** Warning: `Config file exists but could not be loaded (invalid JSON). It will be reinitialized.` Script then prompts for Start Menu folder path and recreates the config.
+**Pass criteria:** Warning emitted. New valid config created. Shortcuts launched.
 
-### TC-03 — Already running: process detected before launch
+---
 
-**Setup:** Launch one app manually before running the script.
+### TC-05 — Normal Win32 launch: shortcut target valid, process not running
+
+**Setup:** At least one numbered `.lnk` file present. The target app is not running.
 **Action:** Run the script.
-**Expected:** `[Name]: already open. Skipping.` No second instance launched.
-**Pass criteria:** Only one instance of the process in Task Manager.
+**Expected:** `Launching [AppName]...` logged. Process appears in Task Manager within 15 seconds.
+**Pass criteria:** App process running in Task Manager. No warnings.
 
-### TC-04 — Sticky Notes / OneNote process order: OneNote skipped after Sticky Notes
+---
 
-**Setup:** Neither `ONENOTE` process running. Both entries 04 and 05 present.
+### TC-06 — Skip-if-running: process already active before launch
+
+**Setup:** Start one of the configured apps manually before running the script.
 **Action:** Run the script.
-**Expected:** Entry 04 launches and `ONENOTE` starts. Entry 05 logs `OneNote: already open. Skipping.`
-**Pass criteria:** One `ONENOTE` process. Sticky note window visible. Full OneNote UI not opened separately.
+**Expected:** `Skipping [AppName] (already running).` No second instance launched.
+**Pass criteria:** Single process instance in Task Manager for that app.
 
-### TC-05 — Win32: shortcut target broken, exe found after climbing 3 levels up
+---
 
-**Setup:** Change a shortcut's TargetPath to a non-existent path several folders deep (e.g. `C:\Program Files\Foo\Bar\Baz\missing.exe`). The actual exe exists somewhere under the ancestor 3 levels up from `Baz` (i.e. under `C:\Program Files\Foo`).
+### TC-07 — Store / UWP app shortcut skipped
+
+**Setup:** Add a `.lnk` file with a numeric prefix whose `TargetPath` is `C:\Windows\explorer.exe` and `Arguments` begins with `shell:appsFolder\`.
 **Action:** Run the script.
-**Expected:** `shortcut target missing or invalid` warning, then `searching for <exe> under <ancestor> (3 levels up, all subfolders)`, then `found replacement at <path>. Updating shortcut.` then `shortcut repaired. Proceeding with launch.` App launches via the updated `.lnk`.
-**Pass criteria:** Shortcut target updated to the real exe path. App running.
+**Expected:** `Skipping (unsupported store app): [AppName]` logged. No attempt to launch the app.
+**Pass criteria:** Message logged. No UWP launch attempted. Script continues to next entry.
 
-### TC-06 — Win32: shortcut target broken, exe not found after climbing 3 levels up, user provides valid path
+---
 
-**Setup:** Shortcut target broken and the exe does not exist anywhere under the ancestor 3 levels up from the broken target's folder.
-**Action:** When prompted, enter the full correct path to the exe.
-**Expected:** `<exe> not found under <ancestor>` warning, then user prompt appears. On valid input: shortcut updated. `shortcut repaired. Proceeding with launch.` App launches.
-**Pass criteria:** Shortcut updated. App running.
+### TC-08 — Shortcut with empty or unreadable TargetPath skipped
 
-### TC-07 — Win32 prompt: invalid paths entered before correct one
-
-**Setup:** Same as TC-06.
-**Action:** Enter a non-existent path, then a path with the wrong filename, then the correct path.
-**Expected:** Warning on each bad input. Prompt repeats until correct input.
-**Pass criteria:** Prompt repeats on bad input. Succeeds on correct input.
-
-### TC-08 — Win32 prompt: user presses Enter to skip
-
-**Setup:** Same as TC-06.
-**Action:** Press Enter at the prompt.
-**Expected:** `[Name]: shortcut could not be repaired. Skipping.` App in failure list.
-**Pass criteria:** Script continues. Failed app listed at end.
-
-### TC-09 — Win32: shortcut .lnk file itself does not exist
-
-**Setup:** Delete or rename one shortcut file.
+**Setup:** Create a numbered `.lnk` file with no TargetPath set (save it without a target).
 **Action:** Run the script.
-**Expected:** `WARNING: [Name]: shortcut file not found: <path>` and inline failure menu (Add / Modify / Skip).
-**Pass criteria:** Script continues after user selects Skip. Remaining apps launch.
+**Expected:** `WARNING: Skipping '[AppName]' (invalid or missing target path).`
+**Pass criteria:** Warning emitted. Script continues without throwing.
 
-### TC-10 — Win32: process does not appear within 30 seconds
+---
 
-**Setup:** Point a shortcut to a valid exe that does not produce a detectable process within 30 seconds.
+### TC-09 — Unreadable shortcut COM object skipped
+
+**Setup:** Place a file with a `.lnk` extension and numeric prefix but corrupt its content so `WshShell.CreateShortcut` cannot read it.
 **Action:** Run the script.
-**Expected:** After 30 seconds: `WARNING: [Name]: did not become ready within 30 seconds.` and inline failure menu.
-**Pass criteria:** Script does not hang beyond 30 seconds. Failure logged.
+**Expected:** `WARNING: Skipping unreadable shortcut: [path]`
+**Pass criteria:** Warning emitted. Script continues to the next entry.
 
-### TC-11 — Phone Link: valid shortcut Arguments, no repair needed
+---
 
-**Setup:** Entry 06 shortcut Arguments field matches the installed AUMID. `PhoneExperienceHost` not running.
+### TC-10 — Process does not start within timeout: file-picker dialog appears
+
+**Setup:** Point a numbered `.lnk` to a valid-looking but non-launching exe (e.g., a dummy `.exe` that exits immediately). Set `$ProcessStartTimeout = 5` for faster testing.
+**Action:** Run the script. When the dialog appears, click Cancel.
+**Expected:** After the timeout: `WARNING: '[AppName]' did not start within N seconds.` Windows Open File dialog opens. On Cancel: `No executable selected for '[AppName]'. Skipping.`
+**Pass criteria:** Dialog appears. Script continues after Cancel without crashing.
+
+---
+
+### TC-11 — Shortcut repair via file-picker: user selects correct exe
+
+**Setup:** Same as TC-10. This time, when the dialog appears, browse to and select the real executable for the app.
+**Expected:** `Repairing [AppName] shortcut to target [path]`. `Re-launching [AppName]...` App starts within 15 seconds. Config updated with new `ProcessName`.
+**Pass criteria:** App running in Task Manager. `.lnk` TargetPath updated. Config reflects new process name.
+
+---
+
+### TC-12 — Shortcut repair: app still does not start after repair
+
+**Setup:** Same as TC-11 but select an exe that also does not produce a detectable process.
+**Expected:** After the second timeout: `WARNING: '[AppName]' still did not start after repair. Moving on.`
+**Pass criteria:** Warning emitted. Script moves to the next shortcut without hanging.
+
+---
+
+### TC-13 — Numeric sort order: shortcuts launch in ascending numeric order
+
+**Setup:** Three numbered shortcuts: `03 Slack.lnk`, `01 Outlook.lnk`, `02 Teams.lnk`.
+**Action:** Run the script and observe console output order.
+**Expected:** `Launching Outlook...` first, then `Launching Teams...`, then `Launching Slack...`.
+**Pass criteria:** Launch order matches numeric prefix, not filesystem or alphabetical order.
+
+---
+
+### TC-14 — Config auto-sync: new shortcut added to config on first encounter
+
+**Setup:** Config exists but does not include an entry for one of the `.lnk` files in the Start Menu folder.
 **Action:** Run the script.
-**Expected:** `Phone Link: launching via shortcut: ...\06 Phone Link.lnk` then `(presence mode: Window)` or `(presence mode: Tray)` then `Phone Link: ready.`
-**Pass criteria:** `PhoneExperienceHost` running in Task Manager.
+**Expected:** The missing shortcut is launched and its entry (`Name`, `ShortcutPath`, `ProcessName`) is written to `Win11StartupConfig.json`.
+**Pass criteria:** Config file contains the new entry after the run.
 
-### TC-12 — Phone Link: Arguments stale, self-healing reconstructs AUMID
+---
 
-**Setup:** Manually set the shortcut Arguments to an outdated AUMID (wrong version number). Phone Link installed.
+### TC-15 — Config auto-sync: stale ProcessName updated when shortcut is repaired
+
+**Setup:** Config entry for an app has an outdated `ProcessName`. The shortcut's TargetPath now points to a different exe (simulating an app update).
+**Action:** Run the script. Allow repair to complete.
+**Expected:** `ProcessName` in config updated to reflect the new exe's base name. Config saved.
+**Pass criteria:** `Win11StartupConfig.json` contains the corrected `ProcessName`.
+
+---
+
+### TC-16 — Start Menu folder not found: script exits cleanly
+
+**Setup:** Set `StartMenuPath` in config to a folder that does not exist.
 **Action:** Run the script.
-**Expected:** `WARNING: [Name]: shortcut Arguments missing or invalid`. Script scans WindowsApps, finds the matching package folder, reads `AppxManifest.xml`, reconstructs AUMID, updates the shortcut, and launches.
-**Pass criteria:** Shortcut Arguments updated to correct AUMID. `PhoneExperienceHost` running.
+**Expected:** `Start Menu folder not found: [path]. Exiting.` (red text). Script returns without launching anything.
+**Pass criteria:** Error message displayed. No exception thrown. No apps launched.
 
-### TC-13 — Phone Link: WindowsApps folder not found during argument repair
+---
 
-**Setup:** Temporarily rename or set the `WindowsApps` scan path to a non-existent location in the script.
-**Action:** Run the script with stale Arguments.
-**Expected:** `no folder matching '*<fragment>*' found in WindowsApps.` App in failure list.
-**Pass criteria:** Script continues. Phone Link in final failure summary.
+### TC-17 — Empty Start Menu folder: script exits cleanly
 
-### TC-14 — Phone Link: already running (tray/window)
-
-**Setup:** Phone Link already open before running the script.
+**Setup:** `StartMenuPath` points to a real but empty folder (no `.lnk` files).
 **Action:** Run the script.
-**Expected:** `Phone Link: already open. Skipping.` No second instance launched.
-**Pass criteria:** Single `PhoneExperienceHost` process in Task Manager.
+**Expected:** `No numbered .lnk shortcuts found in '[path]'.` Script returns.
+**Pass criteria:** Message displayed. No errors thrown.
 
-### TC-15 — Presence mode: Window app detected correctly
-
-**Setup:** Any app that opens a visible window (e.g. Outlook, Chrome). Not running.
-**Action:** Run the script.
-**Expected:** Within `$SettleSeconds` (5 s), `(presence mode: Window)` logged. App confirmed ready when `MainWindowHandle != 0`.
-**Pass criteria:** Mode logged as `Window`. App window visible.
-
-### TC-16 — Presence mode: Tray app detected correctly
-
-**Setup:** Any tray-only app (e.g. OneDrive). Not running.
-**Action:** Run the script.
-**Expected:** No window appears within 5 s. `(presence mode: Tray)` logged. App confirmed ready on process presence alone.
-**Pass criteria:** Mode logged as `Tray`. Process visible in Task Manager. No window required.
-
-### TC-17 — Presence mode: $SettleSeconds tuning — slow machine
-
-**Setup:** Increase `$SettleSeconds` to 10 in the script. Use an app that normally opens a window after 6–8 s.
-**Action:** Run the script.
-**Expected:** Window appears before the settle period expires. App classified as `Window`, not `Tray`.
-**Pass criteria:** Mode logged as `Window`. Misclassification avoided by longer settle time.
+---
 
 ### TC-18 — Full sequence: all apps launch successfully
 
-**Setup:** All Win32 shortcut targets valid. Phone Link installed. No apps pre-running.
+**Setup:** All numbered `.lnk` files present with valid targets. No apps pre-running. Config up to date.
 **Action:** Run the script.
-**Expected:** Each app launches sequentially with presence mode logged. Console ends with `Startup sequence completed successfully.`
-**Pass criteria:** All processes visible in Task Manager. No warnings or failure list.
+**Expected:** Each app logs `Launching [AppName]...` and starts within `$ProcessStartTimeout` seconds. No warnings.
+**Pass criteria:** All configured processes running in Task Manager. No warnings or skips.
 
-### TC-19 — Win32: repaired shortcut persists on second run
+---
 
-**Setup:** Trigger TC-05 or TC-06 to repair a shortcut. Close the launched app.
+### TC-19 — Repaired shortcut reused on second run
+
+**Setup:** Trigger TC-11 to repair a shortcut. Close the launched app.
 **Action:** Run the script a second time without changes.
-**Expected:** Repaired shortcut used directly. No repair logic triggered.
-**Pass criteria:** No `shortcut target missing` warning for the previously repaired app.
+**Expected:** Script uses the repaired `.lnk` directly. No timeout or repair dialog triggered.
+**Pass criteria:** No `did not start within N seconds` warning for the previously repaired app.
 
 ---
 
@@ -157,22 +191,22 @@ All tests are manual. No automated Pester test file exists — core behaviour in
 
 | TC | Scenario | Pass If |
 |----|----------|---------|
-| TC-01 | Valid Win32, not running | App launches; presence mode logged; ready within 30 s |
-| TC-02 | Sticky Notes via WshShell.Run | Sticky note window opens; `/memoryWindow start` honoured from .lnk |
-| TC-03 | App already running | Skipped; no second instance |
-| TC-04 | Sticky Notes then OneNote process order | OneNote skipped; one ONENOTE process |
-| TC-05 | Broken Win32 target, exe found after 3 levels up + full subfolder search | Shortcut updated; app launches via repaired .lnk |
-| TC-06 | Broken Win32 target, exe not found after 3-level climb, user provides path | Shortcut updated; app launches via repaired .lnk |
-| TC-07 | Invalid then valid paths at prompt | Prompt repeats; accepts correct input |
-| TC-08 | User skips prompt | App in failure list; script continues |
-| TC-09 | `.lnk` file missing | Inline failure menu shown; script continues after Skip |
-| TC-10 | Win32 process timeout | Inline failure menu after 30 s; script continues |
-| TC-11 | Phone Link: valid Arguments | Launches via explorer.exe shell:appsFolder; PhoneExperienceHost running |
-| TC-12 | Phone Link: stale Arguments, self-healed | AUMID reconstructed from WindowsApps; shortcut updated; app launches |
-| TC-13 | Phone Link: WindowsApps scan fails | Warning logged; app in failure list |
-| TC-14 | Phone Link already running | Skipped; no second instance |
-| TC-15 | Presence mode: Window | Mode logged as Window; window visible |
-| TC-16 | Presence mode: Tray | Mode logged as Tray; process running; no window needed |
-| TC-17 | Presence mode: slow machine tuning | Window classified correctly with larger $SettleSeconds |
-| TC-18 | Full sequence | All apps running; success message |
-| TC-19 | Repaired shortcut reused | No repair on second run |
+| TC-01 | First run, config absent | Config created; sequence proceeds |
+| TC-02 | First run, custom config path | Config written to custom path; sequence proceeds |
+| TC-03 | Subsequent run, valid config | No prompts; sequence starts immediately |
+| TC-04 | Config present, invalid JSON | Warning emitted; config recreated; sequence proceeds |
+| TC-05 | Normal Win32 launch | App running in Task Manager within 15 s |
+| TC-06 | App already running | Skipped; single process instance |
+| TC-07 | Store / UWP shortcut | Skipped with message; no launch attempted |
+| TC-08 | Empty TargetPath in shortcut | Warning emitted; script continues |
+| TC-09 | Unreadable COM shortcut | Warning emitted; script continues |
+| TC-10 | Process timeout, user cancels dialog | Dialog shown; script continues after Cancel |
+| TC-11 | Process timeout, user selects correct exe | Shortcut repaired; app launched; config updated |
+| TC-12 | Process still fails after repair | Warning emitted; script moves to next app |
+| TC-13 | Numeric launch order | Apps launch in ascending numeric prefix order |
+| TC-14 | New shortcut added to config | New entry written to config |
+| TC-15 | Stale ProcessName updated after repair | Config updated with correct ProcessName |
+| TC-16 | Start Menu folder missing | Error message shown; clean exit |
+| TC-17 | Start Menu folder empty | No shortcuts message; clean exit |
+| TC-18 | Full sequence | All apps running; no warnings |
+| TC-19 | Repaired shortcut reused on second run | No repair triggered on second run |
