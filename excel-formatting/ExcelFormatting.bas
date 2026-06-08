@@ -307,17 +307,35 @@ Private Sub DeleteBlankColumns(ByVal ws As Worksheet, ByVal ignoreHeaderRow As B
     Dim lastCol As Long
     Dim lastRow As Long
     Dim c As Long
+    Dim r As Long
+    Dim hasData As Boolean
+    Dim cellVal As String
 
     lastCol = GetLastUsedColumn(ws)
     lastRow = GetLastUsedRow(ws)
     If lastCol = 0 Or lastRow = 0 Then Exit Sub
 
     For c = lastCol To 1 Step -1
-        If ignoreHeaderRow And lastRow >= 2 Then
-            If Application.WorksheetFunction.CountA(ws.Range(ws.Cells(2, c), ws.Cells(lastRow, c))) = 0 Then ws.Columns(c).Delete
-        Else
-            If Application.WorksheetFunction.CountA(ws.Columns(c)) = 0 Then ws.Columns(c).Delete
+
+        hasData = False
+
+        For r = IIf(ignoreHeaderRow, 2, 1) To lastRow
+            
+            If Not IsError(ws.Cells(r, c).Value) Then
+                cellVal = Trim$(Replace(ws.Cells(r, c).Value, Chr(160), ""))
+                
+                If Len(cellVal) > 0 Then
+                    hasData = True
+                    Exit For
+                End If
+            End If
+
+        Next r
+
+        If Not hasData Then
+            ws.Columns(c).Delete
         End If
+
     Next c
 
 End Sub
