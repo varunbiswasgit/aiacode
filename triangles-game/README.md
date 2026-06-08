@@ -23,13 +23,28 @@ A two-player browser-based dice game built with vanilla HTML, CSS, and JavaScrip
 
 ---
 
+## Device Support
+
+| Device / Orientation | Canvas size |
+|----------------------|-------------|
+| iPhone portrait | ~355px — full width |
+| iPhone landscape | ~height-constrained, ~230px |
+| iPad portrait | 500px (capped) |
+| iPad landscape | 500px (capped) |
+| Desktop | 500px (capped) |
+
+Canvas resizes automatically on `resize` and `orientationchange` events. Dot positions are stored as normalised ratios (0–1) and projected to pixel coordinates at draw time, so all geometry scales correctly.
+
+---
+
 ## Configuration
 
 | Setting | Default | Notes |
 |---------|---------|-------|
 | Players | 2 | Fixed at runtime |
-| Dot grid | 24 dots | Fixed layout |
+| Dot grid | 24 dots | Fixed layout, scales with canvas |
 | Dice | Standard 1–6 | Determines moves per turn |
+| Canvas cap | 500px | Prevents oversizing on large screens |
 
 ---
 
@@ -46,3 +61,4 @@ None. Pure HTML/CSS/JavaScript — runs entirely in the browser.
 | v1 | Initial release — two-player triangles game with dice mechanic and 24-dot grid |
 | v2 | Auto-detect game end via `anyLegalMoveExists()` (O(n²) dot-pair scan); comment unused `linesToD2` variable; fix duplicate-triangle check to be vertex-order-independent |
 | v3 | Fix Player 2 turn loss — player switch now executes before board-exhaustion check |
+| v4 | Responsive canvas — dots stored as normalised ratios; canvas resizes on resize/orientationchange; tap radius scales proportionally; supports portrait, landscape, iPad, iPhone |

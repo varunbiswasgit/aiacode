@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Triangles: Final Edition</title>
     <style>
-        body { font-family: sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
+        body { font-family: sans-serif; text-align: center; background-color: #f4f4f9; padding: 10px; margin: 0; }
         canvas { border: 2px solid #333; background: #fff; touch-action: none; cursor: crosshair; display: block; margin: 0 auto; }
         #ui { margin-bottom: 10px; font-size: 1.2em; }
         .p1 { color: #3498db; font-weight: bold; }
@@ -31,23 +31,41 @@
     <button onclick="resetGame()">Play Again</button>
 </div>
 
-<canvas id="canvas" width="400" height="400"></canvas>
+<canvas id="canvas"></canvas>
 
 <script>
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const colors = { 1: '#3498db', 2: '#e74c3c' };
     let dots = [], lines = [], triangles = [], currentPlayer = 1, movesRemaining = 0, firstDot = null;
-    const TAP_RADIUS = 40;
+
+    // Returns tap radius proportional to current canvas size
+    function tapRadius() { return canvas.width * 0.1; }
+
+    // Pixel position of a dot from its stored normalised ratios (0-1)
+    function px(d) { return { x: d.rx * canvas.width, y: d.ry * canvas.height }; }
+
+    // Resize canvas to fit the current viewport (portrait, landscape, iPad, iPhone)
+    function resizeCanvas() {
+        const size = Math.min(window.innerWidth - 20, window.innerHeight - 160, 500);
+        canvas.width  = Math.max(size, 200);
+        canvas.height = Math.max(size, 200);
+        draw();
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    // orientationchange fires before iOS reflows — delay to read correct dimensions
+    window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 150));
 
     function generateDots() {
         dots = [];
-        const minDistance = 60;
+        const minRatio = 0.15; // minimum distance as a fraction of canvas size
         for (let i = 0; i < 24; i++) {
             for (let j = 0; j < 1000; j++) {
-                let candidate = { x: 50 + Math.random() * 300, y: 50 + Math.random() * 300 };
-                if (!dots.some(d => Math.hypot(d.x - candidate.x, d.y - candidate.y) < minDistance)) {
-                    dots.push({ ...candidate, id: i });
+                const rx = 0.1 + Math.random() * 0.8;
+                const ry = 0.1 + Math.random() * 0.8;
+                if (!dots.some(d => Math.hypot(d.rx - rx, d.ry - ry) < minRatio)) {
+                    dots.push({ rx, ry, id: i });
                     break;
                 }
             }
@@ -74,10 +92,9 @@
         for (let i = 0; i < dots.length; i++) {
             for (let j = i + 1; j < dots.length; j++) {
                 const a = dots[i], b = dots[j];
-                if (lines.some(l =>
-                    (l.p1 === a && l.p2 === b) ||
-                    (l.p1 === b && l.p2 === a))) continue;
-                if (lines.some(l => doLinesIntersect(a, b, l.p1, l.p2))) continue;
+                const pa = px(a), pb = px(b);
+                if (lines.some(l => (l.p1 === a && l.p2 === b) || (l.p1 === b && l.p2 === a))) continue;
+                if (lines.some(l => doLinesIntersect(pa, pb, px(l.p1), px(l.p2)))) continue;
                 return true;
             }
         }
@@ -106,22 +123,25 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         triangles.forEach(t => {
+            const p1 = px(t.p1), p2 = px(t.p2), p3 = px(t.p3);
             ctx.beginPath();
-            ctx.moveTo(t.p1.x, t.p1.y); ctx.lineTo(t.p2.x, t.p2.y); ctx.lineTo(t.p3.x, t.p3.y);
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
             ctx.closePath();
             ctx.fillStyle = colors[t.player] + '40';
             ctx.fill();
         });
         lines.forEach(l => {
+            const p1 = px(l.p1), p2 = px(l.p2);
             ctx.beginPath();
-            ctx.moveTo(l.p1.x, l.p1.y); ctx.lineTo(l.p2.x, l.p2.y);
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
             ctx.strokeStyle = colors[l.player];
             ctx.lineWidth = 3;
             ctx.stroke();
         });
         dots.forEach(d => {
+            const p = px(d);
             ctx.beginPath();
-            ctx.arc(d.x, d.y, 6, 0, Math.PI * 2);
+            ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
             ctx.fillStyle = (d === firstDot) ? '#f1c40f' : '#333';
             ctx.fill();
         });
@@ -133,7 +153,8 @@
         for (let l1 of linesToD1) {
             const otherDot = (l1.p1 === d1) ? l1.p2 : l1.p1;
             if (lines.some(l => (l.p1 === otherDot && l.p2 === d2) || (l.p1 === d2 && l.p2 === otherDot))) {
-                if (!dots.some(d => d !== d1 && d !== d2 && d !== otherDot && isPointInTriangle(d, d1, d2, otherDot)) &&
+                const pd1 = px(d1), pd2 = px(d2), po = px(otherDot);
+                if (!dots.some(d => d !== d1 && d !== d2 && d !== otherDot && isPointInTriangle(px(d), pd1, pd2, po)) &&
                     !triangles.find(t =>
                         (t.p1 === d1 || t.p1 === d2 || t.p1 === otherDot) &&
                         (t.p2 === d1 || t.p2 === d2 || t.p2 === otherDot) &&
@@ -164,7 +185,13 @@
     canvas.addEventListener('click', (e) => {
         if (movesRemaining <= 0) return;
         const rect = canvas.getBoundingClientRect();
-        const clickedDot = dots.find(d => Math.hypot(d.x - (e.clientX - rect.left), d.y - (e.clientY - rect.top)) < TAP_RADIUS);
+        const mx = e.clientX - rect.left;
+        const my = e.clientY - rect.top;
+        const tr = tapRadius();
+        const clickedDot = dots.find(d => {
+            const p = px(d);
+            return Math.hypot(p.x - mx, p.y - my) < tr;
+        });
         if (clickedDot) {
             if (!firstDot) firstDot = clickedDot;
             else if (clickedDot === firstDot) firstDot = null;
@@ -172,7 +199,8 @@
                 if (lines.some(l => (l.p1 === firstDot && l.p2 === clickedDot) || (l.p1 === clickedDot && l.p2 === firstDot))) {
                     firstDot = null; return;
                 }
-                if (lines.some(l => doLinesIntersect(firstDot, clickedDot, l.p1, l.p2))) {
+                const pf = px(firstDot), pc = px(clickedDot);
+                if (lines.some(l => doLinesIntersect(pf, pc, px(l.p1), px(l.p2)))) {
                     alert("Invalid Move: Line crosses another!");
                     firstDot = null; return;
                 }
@@ -202,7 +230,9 @@
         }
     }
 
-    generateDots(); draw();
+    resizeCanvas();
+    generateDots();
+    draw();
 </script>
 </body>
 </html>
