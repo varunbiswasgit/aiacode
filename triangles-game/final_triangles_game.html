@@ -89,6 +89,7 @@
             text-shadow: 0 0 8px rgba(245,224,131,0.6);
         }
 
+        /* Single source of truth for player colors — reused in scoreboard, turn line, AND game-over screen */
         .p1 { color: #60b8ff; font-weight: 600; text-shadow: 0 0 10px rgba(96,184,255,0.5); }
         .p2 { color: #ff7070; font-weight: 600; text-shadow: 0 0 10px rgba(255,112,112,0.5); }
 
@@ -192,11 +193,17 @@
             backdrop-filter: blur(20px);
         }
 
+        /* No -webkit-text-fill-color here — lets .p1/.p2 child colors render correctly */
         #game-over h2 {
             font-family: 'Cinzel', serif;
             font-size: clamp(1.1rem, 4vw, 1.5rem);
             letter-spacing: 0.1em;
             margin-bottom: 6px;
+            color: #e8dfc8;
+        }
+
+        /* Draw only: gold gradient applied via this class */
+        #game-over h2.draw {
             background: linear-gradient(135deg, #f5e083, #fff8d0, #e8c84a);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -229,7 +236,7 @@
 </div>
 
 <div id="game-over">
-    <h2><span id="winner-text"></span>&#127942;</h2>
+    <h2 id="game-over-heading"><span id="winner-text"></span>&#127942;</h2>
     <button id="btn-play-again" onclick="resetGame()">&#9670; Play Again</button>
 </div>
 
@@ -239,12 +246,9 @@
     const colors = { 1: '#60b8ff', 2: '#ff7070' };
     let dots = [], lines = [], triangles = [], currentPlayer = 1, movesRemaining = 0, firstDot = null;
 
-    // ── SAFETY CONSTANT ────────────────────────────────────────────────────────
-    // A proposed line is rejected if any non-endpoint dot lies within this many
-    // canvas pixels of it. Reused identically in the click handler AND in
-    // anyLegalMoveExists() so both stay in sync.
-    const NEAR_PT_PX = 5;
-    // ───────────────────────────────────────────────────────────────────────────
+    // ── SAFETY CONSTANT ──────────────────────────────────────────────────────
+    const NEAR_PT_PX = 22;
+    // ─────────────────────────────────────────────────────────────────────────
 
     function tapRadius() { return canvas.width * 0.1; }
     function px(d) { return { x: d.rx * canvas.width, y: d.ry * canvas.height }; }
@@ -272,7 +276,6 @@
         }
     }
 
-    // Shortest distance from point (px_, py_) to segment (ax,ay)→(bx,by)
     function ptSegDist(px_, py_, ax, ay, bx, by) {
         const dx = bx - ax, dy = by - ay;
         const lenSq = dx * dx + dy * dy;
@@ -281,7 +284,6 @@
         return Math.hypot(px_ - (ax + t * dx), py_ - (ay + t * dy));
     }
 
-    // Returns true if any non-endpoint dot sits within NEAR_PT_PX of segment d1→d2
     function linePassesThroughDot(d1, d2) {
         const p1 = px(d1), p2 = px(d2);
         return dots.some(d => {
@@ -305,18 +307,17 @@
         return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
     }
 
-    // Single source of truth for move legality — reused everywhere
     function isLegalMove(a, b) {
         if (lines.some(l => (l.p1 === a && l.p2 === b) || (l.p1 === b && l.p2 === a))) return false;
         if (lines.some(l => doLinesIntersect(a, b, l.p1, l.p2))) return false;
-        if (linePassesThroughDot(a, b)) return false;  // ← NEAR_PT_PX enforced here
+        if (linePassesThroughDot(a, b)) return false;
         return true;
     }
 
     function anyLegalMoveExists() {
         for (let i = 0; i < dots.length; i++)
             for (let j = i + 1; j < dots.length; j++)
-                if (isLegalMove(dots[i], dots[j])) return true;  // ← same rule
+                if (isLegalMove(dots[i], dots[j])) return true;
         return false;
     }
 
@@ -325,13 +326,23 @@
     function showGameOver() {
         const s1 = triangles.filter(t => t.player === 1).length;
         const s2 = triangles.filter(t => t.player === 2).length;
-        const p1tag = '<span class="p1">Player 1</span>';
-        const p2tag = '<span class="p2">Player 2</span>';
-        let msg;
-        if (s1 > s2) msg = `${p1tag} Wins! (${s1}&#8209;${s2}) `;
-        else if (s2 > s1) msg = `${p2tag} Wins! (${s2}&#8209;${s1}) `;
-        else msg = `It's a Draw! (${s1}&#8209;${s2}) `;
-        document.getElementById('winner-text').innerHTML = msg;
+        const heading = document.getElementById('game-over-heading');
+        const winnerText = document.getElementById('winner-text');
+
+        heading.classList.remove('draw');
+        heading.style.cssText = '';
+
+        if (s1 > s2) {
+            // Reuses .p1 → #60b8ff blue, matching Player 1 triangles
+            winnerText.innerHTML = `<span class="p1">Player 1 Wins! (${s1}&#8209;${s2})</span> `;
+        } else if (s2 > s1) {
+            // Reuses .p2 → #ff7070 red, matching Player 2 triangles
+            winnerText.innerHTML = `<span class="p2">Player 2 Wins! (${s2}&#8209;${s1})</span> `;
+        } else {
+            heading.classList.add('draw');
+            winnerText.innerHTML = `It's a Draw! (${s1}&#8209;${s2}) `;
+        }
+
         document.getElementById('game-over').style.display = 'block';
     }
 
@@ -435,7 +446,7 @@
         if (!firstDot) { firstDot = clickedDot; draw(); return; }
         if (clickedDot === firstDot) { firstDot = null; draw(); return; }
 
-        if (!isLegalMove(firstDot, clickedDot)) {  // ← single call, NEAR_PT_PX included
+        if (!isLegalMove(firstDot, clickedDot)) {
             alert('Invalid move!');
             firstDot = null; draw(); return;
         }
