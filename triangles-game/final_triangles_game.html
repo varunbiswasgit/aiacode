@@ -59,7 +59,7 @@
 
     function generateDots() {
         dots = [];
-        const minRatio = 0.15; // minimum distance as a fraction of canvas size
+        const minRatio = 0.15;
         for (let i = 0; i < 24; i++) {
             for (let j = 0; j < 1000; j++) {
                 const rx = 0.1 + Math.random() * 0.8;
@@ -72,8 +72,11 @@
         }
     }
 
-    function doLinesIntersect(p1, p2, p3, p4) {
-        if (p1 === p3 || p1 === p4 || p2 === p3 || p2 === p4) return false;
+    // Takes dot REFERENCES (not pixel objects) so === shared-endpoint guard works correctly.
+    // Pixel projection happens inside after the endpoint check passes.
+    function doLinesIntersect(a1, a2, b1, b2) {
+        if (a1 === b1 || a1 === b2 || a2 === b1 || a2 === b2) return false;
+        const p1 = px(a1), p2 = px(a2), p3 = px(b1), p4 = px(b2);
         const ccw = (A, B, C) => (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
         return ccw(p1, p3, p4) !== ccw(p2, p3, p4) && ccw(p1, p2, p3) !== ccw(p1, p2, p4);
     }
@@ -86,22 +89,18 @@
     }
 
     // Returns true if at least one legal line can still be drawn between any two dots.
-    // A line is legal if: (1) not already drawn, (2) does not cross any existing line.
-    // When no legal line exists, no new triangle can ever be formed — game is over.
     function anyLegalMoveExists() {
         for (let i = 0; i < dots.length; i++) {
             for (let j = i + 1; j < dots.length; j++) {
                 const a = dots[i], b = dots[j];
-                const pa = px(a), pb = px(b);
                 if (lines.some(l => (l.p1 === a && l.p2 === b) || (l.p1 === b && l.p2 === a))) continue;
-                if (lines.some(l => doLinesIntersect(pa, pb, px(l.p1), px(l.p2)))) continue;
+                if (lines.some(l => doLinesIntersect(a, b, l.p1, l.p2))) continue;
                 return true;
             }
         }
         return false;
     }
 
-    // Called after every placed line. Triggers game-over when the board is fully exhausted.
     function checkAllTrianglesClaimed() {
         if (!anyLegalMoveExists()) showGameOver();
     }
@@ -117,7 +116,6 @@
         document.getElementById('game-over').style.display = 'block';
     }
 
-    // Manual "Finish Game" button delegates to showGameOver
     function checkGameOver() { showGameOver(); }
 
     function draw() {
@@ -149,7 +147,6 @@
 
     function checkAndFillTriangle(d1, d2) {
         const linesToD1 = lines.filter(l => l.p1 === d1 || l.p2 === d1);
-        // const linesToD2 = lines.filter(l => l.p1 === d2 || l.p2 === d2); // unused variable — commented out
         for (let l1 of linesToD1) {
             const otherDot = (l1.p1 === d1) ? l1.p2 : l1.p1;
             if (lines.some(l => (l.p1 === otherDot && l.p2 === d2) || (l.p1 === d2 && l.p2 === otherDot))) {
@@ -199,8 +196,8 @@
                 if (lines.some(l => (l.p1 === firstDot && l.p2 === clickedDot) || (l.p1 === clickedDot && l.p2 === firstDot))) {
                     firstDot = null; return;
                 }
-                const pf = px(firstDot), pc = px(clickedDot);
-                if (lines.some(l => doLinesIntersect(pf, pc, px(l.p1), px(l.p2)))) {
+                // Pass dot references — not pixel objects — so shared-endpoint guard works
+                if (lines.some(l => doLinesIntersect(firstDot, clickedDot, l.p1, l.p2))) {
                     alert("Invalid Move: Line crosses another!");
                     firstDot = null; return;
                 }
