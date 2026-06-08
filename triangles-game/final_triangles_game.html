@@ -23,7 +23,6 @@
             -webkit-font-smoothing: antialiased;
         }
 
-        /* Opal shimmer overlay on body */
         body::before {
             content: '';
             position: fixed;
@@ -39,11 +38,7 @@
             z-index: 0;
         }
 
-        #ui {
-            position: relative;
-            z-index: 1;
-            margin-bottom: 12px;
-        }
+        #ui { position: relative; z-index: 1; margin-bottom: 12px; }
 
         h1 {
             font-family: 'Cinzel', serif;
@@ -59,7 +54,6 @@
             filter: drop-shadow(0 2px 8px rgba(220,180,50,0.35));
         }
 
-        /* Score card */
         #scoreboard {
             display: inline-flex;
             align-items: center;
@@ -76,14 +70,11 @@
             letter-spacing: 0.05em;
             margin: 8px auto;
             backdrop-filter: blur(10px);
-            box-shadow:
-                0 0 20px rgba(160,120,255,0.12),
-                inset 0 1px 0 rgba(255,255,255,0.12);
+            box-shadow: 0 0 20px rgba(160,120,255,0.12), inset 0 1px 0 rgba(255,255,255,0.12);
         }
 
         .divider { color: rgba(200,170,255,0.4); font-size: 1.2em; }
 
-        /* Turn indicator */
         #turn-line {
             font-size: clamp(0.8rem, 2.2vw, 0.95rem);
             letter-spacing: 0.06em;
@@ -98,11 +89,9 @@
             text-shadow: 0 0 8px rgba(245,224,131,0.6);
         }
 
-        /* Player colour tokens */
         .p1 { color: #60b8ff; font-weight: 600; text-shadow: 0 0 10px rgba(96,184,255,0.5); }
         .p2 { color: #ff7070; font-weight: 600; text-shadow: 0 0 10px rgba(255,112,112,0.5); }
 
-        /* 3D Gemstone buttons */
         .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 12px; }
 
         button {
@@ -120,46 +109,30 @@
             user-select: none;
         }
 
-        /* Roll Dice — gold gem */
         #btn-roll {
             background: linear-gradient(175deg, #ffe57a 0%, #d4a017 40%, #8a6000 100%);
             color: #1a0e00;
-            box-shadow:
-                0 6px 0 #5a3d00,
-                0 8px 16px rgba(180,120,0,0.45),
-                inset 0 1px 0 rgba(255,255,200,0.55),
-                inset 0 -2px 0 rgba(0,0,0,0.2);
+            box-shadow: 0 6px 0 #5a3d00, 0 8px 16px rgba(180,120,0,0.45), inset 0 1px 0 rgba(255,255,200,0.55), inset 0 -2px 0 rgba(0,0,0,0.2);
             text-shadow: 0 1px 0 rgba(255,240,160,0.6);
         }
         #btn-roll:active { transform: translateY(4px); box-shadow: 0 2px 0 #5a3d00, 0 4px 8px rgba(180,120,0,0.3), inset 0 1px 0 rgba(255,255,200,0.3); }
 
-        /* Finish Game — amethyst gem */
         #btn-finish {
             background: linear-gradient(175deg, #c084fc 0%, #7c3aed 45%, #3b0764 100%);
             color: #f3e8ff;
-            box-shadow:
-                0 6px 0 #2e0650,
-                0 8px 16px rgba(100,40,200,0.45),
-                inset 0 1px 0 rgba(255,200,255,0.35),
-                inset 0 -2px 0 rgba(0,0,0,0.25);
+            box-shadow: 0 6px 0 #2e0650, 0 8px 16px rgba(100,40,200,0.45), inset 0 1px 0 rgba(255,200,255,0.35), inset 0 -2px 0 rgba(0,0,0,0.25);
             text-shadow: 0 1px 0 rgba(0,0,0,0.3);
         }
         #btn-finish:active { transform: translateY(4px); box-shadow: 0 2px 0 #2e0650, 0 4px 8px rgba(100,40,200,0.3), inset 0 1px 0 rgba(200,150,255,0.2); }
 
-        /* New Game — sapphire gem */
         #btn-new {
             background: linear-gradient(175deg, #67e8f9 0%, #0284c7 45%, #0a1a4a 100%);
             color: #e0f7ff;
-            box-shadow:
-                0 6px 0 #062040,
-                0 8px 16px rgba(0,80,180,0.45),
-                inset 0 1px 0 rgba(180,240,255,0.4),
-                inset 0 -2px 0 rgba(0,0,0,0.25);
+            box-shadow: 0 6px 0 #062040, 0 8px 16px rgba(0,80,180,0.45), inset 0 1px 0 rgba(180,240,255,0.4), inset 0 -2px 0 rgba(0,0,0,0.25);
             text-shadow: 0 1px 0 rgba(0,0,0,0.3);
         }
         #btn-new:active { transform: translateY(4px); box-shadow: 0 2px 0 #062040, 0 4px 8px rgba(0,80,180,0.3), inset 0 1px 0 rgba(150,220,255,0.2); }
 
-        /* Play Again — emerald gem */
         #btn-play-again {
             font-family: 'Cinzel', serif;
             font-size: 0.95rem;
@@ -171,17 +144,12 @@
             cursor: pointer;
             background: linear-gradient(175deg, #6ee7b7 0%, #059669 45%, #022c22 100%);
             color: #ecfdf5;
-            box-shadow:
-                0 6px 0 #014d38,
-                0 8px 16px rgba(0,120,80,0.45),
-                inset 0 1px 0 rgba(180,255,220,0.4),
-                inset 0 -2px 0 rgba(0,0,0,0.25);
+            box-shadow: 0 6px 0 #014d38, 0 8px 16px rgba(0,120,80,0.45), inset 0 1px 0 rgba(180,255,220,0.4), inset 0 -2px 0 rgba(0,0,0,0.25);
             text-shadow: 0 1px 0 rgba(0,0,0,0.3);
             transition: transform 80ms ease, box-shadow 80ms ease;
         }
         #btn-play-again:active { transform: translateY(4px); box-shadow: 0 2px 0 #014d38, 0 4px 8px rgba(0,100,60,0.3), inset 0 1px 0 rgba(150,255,200,0.2); }
 
-        /* Canvas — opal card */
         #canvas-wrap {
             position: relative;
             z-index: 1;
@@ -191,10 +159,7 @@
             background: linear-gradient(135deg,
                 #c084fc 0%, #60b8ff 20%, #f5e083 40%,
                 #6ee7b7 60%, #f472b6 80%, #c084fc 100%);
-            box-shadow:
-                0 0 40px rgba(150,100,255,0.3),
-                0 0 80px rgba(80,160,255,0.15),
-                0 20px 60px rgba(0,0,0,0.6);
+            box-shadow: 0 0 40px rgba(150,100,255,0.3), 0 0 80px rgba(80,160,255,0.15), 0 20px 60px rgba(0,0,0,0.6);
             animation: opalShift 8s linear infinite;
         }
 
@@ -212,7 +177,6 @@
             background: linear-gradient(145deg, #0f0c29 0%, #1a1560 50%, #0d1b3e 100%);
         }
 
-        /* Game over overlay */
         #game-over {
             display: none;
             position: fixed;
@@ -222,14 +186,9 @@
             padding: 36px 44px;
             border-radius: 20px;
             text-align: center;
-            background: linear-gradient(145deg,
-                rgba(20,10,50,0.97) 0%,
-                rgba(30,15,70,0.97) 100%);
+            background: linear-gradient(145deg, rgba(20,10,50,0.97) 0%, rgba(30,15,70,0.97) 100%);
             border: 1px solid rgba(200,160,255,0.3);
-            box-shadow:
-                0 0 60px rgba(150,80,255,0.3),
-                0 30px 80px rgba(0,0,0,0.8),
-                inset 0 1px 0 rgba(255,255,255,0.1);
+            box-shadow: 0 0 60px rgba(150,80,255,0.3), 0 30px 80px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1);
             backdrop-filter: blur(20px);
         }
 
@@ -280,6 +239,13 @@
     const colors = { 1: '#60b8ff', 2: '#ff7070' };
     let dots = [], lines = [], triangles = [], currentPlayer = 1, movesRemaining = 0, firstDot = null;
 
+    // ── SAFETY CONSTANT ────────────────────────────────────────────────────────
+    // A proposed line is rejected if any non-endpoint dot lies within this many
+    // canvas pixels of it. Reused identically in the click handler AND in
+    // anyLegalMoveExists() so both stay in sync.
+    const NEAR_PT_PX = 22;
+    // ───────────────────────────────────────────────────────────────────────────
+
     function tapRadius() { return canvas.width * 0.1; }
     function px(d) { return { x: d.rx * canvas.width, y: d.ry * canvas.height }; }
 
@@ -306,6 +272,25 @@
         }
     }
 
+    // Shortest distance from point (px_, py_) to segment (ax,ay)→(bx,by)
+    function ptSegDist(px_, py_, ax, ay, bx, by) {
+        const dx = bx - ax, dy = by - ay;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq === 0) return Math.hypot(px_ - ax, py_ - ay);
+        const t = Math.max(0, Math.min(1, ((px_ - ax) * dx + (py_ - ay) * dy) / lenSq));
+        return Math.hypot(px_ - (ax + t * dx), py_ - (ay + t * dy));
+    }
+
+    // Returns true if any non-endpoint dot sits within NEAR_PT_PX of segment d1→d2
+    function linePassesThroughDot(d1, d2) {
+        const p1 = px(d1), p2 = px(d2);
+        return dots.some(d => {
+            if (d === d1 || d === d2) return false;
+            const p = px(d);
+            return ptSegDist(p.x, p.y, p1.x, p1.y, p2.x, p2.y) < NEAR_PT_PX;
+        });
+    }
+
     function doLinesIntersect(a1, a2, b1, b2) {
         if (a1 === b1 || a1 === b2 || a2 === b1 || a2 === b2) return false;
         const p1 = px(a1), p2 = px(a2), p3 = px(b1), p4 = px(b2);
@@ -320,15 +305,18 @@
         return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
     }
 
+    // Single source of truth for move legality — reused everywhere
+    function isLegalMove(a, b) {
+        if (lines.some(l => (l.p1 === a && l.p2 === b) || (l.p1 === b && l.p2 === a))) return false;
+        if (lines.some(l => doLinesIntersect(a, b, l.p1, l.p2))) return false;
+        if (linePassesThroughDot(a, b)) return false;  // ← NEAR_PT_PX enforced here
+        return true;
+    }
+
     function anyLegalMoveExists() {
-        for (let i = 0; i < dots.length; i++) {
-            for (let j = i + 1; j < dots.length; j++) {
-                const a = dots[i], b = dots[j];
-                if (lines.some(l => (l.p1 === a && l.p2 === b) || (l.p1 === b && l.p2 === a))) continue;
-                if (lines.some(l => doLinesIntersect(a, b, l.p1, l.p2))) continue;
-                return true;
-            }
-        }
+        for (let i = 0; i < dots.length; i++)
+            for (let j = i + 1; j < dots.length; j++)
+                if (isLegalMove(dots[i], dots[j])) return true;  // ← same rule
         return false;
     }
 
@@ -352,7 +340,6 @@
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Subtle grid shimmer on canvas background
         ctx.save();
         ctx.strokeStyle = 'rgba(120,100,200,0.07)';
         ctx.lineWidth = 0.5;
@@ -361,7 +348,6 @@
         for (let y = 0; y <= canvas.height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
         ctx.restore();
 
-        // Triangles
         triangles.forEach(t => {
             const p1 = px(t.p1), p2 = px(t.p2), p3 = px(t.p3);
             ctx.beginPath();
@@ -374,48 +360,28 @@
             ctx.stroke();
         });
 
-        // Lines
         lines.forEach(l => {
             const p1 = px(l.p1), p2 = px(l.p2);
-            // Glow layer
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = colors[l.player] + '30';
-            ctx.lineWidth = 7;
-            ctx.stroke();
-            // Core line
-            ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = colors[l.player];
-            ctx.lineWidth = 2.5;
-            ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = colors[l.player] + '30'; ctx.lineWidth = 7; ctx.stroke();
+            ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = colors[l.player]; ctx.lineWidth = 2.5; ctx.stroke();
         });
 
-        // Dots
         dots.forEach(d => {
             const p = px(d);
             const isSelected = (d === firstDot);
-            // Outer glow
             const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, isSelected ? 14 : 10);
             grd.addColorStop(0, isSelected ? 'rgba(255,220,50,0.6)' : 'rgba(180,140,255,0.4)');
             grd.addColorStop(1, 'rgba(0,0,0,0)');
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, isSelected ? 14 : 10, 0, Math.PI * 2);
-            ctx.fillStyle = grd;
-            ctx.fill();
-            // Dot body
-            ctx.beginPath();
-            ctx.arc(p.x, p.y, isSelected ? 7 : 5, 0, Math.PI * 2);
+            ctx.beginPath(); ctx.arc(p.x, p.y, isSelected ? 14 : 10, 0, Math.PI * 2);
+            ctx.fillStyle = grd; ctx.fill();
+            ctx.beginPath(); ctx.arc(p.x, p.y, isSelected ? 7 : 5, 0, Math.PI * 2);
             ctx.fillStyle = isSelected ? '#ffe044' : '#c8b8ff';
             ctx.shadowColor = isSelected ? '#ffe044' : '#a080ff';
-            ctx.shadowBlur = 8;
-            ctx.fill();
-            ctx.shadowBlur = 0;
-            // Inner highlight
-            ctx.beginPath();
-            ctx.arc(p.x - 1.5, p.y - 1.5, isSelected ? 2.5 : 1.8, 0, Math.PI * 2);
-            ctx.fillStyle = 'rgba(255,255,255,0.7)';
-            ctx.fill();
+            ctx.shadowBlur = 8; ctx.fill(); ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(p.x - 1.5, p.y - 1.5, isSelected ? 2.5 : 1.8, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
         });
     }
 
@@ -454,42 +420,37 @@
         lines = []; triangles = []; movesRemaining = 0; firstDot = null; currentPlayer = 1;
         document.getElementById('moves').textContent = '0';
         document.getElementById('game-over').style.display = 'none';
-        updateScore();
-        updateTurnDisplay();
+        updateScore(); updateTurnDisplay();
         generateDots(); draw();
     }
 
     canvas.addEventListener('click', (e) => {
         if (movesRemaining <= 0) return;
         const rect = canvas.getBoundingClientRect();
-        const mx = e.clientX - rect.left;
-        const my = e.clientY - rect.top;
+        const mx = e.clientX - rect.left, my = e.clientY - rect.top;
         const tr = tapRadius();
         const clickedDot = dots.find(d => { const p = px(d); return Math.hypot(p.x - mx, p.y - my) < tr; });
-        if (clickedDot) {
-            if (!firstDot) firstDot = clickedDot;
-            else if (clickedDot === firstDot) firstDot = null;
-            else {
-                if (lines.some(l => (l.p1 === firstDot && l.p2 === clickedDot) || (l.p1 === clickedDot && l.p2 === firstDot))) {
-                    firstDot = null; return;
-                }
-                if (lines.some(l => doLinesIntersect(firstDot, clickedDot, l.p1, l.p2))) {
-                    alert('Invalid Move: Line crosses another!');
-                    firstDot = null; return;
-                }
-                lines.push({ p1: firstDot, p2: clickedDot, player: currentPlayer });
-                checkAndFillTriangle(firstDot, clickedDot);
-                firstDot = null;
-                movesRemaining--;
-                document.getElementById('moves').textContent = movesRemaining;
-                if (movesRemaining === 0) {
-                    currentPlayer = currentPlayer === 1 ? 2 : 1;
-                    updateTurnDisplay();
-                }
-                checkAllTrianglesClaimed();
-            }
-            draw();
+        if (!clickedDot) return;
+
+        if (!firstDot) { firstDot = clickedDot; draw(); return; }
+        if (clickedDot === firstDot) { firstDot = null; draw(); return; }
+
+        if (!isLegalMove(firstDot, clickedDot)) {  // ← single call, NEAR_PT_PX included
+            alert('Invalid move!');
+            firstDot = null; draw(); return;
         }
+
+        lines.push({ p1: firstDot, p2: clickedDot, player: currentPlayer });
+        checkAndFillTriangle(firstDot, clickedDot);
+        firstDot = null;
+        movesRemaining--;
+        document.getElementById('moves').textContent = movesRemaining;
+        if (movesRemaining === 0) {
+            currentPlayer = currentPlayer === 1 ? 2 : 1;
+            updateTurnDisplay();
+        }
+        checkAllTrianglesClaimed();
+        draw();
     });
 
     function rollDice() {
