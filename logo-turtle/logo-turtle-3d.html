@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Logo Turtle 3D — Royal Edition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=IM+Fell+English:ital@0;1&display=swap" rel="stylesheet">
+  <style>
+    /* ─── Royal 3D Palette ─── */
+    :root {
+      --text-xs:   clamp(0.75rem,  0.7rem  + 0.25vw, 0.875rem);
+      --text-sm:   clamp(0.875rem, 0.8rem  + 0.35vw, 1rem);
+      --text-base: clamp(1rem,     0.95rem + 0.25vw, 1.125rem);
+      --text-lg:   clamp(1.125rem, 1rem    + 0.75vw, 1.5rem);
+      --text-xl:   clamp(1.5rem,   1.2rem  + 1.25vw, 2.25rem);
+      --space-1:.25rem;--space-2:.5rem;--space-3:.75rem;--space-4:1rem;
+      --space-5:1.25rem;--space-6:1.5rem;--space-8:2rem;--space-12:3rem;
+      --radius-sm:.375rem;--radius-md:.5rem;--radius-lg:.75rem;--radius-xl:1rem;
+      --font-display:'Cinzel Decorative','Georgia',serif;
+      --font-heading:'Cinzel','Georgia',serif;
+      --font-body:'IM Fell English','Georgia',serif;
+      --font-mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+      /* Velvet + Gold */
+      --royal-bg:       #0d061a;
+      --royal-surface:  #150c28;
+      --royal-surface2: #1c1036;
+      --royal-border:   rgba(212,160,67,.22);
+      --royal-border2:  rgba(212,160,67,.40);
+      --gold:           #d4a043;
+      --gold-light:     #f0c870;
+      --gold-dark:      #a0722a;
+      --gold-glow:      rgba(212,160,67,.35);
+      --crimson:        #6b0f2a;
+      --velvet:         #2a0e4a;
+      --text:           #e8dfc8;
+      --text-muted:     #a89060;
+      --text-faint:     #5a4830;
+      --shadow-royal:   0 2px 0 rgba(212,160,67,.18), 0 8px 32px rgba(0,0,0,.7), 0 32px 80px rgba(0,0,0,.5);
+      --shadow-glow:    0 0 24px var(--gold-glow), 0 0 60px rgba(107,15,42,.4);
+      --transition: 220ms cubic-bezier(0.16,1,0.3,1);
+    }
+
+    *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+    html{-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility;scroll-behavior:smooth}
+    body {
+      min-height:100dvh;
+      font-family:var(--font-body);
+      font-size:var(--text-base);
+      line-height:1.7;
+      background:var(--royal-bg);
+      color:var(--text);
+      overflow-x:hidden;
+    }
+
+    /* ─── Starfield + nebula background ─── */
+    body::before {
+      content:'';
+      position:fixed;inset:0;
+      background:
+        radial-gradient(ellipse 80% 60% at 20% 30%, rgba(42,14,74,.7) 0%, transparent 70%),
+        radial-gradient(ellipse 60% 50% at 80% 70%, rgba(107,15,42,.4) 0%, transparent 65%),
+        radial-gradient(ellipse 40% 40% at 50% 0%, rgba(212,160,67,.06) 0%, transparent 55%);
+      pointer-events:none;z-index:0;
+    }
+    body::after {
+      content:'';
+      position:fixed;inset:0;
+      background-image:
+        radial-gradient(1px 1px at 15% 20%, rgba(240,200,112,.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 35% 10%, rgba(240,200,112,.4) 0%, transparent 100%),
+        radial-gradient(1.5px 1.5px at 55% 30%, rgba(255,255,255,.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 75% 15%, rgba(240,200,112,.5) 0%, transparent 100%),
+        radial-gradient(1px 1px at 90% 40%, rgba(255,255,255,.25) 0%, transparent 100%),
+        radial-gradient(1px 1px at 10% 60%, rgba(240,200,112,.35) 0%, transparent 100%),
+        radial-gradient(1px 1px at 25% 80%, rgba(255,255,255,.2) 0%, transparent 100%),
+        radial-gradient(1px 1px at 65% 70%, rgba(240,200,112,.4) 0%, transparent 100%),
+        radial-gradient(1px 1px at 80% 85%, rgba(255,255,255,.3) 0%, transparent 100%),
+        radial-gradient(1px 1px at 45% 90%, rgba(240,200,112,.3) 0%, transparent 100%);
+      pointer-events:none;z-index:0;
+    }
+
+    /* ─── Skip + layout ─── */
+    .skip{position:absolute;left:-9999px}.skip:focus{left:1rem;top:1rem;background:var(--royal-surface);padding:.5rem 1rem;z-index:100;border:1px solid var(--royal-border);border-radius:var(--radius-md);color:var(--text)}
+    .app{position:relative;z-index:1;max-width:1280px;margin:0 auto;padding:var(--space-4);display:grid;gap:var(--space-6)}
+
+    /* ─── Top bar ─── */
+    .topbar{display:flex;justify-content:space-between;align-items:center;gap:var(--space-4);padding:var(--space-6) 0 var(--space-4)}
+    .brand{display:flex;align-items:center;gap:var(--space-4)}
+    .brand svg{width:56px;height:56px;flex-shrink:0;filter:drop-shadow(0 0 10px var(--gold-glow))}
+    .brand-text h1{
+      margin:0;
+      font-family:var(--font-display);
+      font-size:var(--text-xl);
+      font-weight:700;
+      line-height:1.1;
+      background:linear-gradient(135deg, var(--gold-light) 0%, var(--gold) 40%, var(--gold-dark) 100%);
+      -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;
+      letter-spacing:.04em;
+    }
+    .brand-text p{margin:.3rem 0 0;color:var(--text-muted);font-size:var(--text-sm);font-style:italic;letter-spacing:.03em}
+
+    /* Divider ornament */
+    .ornament{text-align:center;color:var(--gold-dark);letter-spacing:.5em;font-size:var(--text-sm);opacity:.7;margin:-.25rem 0}
+
+    /* ─── Theme toggle ─── */
+    .theme-toggle{
+      min-width:44px;min-height:44px;border:1px solid var(--royal-border2);
+      background:linear-gradient(160deg,var(--royal-surface2),var(--royal-surface));
+      border-radius:9999px;padding:.65rem;display:grid;place-items:center;
+      color:var(--gold);
+      box-shadow:0 0 12px var(--gold-glow),inset 0 1px 0 rgba(212,160,67,.15);
+      transition:box-shadow var(--transition),transform var(--transition);
+    }
+    .theme-toggle:hover{box-shadow:0 0 24px var(--gold-glow),inset 0 1px 0 rgba(212,160,67,.25);transform:scale(1.08)}
+
+    /* ─── Layout grid ─── */
+    .layout{display:grid;grid-template-columns:1.1fr .9fr;gap:var(--space-6);perspective:1200px}
+
+    /* ─── 3D Panel ─── */
+    .panel {
+      background:linear-gradient(160deg, var(--royal-surface2) 0%, var(--royal-surface) 100%);
+      border:1px solid var(--royal-border2);
+      border-radius:var(--radius-xl);
+      box-shadow:
+        0 1px 0 rgba(212,160,67,.25),
+        0 2px 0 rgba(212,160,67,.10),
+        0 8px 32px rgba(0,0,0,.65),
+        0 24px 64px rgba(0,0,0,.45),
+        inset 0 1px 0 rgba(212,160,67,.12),
+        inset 0 -1px 0 rgba(0,0,0,.4);
+      transform:perspective(900px) rotateX(1.5deg);
+      transform-origin:top center;
+      transition:transform var(--transition), box-shadow var(--transition);
+      position:relative;overflow:hidden;
+    }
+    .panel::before {
+      content:'';position:absolute;inset:0;
+      background:linear-gradient(180deg,rgba(212,160,67,.055) 0%,transparent 40%);
+      pointer-events:none;border-radius:inherit;
+    }
+    .panel:hover {
+      transform:perspective(900px) rotateX(0deg) translateY(-3px);
+      box-shadow:
+        0 1px 0 rgba(212,160,67,.35),
+        0 4px 0 rgba(212,160,67,.15),
+        0 16px 48px rgba(0,0,0,.75),
+        0 32px 80px rgba(0,0,0,.5),
+        0 0 60px rgba(107,15,42,.25),
+        inset 0 1px 0 rgba(212,160,67,.18),
+        inset 0 -1px 0 rgba(0,0,0,.4);
+    }
+
+    /* ─── Panel header strip ─── */
+    .panel-header {
+      padding:var(--space-4) var(--space-5) var(--space-3);
+      border-bottom:1px solid var(--royal-border);
+      background:linear-gradient(90deg,rgba(212,160,67,.06) 0%,transparent 100%);
+    }
+    .panel-header h2 {
+      margin:0;
+      font-family:var(--font-heading);
+      font-size:var(--text-lg);
+      font-weight:600;
+      color:var(--gold-light);
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .panel-header p{margin:.3rem 0 0;color:var(--text-muted);font-size:var(--text-sm);font-style:italic}
+
+    /* ─── Canvas ─── */
+    .canvas-wrap{padding:var(--space-5)}
+    #screen{
+      width:100%;aspect-ratio:1/1;
+      border:1px solid var(--royal-border2);
+      border-radius:var(--radius-lg);
+      display:block;
+      box-shadow:0 0 0 1px rgba(0,0,0,.5),0 4px 24px rgba(0,0,0,.5),inset 0 0 32px rgba(0,0,0,.3);
+    }
+    .hud{
+      display:flex;flex-wrap:wrap;gap:var(--space-3);
+      margin-top:var(--space-4);
+      font-family:var(--font-mono);font-size:var(--text-xs);
+      color:var(--text-muted);
+    }
+    .hud span{
+      background:rgba(0,0,0,.35);border:1px solid var(--royal-border);
+      padding:.2rem .7rem;border-radius:9999px;
+      color:var(--gold-light);letter-spacing:.04em;
+    }
+
+    /* ─── Editor ─── */
+    .editor-body{padding:var(--space-5);display:grid;gap:var(--space-5)}
+
+    textarea{
+      width:100%;min-height:240px;
+      border-radius:var(--radius-lg);
+      border:1px solid var(--royal-border2);
+      background:rgba(0,0,0,.45);
+      padding:var(--space-4);
+      resize:vertical;
+      font-family:var(--font-mono);
+      font-size:var(--text-sm);
+      line-height:1.75;
+      color:var(--gold-light);
+      caret-color:var(--gold);
+      box-shadow:inset 0 2px 12px rgba(0,0,0,.4),0 0 0 1px rgba(0,0,0,.3);
+      transition:border-color var(--transition),box-shadow var(--transition);
+      outline:none;
+    }
+    textarea:focus{
+      border-color:rgba(212,160,67,.65);
+      box-shadow:inset 0 2px 12px rgba(0,0,0,.4), 0 0 16px var(--gold-glow);
+    }
+
+    /* ─── Buttons ─── */
+    .actions{display:flex;flex-wrap:wrap;gap:var(--space-3)}
+    .btn{
+      min-width:44px;min-height:44px;
+      padding:.75rem 1.4rem;
+      border-radius:9999px;
+      font-family:var(--font-heading);
+      font-size:var(--text-sm);
+      font-weight:600;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      border:1px solid var(--royal-border);
+      background:linear-gradient(160deg,rgba(42,14,74,.9),rgba(21,12,40,.9));
+      color:var(--text-muted);
+      box-shadow:0 2px 8px rgba(0,0,0,.4),inset 0 1px 0 rgba(255,255,255,.05);
+      transition:transform var(--transition),box-shadow var(--transition),color var(--transition),border-color var(--transition);
+    }
+    .btn:hover{transform:translateY(-2px);color:var(--gold-light);border-color:var(--royal-border2);box-shadow:0 4px 16px rgba(0,0,0,.5),0 0 12px var(--gold-glow)}
+    .btn:active{transform:translateY(0)}
+
+    .btn-primary{
+      background:linear-gradient(160deg,var(--gold-light) 0%,var(--gold) 45%,var(--gold-dark) 100%);
+      color:#1a0a0a;border-color:var(--gold-dark);
+      box-shadow:
+        0 1px 0 rgba(255,255,255,.25) inset,
+        0 -1px 0 rgba(0,0,0,.4) inset,
+        0 4px 16px rgba(0,0,0,.5),
+        0 0 20px var(--gold-glow);
+    }
+    .btn-primary:hover{
+      background:linear-gradient(160deg,#fff5cc 0%,var(--gold-light) 45%,var(--gold) 100%);
+      color:#0d0500;
+      box-shadow:0 6px 24px rgba(0,0,0,.6),0 0 32px var(--gold-glow);
+    }
+
+    /* ─── Quick Spells (chips) ─── */
+    .chips-label{font-family:var(--font-heading);font-size:var(--text-xs);color:var(--text-faint);text-transform:uppercase;letter-spacing:.12em;margin-bottom:.25rem}
+    .chips{display:flex;flex-wrap:wrap;gap:var(--space-2)}
+    .chip{
+      border:1px solid var(--royal-border2);
+      background:rgba(0,0,0,.3);
+      color:var(--gold);
+      padding:.4rem .9rem;border-radius:9999px;
+      font-family:var(--font-heading);font-size:var(--text-xs);letter-spacing:.06em;
+      transition:background var(--transition),box-shadow var(--transition),transform var(--transition);
+    }
+    .chip:hover{background:rgba(212,160,67,.12);box-shadow:0 0 10px var(--gold-glow);transform:translateY(-1px)}
+
+    /* ─── Reference ─── */
+    .ref-grid{display:grid;grid-template-columns:1fr 1fr;gap:var(--space-2);font-size:var(--text-xs);color:var(--text-muted)}
+    .ref-item{display:flex;align-items:baseline;gap:.35rem}
+    .ref-cmd{font-family:var(--font-mono);color:var(--gold);background:rgba(0,0,0,.4);padding:.1rem .45rem;border-radius:.3rem;border:1px solid var(--royal-border)}
+
+    /* ─── Status bar ─── */
+    .status{
+      padding:.75rem 1rem;border-radius:var(--radius-lg);
+      background:rgba(0,0,0,.4);border:1px solid var(--royal-border);
+      font-family:var(--font-mono);font-size:var(--text-xs);color:var(--gold-light);
+      letter-spacing:.04em;
+      box-shadow:inset 0 1px 4px rgba(0,0,0,.3);
+    }
+
+    /* ─── Mobile ─── */
+    @media(max-width:900px){
+      .layout{grid-template-columns:1fr;perspective:none}
+      .panel{transform:none!important}
+      .panel:hover{transform:none!important}
+      textarea{min-height:200px}
+    }
+    @media(prefers-reduced-motion:reduce){
+      *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+    }
+
+    /* Light mode override (minimal) */
+    [data-theme="light"] {
+      --royal-bg:#f0ead8;--royal-surface:#faf5e8;--royal-surface2:#fff8ed;
+      --royal-border:rgba(160,114,42,.3);--royal-border2:rgba(160,114,42,.5);
+      --text:#2a1a05;--text-muted:#7a5520;--text-faint:#b89060;
+      --gold:#8a5a0a;--gold-light:#6b4008;--gold-dark:#5a3506;
+      --gold-glow:rgba(160,114,42,.25);
+    }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+  <div class="app">
+
+    <!-- ─── Top Bar ─── -->
+    <header class="topbar">
+      <div class="brand">
+        <!-- Crowned Turtle SVG Logo -->
+        <svg viewBox="0 0 64 64" fill="none" aria-label="Royal Logo Turtle mark" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <radialGradient id="shellGrad" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stop-color="#2a0e4a"/>
+              <stop offset="100%" stop-color="#0d061a"/>
+            </radialGradient>
+            <radialGradient id="goldGrad" cx="30%" cy="30%" r="70%">
+              <stop offset="0%" stop-color="#f0c870"/>
+              <stop offset="60%" stop-color="#d4a043"/>
+              <stop offset="100%" stop-color="#a0722a"/>
+            </radialGradient>
+          </defs>
+          <!-- Crown -->
+          <path d="M22 14 L22 7 L28 12 L32 5 L36 12 L42 7 L42 14 Z" fill="url(#goldGrad)" stroke="#a0722a" stroke-width=".8"/>
+          <rect x="20" y="14" width="24" height="4" rx="1" fill="url(#goldGrad)" stroke="#a0722a" stroke-width=".6"/>
+          <!-- Shell body -->
+          <ellipse cx="32" cy="36" rx="18" ry="14" fill="url(#shellGrad)" stroke="#d4a043" stroke-width="1.5"/>
+          <!-- Shell pattern stitching -->
+          <path d="M32 22 L32 50" stroke="#d4a043" stroke-width=".8" opacity=".5"/>
+          <path d="M14 36 L50 36" stroke="#d4a043" stroke-width=".8" opacity=".5"/>
+          <path d="M18 26 L46 46" stroke="#d4a043" stroke-width=".6" opacity=".35"/>
+          <path d="M18 46 L46 26" stroke="#d4a043" stroke-width=".6" opacity=".35"/>
+          <!-- Head -->
+          <ellipse cx="32" cy="19" rx="5" ry="4" fill="#1c1036" stroke="#d4a043" stroke-width="1.2"/>
+          <circle cx="30.5" cy="18" r=".8" fill="#d4a043"/>
+          <circle cx="33.5" cy="18" r=".8" fill="#d4a043"/>
+          <!-- Legs -->
+          <path d="M15 30 Q10 28 9 32" stroke="#d4a043" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M15 42 Q10 44 9 40" stroke="#d4a043" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M49 30 Q54 28 55 32" stroke="#d4a043" stroke-width="1.5" stroke-linecap="round"/>
+          <path d="M49 42 Q54 44 55 40" stroke="#d4a043" stroke-width="1.5" stroke-linecap="round"/>
+          <!-- Tail -->
+          <path d="M32 50 Q32 57 30 58" stroke="#d4a043" stroke-width="1.3" stroke-linecap="round"/>
+          <!-- Crown gems -->
+          <circle cx="32" cy="10" r="1.5" fill="#e05050"/>
+          <circle cx="25.5" cy="12.5" r="1.2" fill="#50a0e0"/>
+          <circle cx="38.5" cy="12.5" r="1.2" fill="#50e080"/>
+        </svg>
+        <div class="brand-text">
+          <h1>Logo Turtle</h1>
+          <p>Royal 3D Edition — classic turtle drawing commands</p>
+        </div>
+      </div>
+      <button class="theme-toggle" data-theme-toggle aria-label="Switch theme">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      </button>
+    </header>
+
+    <div class="ornament">✦ ✦ ✦</div>
+
+    <!-- ─── Main Layout ─── -->
+    <main id="main" class="layout">
+
+      <!-- Canvas Panel -->
+      <section class="panel" aria-labelledby="screen-title">
+        <div class="panel-header">
+          <h2 id="screen-title">Drawing Chamber</h2>
+          <p>Where the Royal Turtle traces its path</p>
+        </div>
+        <div class="canvas-wrap">
+          <canvas id="screen" width="720" height="720" aria-label="Turtle drawing canvas"></canvas>
+          <div class="hud">
+            <span id="pos">X: 0, Y: 0</span>
+            <span id="heading">Heading: 0°</span>
+            <span id="pen">Pen: down</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Editor Panel -->
+      <section class="panel" aria-labelledby="editor-title">
+        <div class="panel-header">
+          <h2 id="editor-title">Royal Command Scroll</h2>
+          <p>Inscribe your commands and bid the turtle move</p>
+        </div>
+        <div class="editor-body">
+          <textarea id="code" spellcheck="false">cs
+repeat 4 [fd 120 rt 90]
+pu rt 90 fd 160 lt 90 pd
+repeat 360 [fd 1 rt 1]</textarea>
+
+          <div class="actions">
+            <button class="btn btn-primary" id="runBtn" aria-label="Run program">Run</button>
+            <button class="btn" id="clearBtn">Clear</button>
+            <button class="btn" id="resetBtn">Reset</button>
+          </div>
+
+          <div>
+            <div class="chips-label">Quick Spells</div>
+            <div class="chips" role="list" aria-label="Example programs">
+              <button class="chip" data-example="repeat 4 [fd 100 rt 90]" role="listitem">Square</button>
+              <button class="chip" data-example="repeat 3 [fd 120 rt 120]" role="listitem">Triangle</button>
+              <button class="chip" data-example="repeat 360 [fd 1 rt 1]" role="listitem">Circle</button>
+              <button class="chip" data-example="repeat 36 [fd 120 rt 170]" role="listitem">Flower</button>
+              <button class="chip" data-example="repeat 8 [fd 80 rt 45]" role="listitem">Octagon</button>
+              <button class="chip" data-example="repeat 5 [fd 100 rt 144]" role="listitem">Star</button>
+            </div>
+          </div>
+
+          <div class="ref-grid" aria-label="Command reference">
+            <div class="ref-item"><span class="ref-cmd">fd n</span><span>Move forward n steps</span></div>
+            <div class="ref-item"><span class="ref-cmd">bk n</span><span>Move backward n steps</span></div>
+            <div class="ref-item"><span class="ref-cmd">rt n</span><span>Turn right n degrees</span></div>
+            <div class="ref-item"><span class="ref-cmd">lt n</span><span>Turn left n degrees</span></div>
+            <div class="ref-item"><span class="ref-cmd">pu</span><span>Pen up (no trace)</span></div>
+            <div class="ref-item"><span class="ref-cmd">pd</span><span>Pen down (draw)</span></div>
+            <div class="ref-item"><span class="ref-cmd">home</span><span>Return to centre</span></div>
+            <div class="ref-item"><span class="ref-cmd">cs</span><span>Clear screen</span></div>
+            <div class="ref-item"><span class="ref-cmd">repeat n [...]</span><span>Repeat a block</span></div>
+          </div>
+
+          <div class="status" id="status" aria-live="polite">Ready. Awaiting your command.</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const canvas = document.getElementById('screen');
+    const ctx = canvas.getContext('2d');
+    const codeEl = document.getElementById('code');
+    const statusEl = document.getElementById('status');
+    const posEl = document.getElementById('pos');
+    const headingEl = document.getElementById('heading');
+    const penEl = document.getElementById('pen');
+
+    const turtle = { x: canvas.width/2, y: canvas.height/2, angle: 0, penDown: true };
+
+    function getRoyalColors() {
+      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      return {
+        bg:      isDark ? '#0a0515' : '#f5edd5',
+        grid:    isDark ? 'rgba(42,14,74,.45)' : 'rgba(160,114,42,.15)',
+        cross:   isDark ? 'rgba(212,160,67,.3)' : 'rgba(160,114,42,.35)',
+        line:    isDark ? '#d4a043' : '#7a4a08',
+        glow:    isDark ? 'rgba(212,160,67,.6)' : 'rgba(160,114,42,.5)',
+        turtle:  isDark ? '#f0c870' : '#7a4a08',
+        tglow:   isDark ? 'rgba(240,200,112,.8)' : 'rgba(120,74,8,.6)',
+      };
+    }
+
+    function updateHud() {
+      posEl.textContent = `X: ${Math.round(turtle.x - canvas.width/2)}, Y: ${Math.round(canvas.height/2 - turtle.y)}`;
+      headingEl.textContent = `Heading: ${((turtle.angle % 360) + 360) % 360}°`;
+      penEl.textContent = `Pen: ${turtle.penDown ? 'down' : 'up'}`;
+    }
+
+    function drawTurtle() {
+      const c = getRoyalColors();
+      ctx.save();
+      ctx.translate(turtle.x, turtle.y);
+      ctx.rotate((Math.PI/180) * turtle.angle);
+      ctx.shadowColor = c.tglow;
+      ctx.shadowBlur = 14;
+      ctx.fillStyle = c.turtle;
+      ctx.beginPath();
+      ctx.moveTo(18, 0);
+      ctx.lineTo(-11, -9);
+      ctx.lineTo(-4, 0);
+      ctx.lineTo(-11, 9);
+      ctx.closePath();
+      ctx.fill();
+      ctx.restore();
+    }
+
+    function clearScreen() {
+      const c = getRoyalColors();
+      ctx.fillStyle = c.bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Grid lines
+      ctx.save();
+      ctx.strokeStyle = c.grid;
+      ctx.lineWidth = 1;
+      const step = 60;
+      for (let x = step; x < canvas.width; x += step) {
+        ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+      }
+      for (let y = step; y < canvas.height; y += step) {
+        ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+      }
+
+      // Centre crosshair
+      const cx = canvas.width/2, cy = canvas.height/2;
+      ctx.strokeStyle = c.cross;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath(); ctx.moveTo(cx, 0); ctx.lineTo(cx, canvas.height); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, cy); ctx.lineTo(canvas.width, cy); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.restore();
+    }
+
+    function resetTurtle() {
+      turtle.x = canvas.width/2; turtle.y = canvas.height/2; turtle.angle = 0; turtle.penDown = true;
+      clearScreen(); drawTurtle(); updateHud();
+    }
+
+    function move(distance) {
+      const c = getRoyalColors();
+      const rad = (Math.PI/180) * turtle.angle;
+      const nx = turtle.x + Math.cos(rad) * distance;
+      const ny = turtle.y - Math.sin(rad) * distance;
+      if (turtle.penDown) {
+        ctx.save();
+        ctx.shadowColor = c.glow;
+        ctx.shadowBlur = 6;
+        ctx.strokeStyle = c.line;
+        ctx.lineWidth = 2.2;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(turtle.x, turtle.y);
+        ctx.lineTo(nx, ny);
+        ctx.stroke();
+        ctx.restore();
+      }
+      turtle.x = nx; turtle.y = ny;
+    }
+
+    function tokenize(input) {
+      return input.replace(/\[/g, ' [ ').replace(/\]/g, ' ] ').trim().split(/\s+/).filter(Boolean);
+    }
+
+    function parseBlock(tokens, i = 0) {
+      const commands = [];
+      while (i < tokens.length) {
+        const token = tokens[i].toLowerCase();
+        if (token === ']') return [commands, i+1];
+        if (token === 'repeat') {
+          const count = Number(tokens[i+1]);
+          if (!Number.isFinite(count)) throw new Error('REPEAT needs a number.');
+          if (tokens[i+2] !== '[') throw new Error('REPEAT needs [ ... ].');
+          const [block, nextIndex] = parseBlock(tokens, i+3);
+          commands.push({ type:'repeat', count, block });
+          i = nextIndex; continue;
+        }
+        if (['fd','forward','bk','back','rt','right','lt','left'].includes(token)) {
+          const value = Number(tokens[i+1]);
+          if (!Number.isFinite(value)) throw new Error(`${token.toUpperCase()} needs a number.`);
+          commands.push({ type:token, value });
+          i += 2; continue;
+        }
+        if (['pu','penup','pd','pendown','home','cs','clearscreen'].includes(token)) {
+          commands.push({ type:token }); i += 1; continue;
+        }
+        throw new Error(`Unknown command: "${tokens[i]}"`);
+      }
+      return [commands, i];
+    }
+
+    function execute(commands) {
+      for (const cmd of commands) {
+        switch(cmd.type) {
+          case 'fd': case 'forward': move(cmd.value); break;
+          case 'bk': case 'back':   move(-cmd.value); break;
+          case 'rt': case 'right':  turtle.angle -= cmd.value; break;
+          case 'lt': case 'left':   turtle.angle += cmd.value; break;
+          case 'pu': case 'penup':  turtle.penDown = false; break;
+          case 'pd': case 'pendown':turtle.penDown = true;  break;
+          case 'home': turtle.x=canvas.width/2; turtle.y=canvas.height/2; turtle.angle=0; break;
+          case 'cs': case 'clearscreen':
+            clearScreen(); turtle.x=canvas.width/2; turtle.y=canvas.height/2; turtle.angle=0; break;
+          case 'repeat': for (let n=0; n<cmd.count; n++) execute(cmd.block); break;
+        }
+      }
+    }
+
+    function runProgram() {
+      try {
+        clearScreen();
+        turtle.x=canvas.width/2; turtle.y=canvas.height/2; turtle.angle=0; turtle.penDown=true;
+        const tokens = tokenize(codeEl.value);
+        const [commands] = parseBlock(tokens);
+        execute(commands);
+        drawTurtle(); updateHud();
+        statusEl.textContent = '✦ Program completed with honour. ✦';
+      } catch(err) {
+        clearScreen(); drawTurtle(); updateHud();
+        statusEl.textContent = '⚠ ' + err.message;
+      }
+    }
+
+    document.getElementById('runBtn').addEventListener('click', runProgram);
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      clearScreen(); drawTurtle(); statusEl.textContent = 'Screen cleared.';
+    });
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      resetTurtle(); statusEl.textContent = 'Turtle hath returned home.';
+    });
+    document.querySelectorAll('[data-example]').forEach(btn =>
+      btn.addEventListener('click', () => { codeEl.value = btn.dataset.example; runProgram(); })
+    );
+    document.querySelector('[data-theme-toggle]').addEventListener('click', () => {
+      const r = document.documentElement;
+      const d = r.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+      r.setAttribute('data-theme', d);
+      const t = document.querySelector('[data-theme-toggle]');
+      t.setAttribute('aria-label', 'Switch to ' + (d==='dark'?'light':'dark') + ' mode');
+      t.innerHTML = d === 'dark'
+        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>'
+        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>';
+      runProgram();
+    });
+
+    clearScreen();
+    runProgram();
+  </script>
+</body>
+</html>
