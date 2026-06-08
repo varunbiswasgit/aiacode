@@ -182,14 +182,14 @@
                 movesRemaining--;
                 document.getElementById('moves').innerText = movesRemaining;
 
-                // Check board exhaustion BEFORE switching turns so game-over fires on the final move
-                checkAllTrianglesClaimed();
-
-                if (movesRemaining === 0 && document.getElementById('game-over').style.display === 'none') {
+                // Switch player first, then check board exhaustion
+                if (movesRemaining === 0) {
                     currentPlayer = currentPlayer === 1 ? 2 : 1;
                     document.getElementById('player-display').innerText = currentPlayer;
                     document.getElementById('player-display').className = 'p' + currentPlayer;
                 }
+
+                checkAllTrianglesClaimed();
             }
             draw();
         }

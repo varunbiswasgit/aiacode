@@ -45,3 +45,4 @@ None. Pure HTML/CSS/JavaScript — runs entirely in the browser.
 |---------|---------|
 | v1 | Initial release — two-player triangles game with dice mechanic and 24-dot grid |
 | v2 | Auto-detect game end via `anyLegalMoveExists()` (O(n²) dot-pair scan); comment unused `linesToD2` variable; fix duplicate-triangle check to be vertex-order-independent |
+| v3 | Fix Player 2 turn loss — player switch now executes before board-exhaustion check |
