@@ -3,52 +3,292 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Triangles: Final Edition</title>
+    <title>Triangles: Royal Edition</title>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Raleway:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
-        body { font-family: sans-serif; text-align: center; background-color: #f4f4f9; padding: 10px; margin: 0; }
-        canvas { border: 2px solid #333; background: #fff; touch-action: none; cursor: crosshair; display: block; margin: 0 auto; }
-        #ui { margin-bottom: 10px; font-size: 1.2em; }
-        .p1 { color: #3498db; font-weight: bold; }
-        .p2 { color: #e74c3c; font-weight: bold; }
-        #scoreboard { font-weight: bold; margin: 10px 0; }
-        #game-over { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.85); color: white; padding: 30px; border-radius: 15px; z-index: 10; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 5px; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Raleway', sans-serif;
+            text-align: center;
+            min-height: 100dvh;
+            padding: 12px 8px;
+            background:
+                radial-gradient(ellipse at 20% 10%, #1a0a3a 0%, transparent 55%),
+                radial-gradient(ellipse at 80% 90%, #0a1a3a 0%, transparent 55%),
+                radial-gradient(ellipse at 60% 40%, #1a1040 0%, transparent 60%),
+                linear-gradient(160deg, #0d0820 0%, #12103a 40%, #0a1828 100%);
+            background-attachment: fixed;
+            color: #e8dfc8;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* Opal shimmer overlay on body */
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            background:
+                repeating-linear-gradient(105deg,
+                    transparent 0px, transparent 80px,
+                    rgba(180,140,255,0.03) 80px, rgba(180,140,255,0.03) 81px),
+                repeating-linear-gradient(15deg,
+                    transparent 0px, transparent 120px,
+                    rgba(100,220,255,0.02) 120px, rgba(100,220,255,0.02) 121px);
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        #ui {
+            position: relative;
+            z-index: 1;
+            margin-bottom: 12px;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(1.3rem, 4vw, 2rem);
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            background: linear-gradient(135deg, #f5e083 0%, #e8c84a 30%, #fff8d0 55%, #c8960a 80%, #f5e083 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            text-shadow: none;
+            margin-bottom: 10px;
+            filter: drop-shadow(0 2px 8px rgba(220,180,50,0.35));
+        }
+
+        /* Score card */
+        #scoreboard {
+            display: inline-flex;
+            align-items: center;
+            gap: 14px;
+            background: linear-gradient(135deg,
+                rgba(255,255,255,0.06) 0%,
+                rgba(180,140,255,0.08) 50%,
+                rgba(100,200,255,0.06) 100%);
+            border: 1px solid rgba(200,170,255,0.25);
+            border-radius: 50px;
+            padding: 8px 24px;
+            font-family: 'Cinzel', serif;
+            font-size: clamp(0.85rem, 2.5vw, 1.05rem);
+            letter-spacing: 0.05em;
+            margin: 8px auto;
+            backdrop-filter: blur(10px);
+            box-shadow:
+                0 0 20px rgba(160,120,255,0.12),
+                inset 0 1px 0 rgba(255,255,255,0.12);
+        }
+
+        .divider { color: rgba(200,170,255,0.4); font-size: 1.2em; }
+
+        /* Turn indicator */
+        #turn-line {
+            font-size: clamp(0.8rem, 2.2vw, 0.95rem);
+            letter-spacing: 0.06em;
+            color: rgba(220,210,240,0.8);
+            margin: 6px 0 10px;
+        }
+
+        #moves {
+            font-family: 'Cinzel', serif;
+            font-size: 1.1em;
+            color: #f5e083;
+            text-shadow: 0 0 8px rgba(245,224,131,0.6);
+        }
+
+        /* Player colour tokens */
+        .p1 { color: #60b8ff; font-weight: 600; text-shadow: 0 0 10px rgba(96,184,255,0.5); }
+        .p2 { color: #ff7070; font-weight: 600; text-shadow: 0 0 10px rgba(255,112,112,0.5); }
+
+        /* 3D Gemstone buttons */
+        .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 12px; }
+
+        button {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(0.72rem, 2vw, 0.9rem);
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            position: relative;
+            transition: transform 80ms ease, box-shadow 80ms ease, filter 80ms ease;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+
+        /* Roll Dice — gold gem */
+        #btn-roll {
+            background: linear-gradient(175deg, #ffe57a 0%, #d4a017 40%, #8a6000 100%);
+            color: #1a0e00;
+            box-shadow:
+                0 6px 0 #5a3d00,
+                0 8px 16px rgba(180,120,0,0.45),
+                inset 0 1px 0 rgba(255,255,200,0.55),
+                inset 0 -2px 0 rgba(0,0,0,0.2);
+            text-shadow: 0 1px 0 rgba(255,240,160,0.6);
+        }
+        #btn-roll:active { transform: translateY(4px); box-shadow: 0 2px 0 #5a3d00, 0 4px 8px rgba(180,120,0,0.3), inset 0 1px 0 rgba(255,255,200,0.3); }
+
+        /* Finish Game — amethyst gem */
+        #btn-finish {
+            background: linear-gradient(175deg, #c084fc 0%, #7c3aed 45%, #3b0764 100%);
+            color: #f3e8ff;
+            box-shadow:
+                0 6px 0 #2e0650,
+                0 8px 16px rgba(100,40,200,0.45),
+                inset 0 1px 0 rgba(255,200,255,0.35),
+                inset 0 -2px 0 rgba(0,0,0,0.25);
+            text-shadow: 0 1px 0 rgba(0,0,0,0.3);
+        }
+        #btn-finish:active { transform: translateY(4px); box-shadow: 0 2px 0 #2e0650, 0 4px 8px rgba(100,40,200,0.3), inset 0 1px 0 rgba(200,150,255,0.2); }
+
+        /* New Game — sapphire gem */
+        #btn-new {
+            background: linear-gradient(175deg, #67e8f9 0%, #0284c7 45%, #0a1a4a 100%);
+            color: #e0f7ff;
+            box-shadow:
+                0 6px 0 #062040,
+                0 8px 16px rgba(0,80,180,0.45),
+                inset 0 1px 0 rgba(180,240,255,0.4),
+                inset 0 -2px 0 rgba(0,0,0,0.25);
+            text-shadow: 0 1px 0 rgba(0,0,0,0.3);
+        }
+        #btn-new:active { transform: translateY(4px); box-shadow: 0 2px 0 #062040, 0 4px 8px rgba(0,80,180,0.3), inset 0 1px 0 rgba(150,220,255,0.2); }
+
+        /* Play Again — emerald gem */
+        #btn-play-again {
+            font-family: 'Cinzel', serif;
+            font-size: 0.95rem;
+            font-weight: 600;
+            letter-spacing: 0.08em;
+            padding: 12px 28px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            background: linear-gradient(175deg, #6ee7b7 0%, #059669 45%, #022c22 100%);
+            color: #ecfdf5;
+            box-shadow:
+                0 6px 0 #014d38,
+                0 8px 16px rgba(0,120,80,0.45),
+                inset 0 1px 0 rgba(180,255,220,0.4),
+                inset 0 -2px 0 rgba(0,0,0,0.25);
+            text-shadow: 0 1px 0 rgba(0,0,0,0.3);
+            transition: transform 80ms ease, box-shadow 80ms ease;
+        }
+        #btn-play-again:active { transform: translateY(4px); box-shadow: 0 2px 0 #014d38, 0 4px 8px rgba(0,100,60,0.3), inset 0 1px 0 rgba(150,255,200,0.2); }
+
+        /* Canvas — opal card */
+        #canvas-wrap {
+            position: relative;
+            z-index: 1;
+            display: inline-block;
+            border-radius: 18px;
+            padding: 3px;
+            background: linear-gradient(135deg,
+                #c084fc 0%, #60b8ff 20%, #f5e083 40%,
+                #6ee7b7 60%, #f472b6 80%, #c084fc 100%);
+            box-shadow:
+                0 0 40px rgba(150,100,255,0.3),
+                0 0 80px rgba(80,160,255,0.15),
+                0 20px 60px rgba(0,0,0,0.6);
+            animation: opalShift 8s linear infinite;
+        }
+
+        @keyframes opalShift {
+            0%   { filter: hue-rotate(0deg) brightness(1); }
+            50%  { filter: hue-rotate(30deg) brightness(1.08); }
+            100% { filter: hue-rotate(0deg) brightness(1); }
+        }
+
+        canvas {
+            display: block;
+            border-radius: 15px;
+            touch-action: none;
+            cursor: crosshair;
+            background: linear-gradient(145deg, #0f0c29 0%, #1a1560 50%, #0d1b3e 100%);
+        }
+
+        /* Game over overlay */
+        #game-over {
+            display: none;
+            position: fixed;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            padding: 36px 44px;
+            border-radius: 20px;
+            text-align: center;
+            background: linear-gradient(145deg,
+                rgba(20,10,50,0.97) 0%,
+                rgba(30,15,70,0.97) 100%);
+            border: 1px solid rgba(200,160,255,0.3);
+            box-shadow:
+                0 0 60px rgba(150,80,255,0.3),
+                0 30px 80px rgba(0,0,0,0.8),
+                inset 0 1px 0 rgba(255,255,255,0.1);
+            backdrop-filter: blur(20px);
+        }
+
+        #game-over h2 {
+            font-family: 'Cinzel', serif;
+            font-size: clamp(1.1rem, 4vw, 1.5rem);
+            letter-spacing: 0.1em;
+            margin-bottom: 6px;
+            background: linear-gradient(135deg, #f5e083, #fff8d0, #e8c84a);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            filter: drop-shadow(0 2px 6px rgba(220,180,50,0.4));
+        }
+
+        #winner-text { margin-bottom: 20px; display: block; }
     </style>
 </head>
 <body>
 
 <div id="ui">
-    <h1>Triangles (24 Dots)</h1>
-    <div id="scoreboard"><span class="p1">Player 1</span>: 0 | <span class="p2">Player 2</span>: 0</div>
-    <p><span id="player-display" class="p1">Player 1</span>'s turn. Moves left: <span id="moves">0</span></p>
-    <button onclick="rollDice()">Roll Dice</button>
-    <button onclick="checkGameOver()">Finish Game</button>
-    <button onclick="resetGame()">New Game</button>
+    <h1>&#9670; Triangles &#9670;</h1>
+    <div id="scoreboard">
+        <span class="p1">Player 1</span><span class="score-val" id="s1"> 0</span>
+        <span class="divider">&#10022;</span>
+        <span class="p2">Player 2</span><span class="score-val" id="s2"> 0</span>
+    </div>
+    <p id="turn-line"><span id="player-display" class="p1">Player 1</span>'s turn &nbsp;&bull;&nbsp; Moves left: <span id="moves">0</span></p>
+    <div class="btn-row">
+        <button id="btn-roll" onclick="rollDice()">&#9670; Roll Dice</button>
+        <button id="btn-finish" onclick="checkGameOver()">&#9632; Finish</button>
+        <button id="btn-new" onclick="resetGame()">&#8635; New Game</button>
+    </div>
+</div>
+
+<div id="canvas-wrap">
+    <canvas id="canvas"></canvas>
 </div>
 
 <div id="game-over">
-    <h2 id="winner-text"></h2>
-    <button onclick="resetGame()">Play Again</button>
+    <h2><span id="winner-text"></span>&#127942;</h2>
+    <button id="btn-play-again" onclick="resetGame()">&#9670; Play Again</button>
 </div>
-
-<canvas id="canvas"></canvas>
 
 <script>
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const colors = { 1: '#3498db', 2: '#e74c3c' };
+    const colors = { 1: '#60b8ff', 2: '#ff7070' };
     let dots = [], lines = [], triangles = [], currentPlayer = 1, movesRemaining = 0, firstDot = null;
 
     function tapRadius() { return canvas.width * 0.1; }
     function px(d) { return { x: d.rx * canvas.width, y: d.ry * canvas.height }; }
 
     function resizeCanvas() {
-        const size = Math.min(window.innerWidth - 20, window.innerHeight - 160, 500);
+        const size = Math.min(window.innerWidth - 20, window.innerHeight - 170, 500);
         canvas.width  = Math.max(size, 200);
         canvas.height = Math.max(size, 200);
         draw();
     }
-
     window.addEventListener('resize', resizeCanvas);
     window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 150));
 
@@ -60,8 +300,7 @@
                 const rx = 0.1 + Math.random() * 0.8;
                 const ry = 0.1 + Math.random() * 0.8;
                 if (!dots.some(d => Math.hypot(d.rx - rx, d.ry - ry) < minRatio)) {
-                    dots.push({ rx, ry, id: i });
-                    break;
+                    dots.push({ rx, ry, id: i }); break;
                 }
             }
         }
@@ -93,19 +332,17 @@
         return false;
     }
 
-    function checkAllTrianglesClaimed() {
-        if (!anyLegalMoveExists()) showGameOver();
-    }
+    function checkAllTrianglesClaimed() { if (!anyLegalMoveExists()) showGameOver(); }
 
     function showGameOver() {
         const s1 = triangles.filter(t => t.player === 1).length;
         const s2 = triangles.filter(t => t.player === 2).length;
-        const p1tag = `<span class="p1">Player 1</span>`;
-        const p2tag = `<span class="p2">Player 2</span>`;
+        const p1tag = '<span class="p1">Player 1</span>';
+        const p2tag = '<span class="p2">Player 2</span>';
         let msg;
-        if (s1 > s2) msg = `${p1tag} Wins! (${s1}-${s2})`;
-        else if (s2 > s1) msg = `${p2tag} Wins! (${s2}-${s1})`;
-        else msg = `It's a Draw! (${s1}-${s2})`;
+        if (s1 > s2) msg = `${p1tag} Wins! (${s1}&#8209;${s2}) `;
+        else if (s2 > s1) msg = `${p2tag} Wins! (${s2}&#8209;${s1}) `;
+        else msg = `It's a Draw! (${s1}&#8209;${s2}) `;
         document.getElementById('winner-text').innerHTML = msg;
         document.getElementById('game-over').style.display = 'block';
     }
@@ -114,27 +351,70 @@
 
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Subtle grid shimmer on canvas background
+        ctx.save();
+        ctx.strokeStyle = 'rgba(120,100,200,0.07)';
+        ctx.lineWidth = 0.5;
+        const step = canvas.width / 10;
+        for (let x = 0; x <= canvas.width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+        for (let y = 0; y <= canvas.height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+        ctx.restore();
+
+        // Triangles
         triangles.forEach(t => {
             const p1 = px(t.p1), p2 = px(t.p2), p3 = px(t.p3);
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y); ctx.lineTo(p3.x, p3.y);
             ctx.closePath();
-            ctx.fillStyle = colors[t.player] + '40';
+            ctx.fillStyle = colors[t.player] + '30';
             ctx.fill();
+            ctx.strokeStyle = colors[t.player] + '60';
+            ctx.lineWidth = 1;
+            ctx.stroke();
         });
+
+        // Lines
         lines.forEach(l => {
             const p1 = px(l.p1), p2 = px(l.p2);
+            // Glow layer
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+            ctx.strokeStyle = colors[l.player] + '30';
+            ctx.lineWidth = 7;
+            ctx.stroke();
+            // Core line
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
             ctx.strokeStyle = colors[l.player];
-            ctx.lineWidth = 3;
+            ctx.lineWidth = 2.5;
             ctx.stroke();
         });
+
+        // Dots
         dots.forEach(d => {
             const p = px(d);
+            const isSelected = (d === firstDot);
+            // Outer glow
+            const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, isSelected ? 14 : 10);
+            grd.addColorStop(0, isSelected ? 'rgba(255,220,50,0.6)' : 'rgba(180,140,255,0.4)');
+            grd.addColorStop(1, 'rgba(0,0,0,0)');
             ctx.beginPath();
-            ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
-            ctx.fillStyle = (d === firstDot) ? '#f1c40f' : '#333';
+            ctx.arc(p.x, p.y, isSelected ? 14 : 10, 0, Math.PI * 2);
+            ctx.fillStyle = grd;
+            ctx.fill();
+            // Dot body
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, isSelected ? 7 : 5, 0, Math.PI * 2);
+            ctx.fillStyle = isSelected ? '#ffe044' : '#c8b8ff';
+            ctx.shadowColor = isSelected ? '#ffe044' : '#a080ff';
+            ctx.shadowBlur = 8;
+            ctx.fill();
+            ctx.shadowBlur = 0;
+            // Inner highlight
+            ctx.beginPath();
+            ctx.arc(p.x - 1.5, p.y - 1.5, isSelected ? 2.5 : 1.8, 0, Math.PI * 2);
+            ctx.fillStyle = 'rgba(255,255,255,0.7)';
             ctx.fill();
         });
     }
@@ -142,14 +422,14 @@
     function updateScore() {
         const s1 = triangles.filter(t => t.player === 1).length;
         const s2 = triangles.filter(t => t.player === 2).length;
-        document.getElementById('scoreboard').innerHTML =
-            `<span class="p1">Player 1</span>: ${s1} | <span class="p2">Player 2</span>: ${s2}`;
+        document.getElementById('s1').textContent = ' ' + s1;
+        document.getElementById('s2').textContent = ' ' + s2;
     }
 
     function updateTurnDisplay() {
         const el = document.getElementById('player-display');
         el.className = 'p' + currentPlayer;
-        el.innerHTML = `Player ${currentPlayer}`;
+        el.innerHTML = 'Player ' + currentPlayer;
     }
 
     function checkAndFillTriangle(d1, d2) {
@@ -172,7 +452,7 @@
 
     function resetGame() {
         lines = []; triangles = []; movesRemaining = 0; firstDot = null; currentPlayer = 1;
-        document.getElementById('moves').innerText = '0';
+        document.getElementById('moves').textContent = '0';
         document.getElementById('game-over').style.display = 'none';
         updateScore();
         updateTurnDisplay();
@@ -185,10 +465,7 @@
         const mx = e.clientX - rect.left;
         const my = e.clientY - rect.top;
         const tr = tapRadius();
-        const clickedDot = dots.find(d => {
-            const p = px(d);
-            return Math.hypot(p.x - mx, p.y - my) < tr;
-        });
+        const clickedDot = dots.find(d => { const p = px(d); return Math.hypot(p.x - mx, p.y - my) < tr; });
         if (clickedDot) {
             if (!firstDot) firstDot = clickedDot;
             else if (clickedDot === firstDot) firstDot = null;
@@ -204,13 +481,11 @@
                 checkAndFillTriangle(firstDot, clickedDot);
                 firstDot = null;
                 movesRemaining--;
-                document.getElementById('moves').innerText = movesRemaining;
-
+                document.getElementById('moves').textContent = movesRemaining;
                 if (movesRemaining === 0) {
                     currentPlayer = currentPlayer === 1 ? 2 : 1;
                     updateTurnDisplay();
                 }
-
                 checkAllTrianglesClaimed();
             }
             draw();
@@ -220,7 +495,7 @@
     function rollDice() {
         if (movesRemaining === 0) {
             movesRemaining = Math.floor(Math.random() * 6) + 1;
-            document.getElementById('moves').innerText = movesRemaining;
+            document.getElementById('moves').textContent = movesRemaining;
         }
     }
 
