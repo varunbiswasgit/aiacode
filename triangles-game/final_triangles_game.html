@@ -19,8 +19,8 @@
 
 <div id="ui">
     <h1>Triangles (24 Dots)</h1>
-    <div id="scoreboard">Player 1: 0 | Player 2: 0</div>
-    <p>Player <span id="player-display" class="p1">1</span>'s turn. Moves left: <span id="moves">0</span></p>
+    <div id="scoreboard"><span class="p1">Player 1</span>: 0 | <span class="p2">Player 2</span>: 0</div>
+    <p><span id="player-display" class="p1">Player 1</span>'s turn. Moves left: <span id="moves">0</span></p>
     <button onclick="rollDice()">Roll Dice</button>
     <button onclick="checkGameOver()">Finish Game</button>
     <button onclick="resetGame()">New Game</button>
@@ -39,13 +39,9 @@
     const colors = { 1: '#3498db', 2: '#e74c3c' };
     let dots = [], lines = [], triangles = [], currentPlayer = 1, movesRemaining = 0, firstDot = null;
 
-    // Returns tap radius proportional to current canvas size
     function tapRadius() { return canvas.width * 0.1; }
-
-    // Pixel position of a dot from its stored normalised ratios (0-1)
     function px(d) { return { x: d.rx * canvas.width, y: d.ry * canvas.height }; }
 
-    // Resize canvas to fit the current viewport (portrait, landscape, iPad, iPhone)
     function resizeCanvas() {
         const size = Math.min(window.innerWidth - 20, window.innerHeight - 160, 500);
         canvas.width  = Math.max(size, 200);
@@ -54,7 +50,6 @@
     }
 
     window.addEventListener('resize', resizeCanvas);
-    // orientationchange fires before iOS reflows — delay to read correct dimensions
     window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 150));
 
     function generateDots() {
@@ -72,8 +67,6 @@
         }
     }
 
-    // Takes dot REFERENCES (not pixel objects) so === shared-endpoint guard works correctly.
-    // Pixel projection happens inside after the endpoint check passes.
     function doLinesIntersect(a1, a2, b1, b2) {
         if (a1 === b1 || a1 === b2 || a2 === b1 || a2 === b2) return false;
         const p1 = px(a1), p2 = px(a2), p3 = px(b1), p4 = px(b2);
@@ -88,7 +81,6 @@
         return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
     }
 
-    // Returns true if at least one legal line can still be drawn between any two dots.
     function anyLegalMoveExists() {
         for (let i = 0; i < dots.length; i++) {
             for (let j = i + 1; j < dots.length; j++) {
@@ -108,11 +100,13 @@
     function showGameOver() {
         const s1 = triangles.filter(t => t.player === 1).length;
         const s2 = triangles.filter(t => t.player === 2).length;
-        document.getElementById('winner-text').innerText = s1 > s2
-            ? `Player 1 Wins! (${s1}-${s2})`
-            : s2 > s1
-                ? `Player 2 Wins! (${s2}-${s1})`
-                : `It's a Draw! (${s1}-${s2})`;
+        const p1tag = `<span class="p1">Player 1</span>`;
+        const p2tag = `<span class="p2">Player 2</span>`;
+        let msg;
+        if (s1 > s2) msg = `${p1tag} Wins! (${s1}-${s2})`;
+        else if (s2 > s1) msg = `${p2tag} Wins! (${s2}-${s1})`;
+        else msg = `It's a Draw! (${s1}-${s2})`;
+        document.getElementById('winner-text').innerHTML = msg;
         document.getElementById('game-over').style.display = 'block';
     }
 
@@ -145,6 +139,19 @@
         });
     }
 
+    function updateScore() {
+        const s1 = triangles.filter(t => t.player === 1).length;
+        const s2 = triangles.filter(t => t.player === 2).length;
+        document.getElementById('scoreboard').innerHTML =
+            `<span class="p1">Player 1</span>: ${s1} | <span class="p2">Player 2</span>: ${s2}`;
+    }
+
+    function updateTurnDisplay() {
+        const el = document.getElementById('player-display');
+        el.className = 'p' + currentPlayer;
+        el.innerHTML = `Player ${currentPlayer}`;
+    }
+
     function checkAndFillTriangle(d1, d2) {
         const linesToD1 = lines.filter(l => l.p1 === d1 || l.p2 === d1);
         for (let l1 of linesToD1) {
@@ -163,19 +170,12 @@
         updateScore();
     }
 
-    function updateScore() {
-        const s1 = triangles.filter(t => t.player === 1).length;
-        const s2 = triangles.filter(t => t.player === 2).length;
-        document.getElementById('scoreboard').innerText = `Player 1: ${s1} | Player 2: ${s2}`;
-    }
-
     function resetGame() {
         lines = []; triangles = []; movesRemaining = 0; firstDot = null; currentPlayer = 1;
-        document.getElementById('moves').innerText = "0";
+        document.getElementById('moves').innerText = '0';
         document.getElementById('game-over').style.display = 'none';
-        document.getElementById('scoreboard').innerText = "Player 1: 0 | Player 2: 0";
-        document.getElementById('player-display').innerText = "1";
-        document.getElementById('player-display').className = 'p1';
+        updateScore();
+        updateTurnDisplay();
         generateDots(); draw();
     }
 
@@ -196,9 +196,8 @@
                 if (lines.some(l => (l.p1 === firstDot && l.p2 === clickedDot) || (l.p1 === clickedDot && l.p2 === firstDot))) {
                     firstDot = null; return;
                 }
-                // Pass dot references — not pixel objects — so shared-endpoint guard works
                 if (lines.some(l => doLinesIntersect(firstDot, clickedDot, l.p1, l.p2))) {
-                    alert("Invalid Move: Line crosses another!");
+                    alert('Invalid Move: Line crosses another!');
                     firstDot = null; return;
                 }
                 lines.push({ p1: firstDot, p2: clickedDot, player: currentPlayer });
@@ -207,11 +206,9 @@
                 movesRemaining--;
                 document.getElementById('moves').innerText = movesRemaining;
 
-                // Switch player first, then check board exhaustion
                 if (movesRemaining === 0) {
                     currentPlayer = currentPlayer === 1 ? 2 : 1;
-                    document.getElementById('player-display').innerText = currentPlayer;
-                    document.getElementById('player-display').className = 'p' + currentPlayer;
+                    updateTurnDisplay();
                 }
 
                 checkAllTrianglesClaimed();
