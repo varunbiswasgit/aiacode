@@ -150,7 +150,7 @@ Private Sub ProcessSheetCore(ByVal ws As Worksheet, ByRef opt As TRunOptions)
 	CleanTextInRange dataRange
 	' IMPORTANT: clean header again explicitly
 	If opt.HasHeaderRow Then
-		CleanTextInRange ws.Range(ws.Rows(1))
+		CleanTextInRange ws.Rows(1)
 	End If
 	If opt.DoDedupe Then
 		RemoveDuplicateRows ws, opt.HasHeaderRow
