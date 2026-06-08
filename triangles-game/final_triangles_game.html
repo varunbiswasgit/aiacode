@@ -1,2 +1,208 @@
-<!-- See repository root for license and contribution guidelines -->
-<!-- Source file delivered via AI-assisted workflow -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Triangles: Final Edition</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; background-color: #f4f4f9; padding: 20px; }
+        canvas { border: 2px solid #333; background: #fff; touch-action: none; cursor: crosshair; display: block; margin: 0 auto; }
+        #ui { margin-bottom: 10px; font-size: 1.2em; }
+        .p1 { color: #3498db; font-weight: bold; }
+        .p2 { color: #e74c3c; font-weight: bold; }
+        #scoreboard { font-weight: bold; margin: 10px 0; }
+        #game-over { display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); background: rgba(0,0,0,0.85); color: white; padding: 30px; border-radius: 15px; z-index: 10; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; margin: 5px; }
+    </style>
+</head>
+<body>
+
+<div id="ui">
+    <h1>Triangles (24 Dots)</h1>
+    <div id="scoreboard">Player 1: 0 | Player 2: 0</div>
+    <p>Player <span id="player-display" class="p1">1</span>'s turn. Moves left: <span id="moves">0</span></p>
+    <button onclick="rollDice()">Roll Dice</button>
+    <button onclick="checkGameOver()">Finish Game</button>
+    <button onclick="resetGame()">New Game</button>
+</div>
+
+<div id="game-over">
+    <h2 id="winner-text"></h2>
+    <button onclick="resetGame()">Play Again</button>
+</div>
+
+<canvas id="canvas" width="400" height="400"></canvas>
+
+<script>
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+    const colors = { 1: '#3498db', 2: '#e74c3c' };
+    let dots = [], lines = [], triangles = [], currentPlayer = 1, movesRemaining = 0, firstDot = null;
+    const TAP_RADIUS = 40;
+
+    function generateDots() {
+        dots = [];
+        const minDistance = 60;
+        for (let i = 0; i < 24; i++) {
+            for (let j = 0; j < 1000; j++) {
+                let candidate = { x: 50 + Math.random() * 300, y: 50 + Math.random() * 300 };
+                if (!dots.some(d => Math.hypot(d.x - candidate.x, d.y - candidate.y) < minDistance)) {
+                    dots.push({ ...candidate, id: i });
+                    break;
+                }
+            }
+        }
+    }
+
+    function doLinesIntersect(p1, p2, p3, p4) {
+        if (p1 === p3 || p1 === p4 || p2 === p3 || p2 === p4) return false;
+        const ccw = (A, B, C) => (C.y - A.y) * (B.x - A.x) > (B.y - A.y) * (C.x - A.x);
+        return ccw(p1, p3, p4) !== ccw(p2, p3, p4) && ccw(p1, p2, p3) !== ccw(p1, p2, p4);
+    }
+
+    function isPointInTriangle(p, p1, p2, p3) {
+        const d1 = (p.x - p2.x) * (p1.y - p2.y) - (p1.x - p2.x) * (p.y - p2.y);
+        const d2 = (p.x - p3.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p.y - p3.y);
+        const d3 = (p.x - p1.x) * (p3.y - p1.y) - (p3.x - p1.x) * (p.y - p1.y);
+        return !((d1 < 0 || d2 < 0 || d3 < 0) && (d1 > 0 || d2 > 0 || d3 > 0));
+    }
+
+    // Returns true if at least one legal line can still be drawn between any two dots.
+    // A line is legal if: (1) not already drawn, (2) does not cross any existing line.
+    // When no legal line exists, no new triangle can ever be formed — game is over.
+    function anyLegalMoveExists() {
+        for (let i = 0; i < dots.length; i++) {
+            for (let j = i + 1; j < dots.length; j++) {
+                const a = dots[i], b = dots[j];
+                if (lines.some(l =>
+                    (l.p1 === a && l.p2 === b) ||
+                    (l.p1 === b && l.p2 === a))) continue;
+                if (lines.some(l => doLinesIntersect(a, b, l.p1, l.p2))) continue;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Called after every placed line. Triggers game-over when the board is fully exhausted.
+    function checkAllTrianglesClaimed() {
+        if (!anyLegalMoveExists()) showGameOver();
+    }
+
+    function showGameOver() {
+        const s1 = triangles.filter(t => t.player === 1).length;
+        const s2 = triangles.filter(t => t.player === 2).length;
+        document.getElementById('winner-text').innerText = s1 > s2
+            ? `Player 1 Wins! (${s1}-${s2})`
+            : s2 > s1
+                ? `Player 2 Wins! (${s2}-${s1})`
+                : `It's a Draw! (${s1}-${s2})`;
+        document.getElementById('game-over').style.display = 'block';
+    }
+
+    // Manual "Finish Game" button delegates to showGameOver
+    function checkGameOver() { showGameOver(); }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        triangles.forEach(t => {
+            ctx.beginPath();
+            ctx.moveTo(t.p1.x, t.p1.y); ctx.lineTo(t.p2.x, t.p2.y); ctx.lineTo(t.p3.x, t.p3.y);
+            ctx.closePath();
+            ctx.fillStyle = colors[t.player] + '40';
+            ctx.fill();
+        });
+        lines.forEach(l => {
+            ctx.beginPath();
+            ctx.moveTo(l.p1.x, l.p1.y); ctx.lineTo(l.p2.x, l.p2.y);
+            ctx.strokeStyle = colors[l.player];
+            ctx.lineWidth = 3;
+            ctx.stroke();
+        });
+        dots.forEach(d => {
+            ctx.beginPath();
+            ctx.arc(d.x, d.y, 6, 0, Math.PI * 2);
+            ctx.fillStyle = (d === firstDot) ? '#f1c40f' : '#333';
+            ctx.fill();
+        });
+    }
+
+    function checkAndFillTriangle(d1, d2) {
+        const linesToD1 = lines.filter(l => l.p1 === d1 || l.p2 === d1);
+        // const linesToD2 = lines.filter(l => l.p1 === d2 || l.p2 === d2); // unused variable — commented out
+        for (let l1 of linesToD1) {
+            const otherDot = (l1.p1 === d1) ? l1.p2 : l1.p1;
+            if (lines.some(l => (l.p1 === otherDot && l.p2 === d2) || (l.p1 === d2 && l.p2 === otherDot))) {
+                if (!dots.some(d => d !== d1 && d !== d2 && d !== otherDot && isPointInTriangle(d, d1, d2, otherDot)) &&
+                    !triangles.find(t =>
+                        (t.p1 === d1 || t.p1 === d2 || t.p1 === otherDot) &&
+                        (t.p2 === d1 || t.p2 === d2 || t.p2 === otherDot) &&
+                        (t.p3 === d1 || t.p3 === d2 || t.p3 === otherDot))) {
+                    triangles.push({ p1: d1, p2: d2, p3: otherDot, player: currentPlayer });
+                }
+            }
+        }
+        updateScore();
+    }
+
+    function updateScore() {
+        const s1 = triangles.filter(t => t.player === 1).length;
+        const s2 = triangles.filter(t => t.player === 2).length;
+        document.getElementById('scoreboard').innerText = `Player 1: ${s1} | Player 2: ${s2}`;
+    }
+
+    function resetGame() {
+        lines = []; triangles = []; movesRemaining = 0; firstDot = null; currentPlayer = 1;
+        document.getElementById('moves').innerText = "0";
+        document.getElementById('game-over').style.display = 'none';
+        document.getElementById('scoreboard').innerText = "Player 1: 0 | Player 2: 0";
+        document.getElementById('player-display').innerText = "1";
+        document.getElementById('player-display').className = 'p1';
+        generateDots(); draw();
+    }
+
+    canvas.addEventListener('click', (e) => {
+        if (movesRemaining <= 0) return;
+        const rect = canvas.getBoundingClientRect();
+        const clickedDot = dots.find(d => Math.hypot(d.x - (e.clientX - rect.left), d.y - (e.clientY - rect.top)) < TAP_RADIUS);
+        if (clickedDot) {
+            if (!firstDot) firstDot = clickedDot;
+            else if (clickedDot === firstDot) firstDot = null;
+            else {
+                if (lines.some(l => (l.p1 === firstDot && l.p2 === clickedDot) || (l.p1 === clickedDot && l.p2 === firstDot))) {
+                    firstDot = null; return;
+                }
+                if (lines.some(l => doLinesIntersect(firstDot, clickedDot, l.p1, l.p2))) {
+                    alert("Invalid Move: Line crosses another!");
+                    firstDot = null; return;
+                }
+                lines.push({ p1: firstDot, p2: clickedDot, player: currentPlayer });
+                checkAndFillTriangle(firstDot, clickedDot);
+                firstDot = null;
+                movesRemaining--;
+                document.getElementById('moves').innerText = movesRemaining;
+
+                // Check board exhaustion BEFORE switching turns so game-over fires on the final move
+                checkAllTrianglesClaimed();
+
+                if (movesRemaining === 0 && document.getElementById('game-over').style.display === 'none') {
+                    currentPlayer = currentPlayer === 1 ? 2 : 1;
+                    document.getElementById('player-display').innerText = currentPlayer;
+                    document.getElementById('player-display').className = 'p' + currentPlayer;
+                }
+            }
+            draw();
+        }
+    });
+
+    function rollDice() {
+        if (movesRemaining === 0) {
+            movesRemaining = Math.floor(Math.random() * 6) + 1;
+            document.getElementById('moves').innerText = movesRemaining;
+        }
+    }
+
+    generateDots(); draw();
+</script>
+</body>
+</html>

@@ -17,9 +17,9 @@ A two-player browser-based dice game built with vanilla HTML, CSS, and JavaScrip
 1. Open `final_triangles_game.html` in any modern browser — no server or install required.
 2. **Player 1** clicks **Roll Dice** to start their turn.
 3. Use the moves granted by the dice roll to connect dots and form triangles.
-4. Click **Finish Game** to end early or let moves run out naturally.
-5. The player with the highest score at game end wins.
-6. Click **New Game** or **Play Again** to reset.
+4. The game ends automatically when no legal line can be drawn anywhere on the board.
+5. Click **Finish Game** to end early at any point.
+6. The player with the highest score wins. Click **New Game** or **Play Again** to reset.
 
 ---
 
@@ -44,3 +44,4 @@ None. Pure HTML/CSS/JavaScript — runs entirely in the browser.
 | Version | Summary |
 |---------|---------|
 | v1 | Initial release — two-player triangles game with dice mechanic and 24-dot grid |
+| v2 | Auto-detect game end via `anyLegalMoveExists()` (O(n²) dot-pair scan); comment unused `linesToD2` variable; fix duplicate-triangle check to be vertex-order-independent |
