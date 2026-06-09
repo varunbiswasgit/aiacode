@@ -69,31 +69,31 @@ function Wait-ForAppReady($ProcessName, $ProcessTimeout, $WindowTimeout) {
 }
 
 # ---------------------------------------------------------------------------
-# Update shortcut .lnk AND persist entry to JSON config.
-# Only updates shortcut if ExePath differs from current TargetPath.
+# Update shortcut .lnk target to a new exe path.
+# Only called explicitly on UWP resolution and file-picker repair.
+# ---------------------------------------------------------------------------
+function Update-Shortcut($Shortcut, $ExePath) {
+    try {
+        $Shortcut.TargetPath       = $ExePath
+        $Shortcut.Arguments        = ''
+        $Shortcut.WorkingDirectory = Split-Path $ExePath -Parent
+        $Shortcut.Save()
+        Write-Host "  Shortcut updated -> $ExePath"
+    } catch {
+        Write-Warning "Could not update shortcut: $($_.Exception.Message)"
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Persist app classification entry to JSON config only.
+# Does NOT touch the shortcut file.
 # ---------------------------------------------------------------------------
 function Update-AppEntry {
     param(
         $ExistingApp, $Config, $ConfigPath,
-        $Shortcut, $File, $AppDisplayName,
+        $File, $AppDisplayName,
         $ProcessName, $LaunchType, $ExePath, $Aumid
     )
-
-    # Update shortcut file only if target has changed
-    if (-not [string]::IsNullOrEmpty($ExePath) -and
-        $Shortcut.TargetPath -ine $ExePath) {
-        try {
-            $Shortcut.TargetPath       = $ExePath
-            $Shortcut.Arguments        = ''
-            $Shortcut.WorkingDirectory = Split-Path $ExePath -Parent
-            $Shortcut.Save()
-            Write-Host "  Shortcut updated -> $ExePath"
-        } catch {
-            Write-Warning "Could not update shortcut: $($_.Exception.Message)"
-        }
-    }
-
-    # Update existing JSON entry or add new one
     if ($ExistingApp) {
         $ExistingApp.ProcessName = $ProcessName
         $ExistingApp.LaunchType  = $LaunchType
@@ -157,7 +157,7 @@ function Resolve-UwpExe($AppName) {
 }
 
 # ---------------------------------------------------------------------------
-# Shared UWP fork: resolve from WindowsApps, update shortcut + JSON, relaunch
+# Shared UWP fork: resolve, update shortcut (explicit), update JSON, relaunch.
 # Falls back to file-picker if no UWP match found.
 # ---------------------------------------------------------------------------
 function Invoke-UwpFork {
@@ -171,8 +171,13 @@ function Invoke-UwpFork {
 
     if ($resolved) {
         Write-Host "  Found UWP exe: $($resolved.ExePath)"
+
+        # Update shortcut explicitly (target was explorer.exe or stale)
+        Update-Shortcut -Shortcut $Shortcut -ExePath $resolved.ExePath
+
+        # Persist classification to JSON
         Update-AppEntry -ExistingApp $ExistingApp -Config $Config -ConfigPath $ConfigPath `
-            -Shortcut $Shortcut -File $File -AppDisplayName $AppDisplayName `
+            -File $File -AppDisplayName $AppDisplayName `
             -ProcessName $resolved.ProcessName -LaunchType 'UWP' `
             -ExePath $resolved.ExePath -Aumid $resolved.Aumid
 
@@ -186,7 +191,7 @@ function Invoke-UwpFork {
             'NotReady' { Write-Warning "'$AppDisplayName' still did not start after UWP resolution." }
         }
     } else {
-        # No UWP match found -- offer file-picker repair
+        # No UWP match -- file-picker repair
         Write-Warning "'$AppDisplayName' did not start and no UWP match found. Select executable manually."
         Add-Type -AssemblyName System.Windows.Forms
         $dlg                  = New-Object System.Windows.Forms.OpenFileDialog
@@ -198,8 +203,13 @@ function Invoke-UwpFork {
 
         if ($selectedExe -and (Test-Path -LiteralPath $selectedExe)) {
             $repairedProc = [System.IO.Path]::GetFileNameWithoutExtension($selectedExe)
+
+            # Update shortcut explicitly (file-picker repair)
+            Update-Shortcut -Shortcut $Shortcut -ExePath $selectedExe
+
+            # Persist classification to JSON
             Update-AppEntry -ExistingApp $ExistingApp -Config $Config -ConfigPath $ConfigPath `
-                -Shortcut $Shortcut -File $File -AppDisplayName $AppDisplayName `
+                -File $File -AppDisplayName $AppDisplayName `
                 -ProcessName $repairedProc -LaunchType 'Win32' `
                 -ExePath $selectedExe -Aumid ''
 
@@ -321,7 +331,7 @@ foreach ($file in $lnkFiles) {
     }
 
     # ------------------------------------------------------------------
-    # Stale entry detection: clear classification fields so re-detection runs
+    # Stale entry detection: wipe classification so re-detection runs
     # ------------------------------------------------------------------
     $isStale = $existingApp -and (
         [string]::IsNullOrEmpty($existingApp.ProcessName) -or
@@ -387,6 +397,7 @@ foreach ($file in $lnkFiles) {
 
     # ------------------------------------------------------------------
     # PATH 2 & 3: Known Win32 OR unknown/stale -> WshShell.Run .lnk
+    # Shortcut NOT updated here -- target is already correct for Win32.
     # ------------------------------------------------------------------
     if ($existingApp -and $existingApp.LaunchType -eq 'Win32') {
         Write-Host "Launching $appDisplayName [Win32]..."
@@ -396,7 +407,7 @@ foreach ($file in $lnkFiles) {
 
     $WshShell.Run('"' + $file.FullName + '"', 1, $false)
 
-    # If TargetPath is explorer.exe, skip process wait -- go straight to UWP fork
+    # If TargetPath is explorer.exe, skip process wait -> straight to UWP fork
     $isExplorerTarget = $targetPath -ieq "$env:SystemRoot\explorer.exe"
     if (-not $isExplorerTarget) {
         $state = Wait-ForAppReady -ProcessName $procName `
@@ -408,17 +419,20 @@ foreach ($file in $lnkFiles) {
     switch ($state) {
         'Window' {
             Write-Host "  Window ready. $appDisplayName is up."
+            # Shortcut already correct -- only update JSON
             Update-AppEntry -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
-                -Shortcut $shortcut -File $file -AppDisplayName $appDisplayName `
+                -File $file -AppDisplayName $appDisplayName `
                 -ProcessName $procName -LaunchType 'Win32' -ExePath $targetPath -Aumid ''
         }
         'Tray' {
             Write-Host "  Running in tray. $appDisplayName is up."
+            # Shortcut already correct -- only update JSON
             Update-AppEntry -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
-                -Shortcut $shortcut -File $file -AppDisplayName $appDisplayName `
+                -File $file -AppDisplayName $appDisplayName `
                 -ProcessName $procName -LaunchType 'Win32' -ExePath $targetPath -Aumid ''
         }
         'NotReady' {
+            # Launch failed -- attempt UWP resolution (updates shortcut + JSON)
             Invoke-UwpFork -AppDisplayName $appDisplayName -Shortcut $shortcut -File $file `
                 -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
                 -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
