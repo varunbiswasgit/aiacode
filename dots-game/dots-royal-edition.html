@@ -73,8 +73,6 @@
     #btn-finish:active { transform:translateY(4px); box-shadow:0 1px 0 #2e0650; }
     #btn-new    { background: linear-gradient(175deg,#67e8f9 0%,#0284c7 45%,#0a1a4a 100%); color:#e0f7ff; box-shadow:0 5px 0 #062040,0 7px 14px rgba(0,80,180,.45),inset 0 1px 0 rgba(180,240,255,.4); }
     #btn-new:active    { transform:translateY(4px); box-shadow:0 1px 0 #062040; }
-
-    /* Dice mode toggle */
     #btn-dice {
       background: linear-gradient(175deg,#4ade80 0%,#16a34a 45%,#052e16 100%);
       color:#f0fdf4; box-shadow:0 5px 0 #14532d,0 7px 14px rgba(0,120,60,.45),inset 0 1px 0 rgba(180,255,200,.4);
@@ -86,8 +84,6 @@
     #btn-dice:active { transform:translateY(4px); box-shadow:0 1px 0 #14532d; }
     #btn-dice.dice-off:active { box-shadow:0 1px 0 #0f172a; }
     #btn-dice.locked { opacity: 0.42; cursor: not-allowed; pointer-events: none; }
-
-    /* Dice panel */
     #dice-panel {
       display: none;
       align-items: center; justify-content: center; gap: 10px; flex-wrap: wrap;
@@ -110,8 +106,6 @@
     }
     #dice-label, #dice-label2 { color: rgba(220,255,210,0.85); }
     #dice-moves-left { color: #4ade80; font-weight: 700; text-shadow: 0 0 8px rgba(74,222,128,0.6); }
-
-    /* Roll button inside dice panel */
     #btn-roll {
       font-family: 'Cinzel', serif; font-size: clamp(0.66rem,1.7vw,0.82rem); font-weight: 700;
       letter-spacing: 0.08em; padding: 6px 14px; border: none; border-radius: 9px;
@@ -122,10 +116,7 @@
       box-shadow: 0 4px 0 #92400e, 0 6px 12px rgba(180,100,0,.4), inset 0 1px 0 rgba(255,240,180,.5);
     }
     #btn-roll:active { transform: translateY(3px); box-shadow: 0 1px 0 #92400e; }
-    #btn-roll.used {
-      opacity: 0.38; cursor: not-allowed; pointer-events: none;
-    }
-
+    #btn-roll.used { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
     #btn-play-again, #btn-close-rules {
       font-family:'Cinzel',serif; font-size:.88rem; font-weight:600; letter-spacing:.08em;
       padding:10px 24px; border:none; border-radius:10px; cursor:pointer;
@@ -133,7 +124,6 @@
       box-shadow:0 5px 0 #014d38,0 7px 14px rgba(0,120,80,.45),inset 0 1px 0 rgba(180,255,220,.4);
     }
     #btn-play-again:active, #btn-close-rules:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
-
     #canvas-wrap {
       position: relative; z-index: 1;
       display: inline-block;
@@ -189,7 +179,6 @@
   <p id="turn-line"><span id="player-display" class="p1">Player 1</span>'s turn</p>
   <p id="status-line">Tap the line between two dots to claim it. <span id="bonus-note">Close a box to play again.</span></p>
 
-  <!-- Dice panel (visible only when dice mode is ON) -->
   <div id="dice-panel">
     <span id="dice-face">&#9856;</span>
     <span id="dice-label">Roll: <strong id="dice-value">&ndash;</strong></span>
@@ -219,10 +208,10 @@
   <h2>Royal Rules</h2>
   <ul>
     <li>Tap the gap between any two adjacent dots to draw a line there.</li>
-    <li>If your line completes the fourth side of a rectangle, you claim that box.</li>
-    <li>Claim a box and you get another turn immediately.</li>
+    <li>If your line completes the fourth side of a rectangle, you claim that box &mdash; but the turn still passes normally.</li>
+    <li>In classic mode, completing a box earns you another turn immediately.</li>
     <li>When all lines are drawn, the player with more boxes wins.</li>
-    <li><strong style="color:#4ade80">&#9860; Dice Mode:</strong> Toggle Dice ON <em>before</em> the first line is drawn. At the start of each turn, press <strong>&#127922; Roll</strong> to get your line budget (1&ndash;6). Draw up to that many lines. Completing a box earns +1 bonus line. Turn ends when the budget hits zero. Mode locks once the game starts &mdash; use New Game to change it.</li>
+    <li><strong style="color:#4ade80">&#9860; Dice Mode:</strong> Toggle Dice ON <em>before</em> the first line is drawn. Press <strong>&#127922; Roll</strong> at the start of your turn to get a line budget (1&ndash;6). Draw up to that many lines &mdash; boxes score but do <em>not</em> preserve your turn. Turn passes when the budget hits zero. Mode locks once the game starts; use New Game to change it.</li>
   </ul>
   <button id="btn-close-rules" type="button">Close</button>
 </div>
@@ -254,8 +243,8 @@
   let diceMode    = false;
   let diceRollVal = 0;
   let linesLeft   = 0;
-  let needsRoll   = false;  // true = waiting for player to press Roll
-  let gameStarted = false;  // true once first line drawn
+  let needsRoll   = false;
+  let gameStarted = false;
 
   // ── DICE HELPERS ───────────────────────────────────────────────────────────
   function rollDice() {
@@ -264,7 +253,7 @@
     needsRoll   = false;
     animateDice(diceRollVal);
     updateDiceUI();
-    setRollBtn(false);       // lock roll button after use
+    setRollBtn(false);
     updateCanvasCursor();
     updateStatusLine();
   }
@@ -283,7 +272,6 @@
     document.getElementById('dice-moves-left').textContent = needsRoll ? '\u2013' : linesLeft;
   }
 
-  // rollBtn: true = ready to roll (active), false = already rolled (dimmed)
   function setRollBtn(ready) {
     const btn = document.getElementById('btn-roll');
     if (ready) btn.classList.remove('used');
@@ -298,7 +286,6 @@
       btn.textContent = '\u2684 Dice ON';
       btn.classList.remove('dice-off');
       panel.classList.add('visible');
-      // Arm the roll button for the first turn
       needsRoll = true;
       setRollBtn(true);
       updateDiceUI();
@@ -331,13 +318,13 @@
   }
 
   function updateStatusLine() {
-    const statusEl = document.getElementById('status-line');
+    const el = document.getElementById('status-line');
     if (diceMode && needsRoll) {
-      statusEl.innerHTML = '<span id="roll-prompt">Press \u127922 Roll to start your turn.</span>';
+      el.innerHTML = '<span id="roll-prompt">Press &#127922; Roll to start your turn.</span>';
     } else if (diceMode) {
-      statusEl.innerHTML = 'Draw a line. <span id="bonus-note">Box = +1 bonus line.</span>';
+      el.innerHTML = 'Draw a line &mdash; boxes score but turn passes on budget only.';
     } else {
-      statusEl.innerHTML = 'Tap the line between two dots to claim it. <span id="bonus-note">Close a box to play again.</span>';
+      el.innerHTML = 'Tap the line between two dots to claim it. <span id="bonus-note">Close a box to play again.</span>';
     }
   }
 
@@ -386,21 +373,18 @@
     const thH = gapX * 0.54;
     const thV = gapY * 0.54;
     let best = null, bestD = Infinity;
-
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS - 1; c++) {
         if (hLines[r][c]) continue;
         const d = Math.hypot(cx - (padX + (c + 0.5) * gapX), cy - (padY + r * gapY));
         if (d < bestD && d <= thH) { bestD = d; best = { type: 'H', r, c }; }
       }
-
     for (let r = 0; r < ROWS - 1; r++)
       for (let c = 0; c < COLS; c++) {
         if (vLines[r][c]) continue;
         const d = Math.hypot(cx - (padX + c * gapX), cy - (padY + (r + 0.5) * gapY));
         if (d < bestD && d <= thV) { bestD = d; best = { type: 'V', r, c }; }
       }
-
     return best;
   }
 
@@ -461,7 +445,7 @@
 
   function handleTap(clientX, clientY) {
     if (document.getElementById('game-over').classList.contains('show')) return;
-    if (diceMode && needsRoll)   return;   // must roll first
+    if (diceMode && needsRoll)      return;
     if (diceMode && linesLeft <= 0) return;
 
     const { x, y } = toPx(clientX, clientY);
@@ -476,14 +460,16 @@
     if (seg.type === 'H') hLines[seg.r][seg.c] = currentPlayer;
     else                  vLines[seg.r][seg.c] = currentPlayer;
 
-    const claimed = claimBoxes(seg);
+    claimBoxes(seg);   // score the box; no effect on turn in either mode here
 
     if (diceMode) {
+      // Pure budget drain — boxes score but never preserve the turn
       linesLeft--;
-      if (claimed > 0) linesLeft += claimed;
       updateDiceUI();
       if (linesLeft <= 0) advanceTurn();
     } else {
+      // Classic: no box claimed = pass turn; box claimed = play again
+      const claimed = claimBoxes(seg);
       if (claimed === 0) advanceTurn();
     }
 
@@ -569,7 +555,6 @@
     const lineWH = Math.max(2.5, gapX * 0.055);
     const lineWV = Math.max(2.5, gapY * 0.08);
     const ghostW = Math.max(5,  Math.min(gapX, gapY) * 0.14);
-
     function drawSeg(p1, p2, owner, glowW, lineW) {
       if (owner) {
         ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
@@ -583,11 +568,9 @@
         ctx.lineCap = 'round'; ctx.stroke();
       }
     }
-
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS - 1; c++)
         drawSeg(pt(r,c), pt(r,c+1), hLines[r][c], glowWH, lineWH);
-
     for (let r = 0; r < ROWS - 1; r++)
       for (let c = 0; c < COLS; c++)
         drawSeg(pt(r,c), pt(r+1,c), vLines[r][c], glowWV, lineWV);
