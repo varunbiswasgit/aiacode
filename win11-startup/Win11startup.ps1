@@ -54,7 +54,7 @@ function Wait-ForAppReady($ProcessName, $ProcessTimeout, $WindowTimeout) {
 
 # ---------------------------------------------------------------------------
 # Helper: search WindowsApps for a package matching $AppName.
-# Returns a hashtable: @{ ExePath = '...'; Aumid = '...' } or $null.
+# Returns hashtable @{ ExePath; Aumid; ProcessName } or $null.
 # ---------------------------------------------------------------------------
 function Resolve-UwpExe($AppName) {
     $windowsApps = 'C:\Program Files\WindowsApps'
@@ -63,7 +63,6 @@ function Resolve-UwpExe($AppName) {
         return $null
     }
 
-    # Fuzzy-match package folders by app name (case-insensitive, partial match)
     $candidates = Get-ChildItem -LiteralPath $windowsApps -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -match [regex]::Escape($AppName.Replace(' ','')) -or
                        $_.Name -match ($AppName -replace '\s+', '.*') }
@@ -73,43 +72,33 @@ function Resolve-UwpExe($AppName) {
         if (-not (Test-Path -LiteralPath $manifest)) { continue }
         try {
             [xml]$xml = Get-Content -LiteralPath $manifest -Raw -ErrorAction Stop
-            $ns  = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
+            $ns = New-Object System.Xml.XmlNamespaceManager($xml.NameTable)
             $ns.AddNamespace('x', 'http://schemas.microsoft.com/appx/manifest/foundation/windows10')
             $ns.AddNamespace('u', 'http://schemas.microsoft.com/appx/2010/manifest')
 
-            # Try foundation/windows10 namespace first, fall back to 2010
             $identity = $xml.SelectSingleNode('//x:Identity', $ns)
             if (-not $identity) { $identity = $xml.SelectSingleNode('//u:Identity', $ns) }
             $app = $xml.SelectSingleNode('//x:Application', $ns)
             if (-not $app) { $app = $xml.SelectSingleNode('//u:Application', $ns) }
-
             if (-not $identity -or -not $app) { continue }
 
-            $pfn   = $identity.GetAttribute('Name') + '_' + $identity.GetAttribute('ProcessorArchitecture') + '__' +
-                     (Get-AppxPackage -ErrorAction SilentlyContinue |
-                      Where-Object { $_.Name -eq $identity.GetAttribute('Name') } |
-                      Select-Object -First 1).PublisherId
             $appId = $app.GetAttribute('Id')
             $exe   = $app.GetAttribute('Executable')
-
             if ([string]::IsNullOrEmpty($exe)) { continue }
             $exePath = Join-Path $pkg.FullName $exe
             if (-not (Test-Path -LiteralPath $exePath)) { continue }
 
-            # Build AUMID from Get-AppxPackage (most reliable source)
             $appxPkg = Get-AppxPackage -ErrorAction SilentlyContinue |
                        Where-Object { $_.InstallLocation -eq $pkg.FullName } |
                        Select-Object -First 1
-            if ($appxPkg) {
-                $aumid = $appxPkg.PackageFamilyName + '!' + $appId
-            } else {
-                $aumid = ''
-            }
+            $aumid = if ($appxPkg) { $appxPkg.PackageFamilyName + '!' + $appId } else { '' }
 
-            return @{ ExePath = $exePath; Aumid = $aumid; ProcessName = [System.IO.Path]::GetFileNameWithoutExtension($exePath) }
-        } catch {
-            continue
-        }
+            return @{
+                ExePath     = $exePath
+                Aumid       = $aumid
+                ProcessName = [System.IO.Path]::GetFileNameWithoutExtension($exePath)
+            }
+        } catch { continue }
     }
     return $null
 }
@@ -195,7 +184,6 @@ if (-not (Test-Path -LiteralPath $startMenuFolder -PathType Container)) {
     return
 }
 
-# Find all numbered .lnk files, sorted by numeric prefix
 $lnkFiles = Get-ChildItem -LiteralPath $startMenuFolder -Filter '*.lnk' -ErrorAction SilentlyContinue |
     Where-Object { $_.BaseName -match '^\d{1,2}\s' } |
     Sort-Object { if ($_.BaseName -match '^(\d{1,2})\s') { [int]$Matches[1] } else { 0 } }
@@ -205,7 +193,6 @@ if ($lnkFiles.Count -eq 0) {
     return
 }
 
-# Timeouts (seconds)
 $ProcessStartTimeout = 15
 $WindowReadyTimeout  = 20
 
@@ -223,23 +210,21 @@ foreach ($file in $lnkFiles) {
     }
     $targetPath = $shortcut.TargetPath
 
-    # Look up existing config entry by Name (not by shortcut number)
+    # Match config entry by Name (not shortcut number)
     $existingApp = $config.Shortcuts | Where-Object { $_.Name -eq $appDisplayName } | Select-Object -First 1
 
-    # Keep ShortcutPath in sync if the shortcut was renumbered
+    # Keep ShortcutPath in sync if shortcut was renumbered
     if ($existingApp -and $existingApp.ShortcutPath -ne $file.FullName) {
         $existingApp.ShortcutPath = $file.FullName
         Save-Config -Cfg $config -Path $configPath
     }
 
     # -----------------------------------------------------------------------
-    # KNOWN app: LaunchType already persisted in config
+    # KNOWN app: LaunchType already persisted
     # -----------------------------------------------------------------------
     if ($existingApp -and $existingApp.LaunchType) {
-
         $expectedProc = $existingApp.ProcessName
 
-        # Skip if already running
         $running = Get-Process -Name $expectedProc -ErrorAction SilentlyContinue | Select-Object -First 1
         if ($running) {
             if ($running.MainWindowHandle -ne 0) {
@@ -253,7 +238,6 @@ foreach ($file in $lnkFiles) {
         Write-Host "Launching $appDisplayName [$($existingApp.LaunchType)]..."
 
         if ($existingApp.LaunchType -eq 'UWP') {
-            # Verify stored exe path still valid; re-resolve if not
             $uwpExePath = $existingApp.ExePath
             if ([string]::IsNullOrEmpty($uwpExePath) -or -not (Test-Path -LiteralPath $uwpExePath)) {
                 Write-Host "  UWP exe path stale. Re-resolving from WindowsApps..."
@@ -272,7 +256,6 @@ foreach ($file in $lnkFiles) {
             }
             Start-Process -FilePath $uwpExePath -ErrorAction SilentlyContinue
         } else {
-            # Win32
             $WshShell.Run('"' + $file.FullName + '"', 1, $false)
         }
 
@@ -286,61 +269,68 @@ foreach ($file in $lnkFiles) {
     }
 
     # -----------------------------------------------------------------------
-    # NEW app: no LaunchType yet -- attempt Win32 first
+    # NEW app: no LaunchType yet
     # -----------------------------------------------------------------------
+
+    # If TargetPath is explorer.exe, the real process name is unknown until
+    # UWP resolution runs -- skip the skip-if-running check entirely.
+    $isExplorerTarget = $targetPath -ieq "$env:SystemRoot\explorer.exe"
+
     $expectedProc = [System.IO.Path]::GetFileNameWithoutExtension($targetPath)
     if ([string]::IsNullOrEmpty($expectedProc)) {
         Write-Warning "Skipping '$appDisplayName' (invalid or missing target path)."
         continue
     }
 
-    # Skip if already running
-    $running = Get-Process -Name $expectedProc -ErrorAction SilentlyContinue | Select-Object -First 1
-    if ($running) {
-        if ($running.MainWindowHandle -ne 0) {
-            Write-Host "Skipping $appDisplayName (already running with active window)."
-        } else {
-            Write-Host "Skipping $appDisplayName (already running in background/tray)."
+    if (-not $isExplorerTarget) {
+        $running = Get-Process -Name $expectedProc -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($running) {
+            if ($running.MainWindowHandle -ne 0) {
+                Write-Host "Skipping $appDisplayName (already running with active window)."
+            } else {
+                Write-Host "Skipping $appDisplayName (already running in background/tray)."
+            }
+            continue
         }
-        continue
     }
 
     Write-Host "Launching $appDisplayName [detecting...]..."
     $WshShell.Run('"' + $file.FullName + '"', 1, $false)
 
-    $readyState = Wait-ForAppReady -ProcessName $expectedProc -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
+    # For explorer-targeted shortcuts, Wait-ForAppReady on 'explorer' will
+    # immediately return 'Failed' (we deliberately ignore explorer as a process),
+    # pushing straight into the UWP resolution path.
+    $procToWatch = if ($isExplorerTarget) { '__none__' } else { $expectedProc }
+    $readyState  = Wait-ForAppReady -ProcessName $procToWatch -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
 
     if ($readyState -eq 'Ready' -or $readyState -eq 'ProcessOnly') {
         # Win32 confirmed
         $label = if ($readyState -eq 'Ready') { 'Window ready' } else { 'Running (tray/background mode)' }
         Write-Host "  $label. $appDisplayName is up."
-        $entry = [PSCustomObject]@{
-            Name         = $appDisplayName
-            ShortcutPath = $file.FullName
-            ProcessName  = $expectedProc
-            LaunchType   = 'Win32'
-            ExePath      = $targetPath
-            Aumid        = ''
-        }
         if ($existingApp) {
             $existingApp.ProcessName = $expectedProc
             $existingApp.LaunchType  = 'Win32'
             $existingApp.ExePath     = $targetPath
             $existingApp.Aumid       = ''
         } else {
-            $config.Shortcuts += $entry
+            $config.Shortcuts += [PSCustomObject]@{
+                Name         = $appDisplayName
+                ShortcutPath = $file.FullName
+                ProcessName  = $expectedProc
+                LaunchType   = 'Win32'
+                ExePath      = $targetPath
+                Aumid        = ''
+            }
         }
         Save-Config -Cfg $config -Path $configPath
 
     } else {
-        # Win32 failed -- attempt UWP resolution via WindowsApps
+        # Win32 failed (or explorer-target) -- attempt UWP resolution
         Write-Host "  Win32 launch failed. Searching WindowsApps for UWP match..."
         $resolved = Resolve-UwpExe -AppName $appDisplayName
 
         if ($resolved) {
             Write-Host "  Found UWP exe: $($resolved.ExePath). Updating shortcut and config..."
-
-            # Update the .lnk to point directly to the real exe
             try {
                 $shortcut.TargetPath       = $resolved.ExePath
                 $shortcut.Arguments        = ''
@@ -350,22 +340,20 @@ foreach ($file in $lnkFiles) {
                 Write-Warning "Could not update shortcut for '$appDisplayName': $($_.Exception.Message)"
             }
 
-            # Persist UWP entry
-            $entry = [PSCustomObject]@{
-                Name         = $appDisplayName
-                ShortcutPath = $file.FullName
-                ProcessName  = $resolved.ProcessName
-                LaunchType   = 'UWP'
-                ExePath      = $resolved.ExePath
-                Aumid        = $resolved.Aumid
-            }
             if ($existingApp) {
                 $existingApp.ProcessName = $resolved.ProcessName
                 $existingApp.LaunchType  = 'UWP'
                 $existingApp.ExePath     = $resolved.ExePath
                 $existingApp.Aumid       = $resolved.Aumid
             } else {
-                $config.Shortcuts += $entry
+                $config.Shortcuts += [PSCustomObject]@{
+                    Name         = $appDisplayName
+                    ShortcutPath = $file.FullName
+                    ProcessName  = $resolved.ProcessName
+                    LaunchType   = 'UWP'
+                    ExePath      = $resolved.ExePath
+                    Aumid        = $resolved.Aumid
+                }
             }
             Save-Config -Cfg $config -Path $configPath
 
@@ -376,11 +364,11 @@ foreach ($file in $lnkFiles) {
             switch ($retryState) {
                 'Ready'       { Write-Host "  Window ready. $appDisplayName is up." }
                 'ProcessOnly' { Write-Host "  Running (tray/background mode). $appDisplayName is up." }
-                'Failed'      { Write-Warning "'$appDisplayName' still did not start after UWP repair. Moving on." }
+                'Failed'      { Write-Warning "'$appDisplayName' still did not start after UWP resolution. Moving on." }
             }
 
         } else {
-            # Not a UWP app -- offer Win32 file-picker repair
+            # No UWP match -- offer Win32 file-picker repair
             Write-Warning "'$appDisplayName' did not start and no UWP match found."
             Add-Type -AssemblyName System.Windows.Forms
             $openDlg                  = New-Object System.Windows.Forms.OpenFileDialog
@@ -404,21 +392,20 @@ foreach ($file in $lnkFiles) {
                     continue
                 }
                 $repairedProc = [System.IO.Path]::GetFileNameWithoutExtension($selectedExe)
-                $entry = [PSCustomObject]@{
-                    Name         = $appDisplayName
-                    ShortcutPath = $file.FullName
-                    ProcessName  = $repairedProc
-                    LaunchType   = 'Win32'
-                    ExePath      = $selectedExe
-                    Aumid        = ''
-                }
                 if ($existingApp) {
                     $existingApp.ProcessName = $repairedProc
                     $existingApp.LaunchType  = 'Win32'
                     $existingApp.ExePath     = $selectedExe
                     $existingApp.Aumid       = ''
                 } else {
-                    $config.Shortcuts += $entry
+                    $config.Shortcuts += [PSCustomObject]@{
+                        Name         = $appDisplayName
+                        ShortcutPath = $file.FullName
+                        ProcessName  = $repairedProc
+                        LaunchType   = 'Win32'
+                        ExePath      = $selectedExe
+                        Aumid        = ''
+                    }
                 }
                 Save-Config -Cfg $config -Path $configPath
 
