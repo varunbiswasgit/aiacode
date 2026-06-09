@@ -16,18 +16,37 @@ function Save-Config($Cfg, $Path) {
     }
 }
 
+# Helper: test whether a parsed JSON object is a valid config (has StartMenuPath property)
+function Test-ValidConfig($Obj) {
+    if ($null -eq $Obj) { return $false }
+    # Must be a single object (not an array) with a StartMenuPath property
+    if ($Obj -is [System.Array]) { return $false }
+    $props = $Obj | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name
+    return ($props -contains 'StartMenuPath')
+}
+
 # Load or create configuration
 $configPath = $defaultConfigPath
 $config = $null
 
 if (Test-Path -LiteralPath $configPath -PathType Leaf) {
     try {
-        $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+        $parsed = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+        if (Test-ValidConfig $parsed) {
+            $config = [PSCustomObject]@{
+                StartMenuPath = [string]$parsed.StartMenuPath
+                Shortcuts     = if ($parsed.Shortcuts) { $parsed.Shortcuts } else { @() }
+            }
+        } else {
+            Write-Warning "Config file exists but is not a valid startup config (may be legacy format). It will be reinitialized."
+            $config = $null
+        }
     } catch {
         Write-Warning "Config file exists but could not be loaded (invalid JSON). It will be reinitialized."
         $config = $null
     }
 }
+
 if (-not $config) {
     # No valid config loaded -> prompt user for config file path and Start Menu path
     $jsonInput = Read-Host "Enter configuration JSON file path (or press Enter for default '$defaultConfigPath')"
@@ -36,7 +55,7 @@ if (-not $config) {
         $configPath = $jsonInput
     }
     if (-not (Test-Path -LiteralPath $configPath)) {
-        # Config file not found, create a new config
+        # Config file not found -> create new
         $startMenuPath = Read-Host "Enter the Start Menu folder path for startup .lnk files (e.g., 'C:\ProgramData\Microsoft\Windows\Start Menu\Programs')"
         $config = [PSCustomObject]@{
             StartMenuPath = $startMenuPath
@@ -45,22 +64,35 @@ if (-not $config) {
         Save-Config -Cfg $config -Path $configPath
         Write-Host "Configuration saved to $configPath."
     } else {
-        # If user selects an existing config file (should rarely happen)
+        # Path exists -> try to load; reinit if not valid
+        $parsed = $null
         try {
-            $config = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
+            $parsed = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json
         } catch {
-            Write-Warning "Selected config file invalid. Creating new config."
-            $config = [PSCustomObject]@{ StartMenuPath = ''; Shortcuts = @() }
+            Write-Warning "Selected config file invalid JSON. Creating new config."
+        }
+        if (Test-ValidConfig $parsed) {
+            $config = [PSCustomObject]@{
+                StartMenuPath = [string]$parsed.StartMenuPath
+                Shortcuts     = if ($parsed.Shortcuts) { $parsed.Shortcuts } else { @() }
+            }
+        } else {
+            Write-Warning "Selected config file is not a valid startup config (may be legacy format). Creating new config."
+            $startMenuPath = Read-Host "Enter the Start Menu folder path for startup .lnk files"
+            $config = [PSCustomObject]@{
+                StartMenuPath = $startMenuPath
+                Shortcuts     = @()
+            }
+            Save-Config -Cfg $config -Path $configPath
         }
         if (-not $config.StartMenuPath) {
             $startMenuPath = Read-Host "Enter the Start Menu folder path for startup .lnk files"
             $config.StartMenuPath = $startMenuPath
         }
-        if (-not $config.Shortcuts) { $config.Shortcuts = @() }
         Save-Config -Cfg $config -Path $configPath
     }
 } else {
-    # If a config is loaded but lacks StartMenuPath, prompt and save
+    # Valid config loaded but may lack StartMenuPath value
     if (-not $config.StartMenuPath) {
         $startMenuPath = Read-Host "Enter the Start Menu folder path for startup .lnk files"
         $config.StartMenuPath = $startMenuPath
@@ -138,8 +170,8 @@ foreach ($file in $lnkFiles) {
     # Wait for process to start
     $processStarted = $false
     for ($i = 0; $i -lt $ProcessStartTimeout; $i++) {
-        if (Get-Process -Name $expectedProc -ErrorAction SilentlyContinue) { 
-            $processStarted = $true; break 
+        if (Get-Process -Name $expectedProc -ErrorAction SilentlyContinue) {
+            $processStarted = $true; break
         }
         Start-Sleep -Seconds 1
     }
