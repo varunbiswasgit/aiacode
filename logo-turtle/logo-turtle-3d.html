@@ -590,7 +590,7 @@ repeat 360 [fd 1 rt 1]</textarea>
 
     document.getElementById('runBtn').addEventListener('click', runProgram);
     document.getElementById('clearBtn').addEventListener('click', () => {
-      clearScreen(); drawTurtle(); statusEl.textContent = 'Screen cleared.';
+      codeEl.value = ''; codeEl.focus(); statusEl.textContent = 'Scroll cleared. Await your next command.';
     });
     document.getElementById('resetBtn').addEventListener('click', () => {
       resetTurtle(); statusEl.textContent = 'Turtle hath returned home.';
