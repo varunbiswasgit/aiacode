@@ -160,23 +160,20 @@
 <script>
   const canvas = document.getElementById('board');
   const ctx    = canvas.getContext('2d');
-  const GRID   = 5;  // dots per side  =>  4x4 = 16 boxes
+  const GRID   = 5;
   const BOXES  = (GRID - 1) * (GRID - 1);
   const CLR    = { 1: '#60b8ff', 2: '#ff7070' };
   const FILL   = { 1: 'rgba(96,184,255,0.26)', 2: 'rgba(255,112,112,0.26)' };
+  const LABEL  = { 1: 'P1', 2: 'P2' };
 
   let hLines, vLines, boxes, currentPlayer;
-  // hLines[r][c]  = owner of horizontal segment from dot(r,c) to dot(r,c+1)   r:0..4  c:0..3
-  // vLines[r][c]  = owner of vertical   segment from dot(r,c) to dot(r+1,c)   r:0..3  c:0..4
 
-  // ── SIZE: match canvas pixel buffer to its rendered CSS size ─────────────
   function syncSize() {
     const wrap = document.getElementById('canvas-wrap');
-    const sz   = Math.max(280, wrap.clientWidth - 6);  // subtract 3px padding each side
+    const sz   = Math.max(280, wrap.clientWidth - 6);
     canvas.width = canvas.height = sz;
   }
 
-  // ── GEOMETRY ──────────────────────────────────────────────────────────────
   function geo() {
     const pad = canvas.width * 0.11;
     const gap = (canvas.width - pad * 2) / (GRID - 1);
@@ -188,46 +185,33 @@
     return { x: pad + c * gap, y: pad + r * gap };
   }
 
-  // Convert browser-client coords to canvas pixel coords
   function toPx(clientX, clientY) {
     const rect = canvas.getBoundingClientRect();
-    const sx   = canvas.width  / rect.width;
-    const sy   = canvas.height / rect.height;
-    return { x: (clientX - rect.left) * sx, y: (clientY - rect.top) * sy };
+    return {
+      x: (clientX - rect.left) * (canvas.width  / rect.width),
+      y: (clientY - rect.top)  * (canvas.height / rect.height)
+    };
   }
 
-  // ── HIT DETECTION: find nearest undrawn segment ───────────────────────────
   function nearestSegment(cx, cy) {
     const { pad, gap } = geo();
-    const threshold = gap * 0.52;   // must be within this distance of segment midpoint
+    const threshold = gap * 0.52;
     let best = null, bestD = Infinity;
-
-    // Horizontal segments: midpoint is between dot(r,c) and dot(r,c+1)
-    for (let r = 0; r < GRID; r++) {
+    for (let r = 0; r < GRID; r++)
       for (let c = 0; c < GRID - 1; c++) {
-        if (hLines[r][c]) continue;   // already drawn
-        const mx = pad + (c + 0.5) * gap;
-        const my = pad + r * gap;
-        const d  = Math.hypot(cx - mx, cy - my);
+        if (hLines[r][c]) continue;
+        const d = Math.hypot(cx - (pad + (c + 0.5) * gap), cy - (pad + r * gap));
         if (d < bestD) { bestD = d; best = { type: 'H', r, c }; }
       }
-    }
-
-    // Vertical segments: midpoint is between dot(r,c) and dot(r+1,c)
-    for (let r = 0; r < GRID - 1; r++) {
+    for (let r = 0; r < GRID - 1; r++)
       for (let c = 0; c < GRID; c++) {
-        if (vLines[r][c]) continue;   // already drawn
-        const mx = pad + c * gap;
-        const my = pad + (r + 0.5) * gap;
-        const d  = Math.hypot(cx - mx, cy - my);
+        if (vLines[r][c]) continue;
+        const d = Math.hypot(cx - (pad + c * gap), cy - (pad + (r + 0.5) * gap));
         if (d < bestD) { bestD = d; best = { type: 'V', r, c }; }
       }
-    }
-
     return bestD <= threshold ? best : null;
   }
 
-  // ── GAME LOGIC ────────────────────────────────────────────────────────────
   function resetBoard() {
     hLines = Array.from({ length: GRID },     () => Array(GRID - 1).fill(0));
     vLines = Array.from({ length: GRID - 1 }, () => Array(GRID).fill(0));
@@ -246,12 +230,12 @@
     let claimed = 0;
     if (seg.type === 'H') {
       const { r, c } = seg;
-      if (r > 0       && !boxes[r - 1][c] && boxComplete(r - 1, c)) { boxes[r - 1][c] = currentPlayer; claimed++; }
-      if (r < GRID-1  && !boxes[r][c]     && boxComplete(r, c))     { boxes[r][c]     = currentPlayer; claimed++; }
+      if (r > 0      && !boxes[r-1][c] && boxComplete(r-1, c)) { boxes[r-1][c] = currentPlayer; claimed++; }
+      if (r < GRID-1 && !boxes[r][c]   && boxComplete(r,   c)) { boxes[r][c]   = currentPlayer; claimed++; }
     } else {
       const { r, c } = seg;
-      if (c > 0       && !boxes[r][c - 1] && boxComplete(r, c - 1)) { boxes[r][c - 1] = currentPlayer; claimed++; }
-      if (c < GRID-1  && !boxes[r][c]     && boxComplete(r, c))     { boxes[r][c]     = currentPlayer; claimed++; }
+      if (c > 0      && !boxes[r][c-1] && boxComplete(r, c-1)) { boxes[r][c-1] = currentPlayer; claimed++; }
+      if (c < GRID-1 && !boxes[r][c]   && boxComplete(r, c))   { boxes[r][c]   = currentPlayer; claimed++; }
     }
     return claimed;
   }
@@ -265,11 +249,8 @@
     const { x, y } = toPx(clientX, clientY);
     const seg = nearestSegment(x, y);
     if (!seg) return;
-
-    // Draw the line
     if (seg.type === 'H') hLines[seg.r][seg.c] = currentPlayer;
     else                  vLines[seg.r][seg.c] = currentPlayer;
-
     const claimed = claimBoxes(seg);
     if (claimed === 0) currentPlayer = currentPlayer === 1 ? 2 : 1;
     updateUi();
@@ -304,8 +285,6 @@
   // ── DRAWING ───────────────────────────────────────────────────────────────
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-    // subtle grid backdrop
     ctx.save();
     ctx.strokeStyle = 'rgba(120,100,200,0.07)';
     ctx.lineWidth   = 0.5;
@@ -313,7 +292,6 @@
     for (let x = 0; x <= canvas.width; x += step) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
     for (let y = 0; y <= canvas.height; y += step) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
     ctx.restore();
-
     drawBoxFills();
     drawSegments();
     drawDots();
@@ -323,48 +301,72 @@
     const { gap } = geo();
     for (let r = 0; r < GRID - 1; r++) {
       for (let c = 0; c < GRID - 1; c++) {
-        if (!boxes[r][c]) continue;
-        const p = pt(r, c), ins = gap * 0.1;
-        ctx.fillStyle   = FILL[boxes[r][c]];
-        ctx.strokeStyle = CLR[boxes[r][c]] + '55';
+        const owner = boxes[r][c];
+        if (!owner) continue;
+        const p   = pt(r, c);
+        const ins = gap * 0.1;
+        const bx  = p.x + ins, by = p.y + ins;
+        const bw  = gap - ins * 2, bh = gap - ins * 2;
+
+        // filled rounded rect
+        ctx.fillStyle   = FILL[owner];
+        ctx.strokeStyle = CLR[owner] + '55';
         ctx.lineWidth   = 1;
         ctx.beginPath();
-        ctx.roundRect(p.x + ins, p.y + ins, gap - ins * 2, gap - ins * 2, gap * 0.1);
-        ctx.fill(); ctx.stroke();
+        ctx.roundRect(bx, by, bw, bh, gap * 0.1);
+        ctx.fill();
+        ctx.stroke();
+
+        // P1 / P2 label centred in the box
+        const fontSize = Math.max(9, gap * 0.28);
+        ctx.font        = `700 ${fontSize}px 'Cinzel', serif`;
+        ctx.textAlign   = 'center';
+        ctx.textBaseline = 'middle';
+        const cx = bx + bw / 2;
+        const cy = by + bh / 2;
+
+        // subtle dark shadow for legibility
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        ctx.fillText(LABEL[owner], cx + 1, cy + 1);
+
+        // coloured label
+        ctx.fillStyle = CLR[owner];
+        ctx.shadowColor = CLR[owner];
+        ctx.shadowBlur  = 6;
+        ctx.fillText(LABEL[owner], cx, cy);
+        ctx.shadowBlur = 0;
       }
     }
+    // reset text baseline so nothing else is affected
+    ctx.textBaseline = 'alphabetic';
   }
 
   function drawSegments() {
     const { gap } = geo();
-    const glowW = Math.max(8, gap * 0.14);
-    const lineW = Math.max(3, gap * 0.055);
-    const hoverW = Math.max(5, gap * 0.09);
+    const glowW  = Math.max(8, gap * 0.14);
+    const lineW  = Math.max(3, gap * 0.055);
+    const ghostW = Math.max(5, gap * 0.09);
 
     function seg(p1, p2, owner) {
       if (owner) {
-        // glow pass
         ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
         ctx.strokeStyle = CLR[owner] + '35'; ctx.lineWidth = glowW; ctx.stroke();
-        // solid pass
         ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
         ctx.strokeStyle = CLR[owner]; ctx.lineWidth = lineW;
         ctx.lineCap = 'round'; ctx.stroke();
       } else {
-        // undrawn — faint ghost line showing where a segment can be placed
         ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = hoverW;
+        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = ghostW;
         ctx.lineCap = 'round'; ctx.stroke();
       }
     }
 
     for (let r = 0; r < GRID; r++)
       for (let c = 0; c < GRID - 1; c++)
-        seg(pt(r, c), pt(r, c + 1), hLines[r][c]);
-
+        seg(pt(r,c), pt(r,c+1), hLines[r][c]);
     for (let r = 0; r < GRID - 1; r++)
       for (let c = 0; c < GRID; c++)
-        seg(pt(r, c), pt(r + 1, c), vLines[r][c]);
+        seg(pt(r,c), pt(r+1,c), vLines[r][c]);
   }
 
   function drawDots() {
@@ -372,18 +374,15 @@
     for (let r = 0; r < GRID; r++) {
       for (let c = 0; c < GRID; c++) {
         const p = pt(r, c);
-        // outer glow
         const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, dotR * 2.8);
         grd.addColorStop(0, 'rgba(180,140,255,0.45)');
         grd.addColorStop(1, 'rgba(0,0,0,0)');
         ctx.beginPath(); ctx.arc(p.x, p.y, dotR * 2.8, 0, Math.PI * 2);
         ctx.fillStyle = grd; ctx.fill();
-        // dot body
         ctx.beginPath(); ctx.arc(p.x, p.y, dotR, 0, Math.PI * 2);
         ctx.fillStyle = '#c8b8ff';
         ctx.shadowColor = '#a080ff'; ctx.shadowBlur = 8;
         ctx.fill(); ctx.shadowBlur = 0;
-        // specular
         ctx.beginPath(); ctx.arc(p.x - dotR * 0.35, p.y - dotR * 0.35, dotR * 0.38, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
       }
@@ -392,7 +391,6 @@
 
   // ── EVENTS ────────────────────────────────────────────────────────────────
   canvas.addEventListener('click', e => handleTap(e.clientX, e.clientY));
-
   canvas.addEventListener('touchend', e => {
     e.preventDefault();
     const t = e.changedTouches[0];
@@ -408,7 +406,6 @@
   window.addEventListener('resize', () => { syncSize(); draw(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { syncSize(); draw(); }, 150));
 
-  // ── INIT ──────────────────────────────────────────────────────────────────
   syncSize();
   resetBoard();
 </script>
