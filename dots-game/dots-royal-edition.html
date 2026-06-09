@@ -72,6 +72,44 @@
     #btn-finish:active { transform:translateY(4px); box-shadow:0 1px 0 #2e0650; }
     #btn-new    { background: linear-gradient(175deg,#67e8f9 0%,#0284c7 45%,#0a1a4a 100%); color:#e0f7ff; box-shadow:0 5px 0 #062040,0 7px 14px rgba(0,80,180,.45),inset 0 1px 0 rgba(180,240,255,.4); }
     #btn-new:active    { transform:translateY(4px); box-shadow:0 1px 0 #062040; }
+
+    /* Dice toggle button */
+    #btn-dice {
+      background: linear-gradient(175deg,#4ade80 0%,#16a34a 45%,#052e16 100%);
+      color:#f0fdf4; box-shadow:0 5px 0 #14532d,0 7px 14px rgba(0,120,60,.45),inset 0 1px 0 rgba(180,255,200,.4);
+    }
+    #btn-dice.dice-off {
+      background: linear-gradient(175deg,#94a3b8 0%,#475569 45%,#1e293b 100%);
+      color:#e2e8f0; box-shadow:0 5px 0 #0f172a,0 7px 14px rgba(0,0,0,.45),inset 0 1px 0 rgba(255,255,255,.15);
+    }
+    #btn-dice:active { transform:translateY(4px); box-shadow:0 1px 0 #14532d; }
+    #btn-dice.dice-off:active { box-shadow:0 1px 0 #0f172a; }
+
+    /* Dice display panel */
+    #dice-panel {
+      display: none;
+      align-items: center; justify-content: center; gap: 10px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(180,255,160,0.22);
+      border-radius: 14px; padding: 6px 18px; margin: 4px auto 6px;
+      font-family: 'Cinzel', serif; font-size: clamp(0.78rem,2vw,0.95rem);
+      width: fit-content; backdrop-filter: blur(8px);
+    }
+    #dice-panel.visible { display: flex; }
+    #dice-face {
+      font-size: clamp(1.5rem,6vw,2.2rem);
+      line-height: 1;
+      filter: drop-shadow(0 0 8px rgba(100,255,160,0.6));
+      transition: transform 0.15s ease;
+    }
+    #dice-face.spin { animation: diceRoll 0.25s ease; }
+    @keyframes diceRoll {
+      0%   { transform: rotate(0deg)   scale(1);    }
+      40%  { transform: rotate(180deg) scale(1.35); }
+      100% { transform: rotate(360deg) scale(1);    }
+    }
+    #dice-label { color: rgba(220,255,210,0.85); }
+    #dice-moves-left { color: #4ade80; font-weight: 700; text-shadow: 0 0 8px rgba(74,222,128,0.6); }
+
     #btn-play-again, #btn-close-rules {
       font-family:'Cinzel',serif; font-size:.88rem; font-weight:600; letter-spacing:.08em;
       padding:10px 24px; border:none; border-radius:10px; cursor:pointer;
@@ -80,7 +118,6 @@
     }
     #btn-play-again:active, #btn-close-rules:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
 
-    /* Canvas wrap — no fixed CSS width; canvas drives its own size */
     #canvas-wrap {
       position: relative; z-index: 1;
       display: inline-block;
@@ -135,8 +172,18 @@
   </div>
   <p id="turn-line"><span id="player-display" class="p1">Player 1</span>'s turn</p>
   <p id="status-line">Tap the line between two dots to claim it. <span id="bonus-note">Close a box to play again.</span></p>
+
+  <!-- Dice panel (visible only when dice mode is ON) -->
+  <div id="dice-panel">
+    <span id="dice-face">&#9856;</span>
+    <span id="dice-label">Roll: <strong id="dice-value">–</strong></span>
+    <span class="divider">|</span>
+    <span id="dice-label2">Lines left: <strong id="dice-moves-left">–</strong></span>
+  </div>
+
   <div class="btn-row">
     <button id="btn-rules"  type="button">&#9670; Rules</button>
+    <button id="btn-dice"   type="button" class="dice-off">&#9860; Dice OFF</button>
     <button id="btn-finish" type="button">&#9632; Finish</button>
     <button id="btn-new"    type="button">&#8635; New Game</button>
   </div>
@@ -158,6 +205,7 @@
     <li>If your line completes the fourth side of a rectangle, you claim that box.</li>
     <li>Claim a box and you get another turn immediately.</li>
     <li>When all lines are drawn, the player with more boxes wins.</li>
+    <li><strong style="color:#4ade80">&#9860; Dice Mode:</strong> Toggle Dice ON to activate. Each turn begins with a dice roll (1–6) — you may draw that many lines. Completing a box earns +1 bonus line (no re-roll). Your turn ends when the line budget hits zero.</li>
   </ul>
   <button id="btn-close-rules" type="button">Close</button>
 </div>
@@ -173,8 +221,6 @@
   const canvas = document.getElementById('board');
   const ctx    = canvas.getContext('2d');
 
-  // 6 cols of dots x 8 rows of dots  =>  5 x 7 = 35 rectangular boxes
-  // Fewer columns = wider cells, more rows = fills portrait iPhone height
   const COLS  = 6;
   const ROWS  = 8;
   const BOXES = (COLS - 1) * (ROWS - 1);
@@ -182,48 +228,76 @@
   const CLR   = { 1: '#60b8ff', 2: '#ff7070' };
   const FILL  = { 1: 'rgba(96,184,255,0.26)', 2: 'rgba(255,112,112,0.26)' };
   const LABEL = { 1: 'P1', 2: 'P2' };
+  const DICE_FACES = ['', '\u2680', '\u2681', '\u2682', '\u2683', '\u2684', '\u2685'];
 
   document.getElementById('remaining').textContent = ' ' + BOXES;
 
+  // ── STATE ──────────────────────────────────────────────────────────────────
   let hLines, vLines, boxes, currentPlayer;
+  let diceMode    = false;
+  let diceRollVal = 0;
+  let linesLeft   = 0;
+
+  // ── DICE HELPERS ───────────────────────────────────────────────────────────
+  function rollDice() {
+    diceRollVal = Math.floor(Math.random() * 6) + 1;
+    linesLeft   = diceRollVal;
+    animateDice(diceRollVal);
+    updateDiceUI();
+  }
+
+  function animateDice(val) {
+    const el = document.getElementById('dice-face');
+    el.classList.remove('spin');
+    void el.offsetWidth;
+    el.classList.add('spin');
+    el.textContent = DICE_FACES[val];
+  }
+
+  function updateDiceUI() {
+    if (!diceMode) return;
+    document.getElementById('dice-value').textContent      = diceRollVal;
+    document.getElementById('dice-moves-left').textContent = linesLeft;
+  }
+
+  function setDiceMode(on) {
+    diceMode = on;
+    const btn   = document.getElementById('btn-dice');
+    const panel = document.getElementById('dice-panel');
+    if (on) {
+      btn.textContent = '\u2684 Dice ON';
+      btn.classList.remove('dice-off');
+      panel.classList.add('visible');
+      rollDice();
+    } else {
+      btn.textContent = '\u2685 Dice OFF';
+      btn.classList.add('dice-off');
+      panel.classList.remove('visible');
+    }
+  }
 
   // ── RESPONSIVE CANVAS ──────────────────────────────────────────────────────
-  // Cell aspect: COLS-1 wide : ROWS-1 tall  with a slight landscape stretch per cell (4:3)
-  // => canvas height / width  =  (ROWS-1)/(COLS-1) * (3/4)
   function syncSize() {
     const uiEl  = document.getElementById('ui');
     const legH  = 34;
     const vw    = window.innerWidth;
     const vh    = window.innerHeight;
     const uiH   = uiEl.offsetHeight + 10;
-
-    // Cell aspect: each cell is 4 wide : 3 tall  (slightly landscape per cell)
-    const cellAspect = 4 / 3;  // gapX / gapY
-    // canvas height / canvas width = (ROWS-1)/((COLS-1)*cellAspect)
+    const cellAspect = 4 / 3;
     const aspect = (ROWS - 1) / ((COLS - 1) * cellAspect);
-
-    // Start from max available width
     let cw = Math.min(vw - 16, 760);
     let ch = Math.round(cw * aspect);
-
-    // Clamp to available vertical space
     const maxH = vh - uiH - legH - 24;
-    if (ch > maxH) {
-      ch = maxH;
-      cw = Math.round(ch / aspect);
-    }
-
+    if (ch > maxH) { ch = maxH; cw = Math.round(ch / aspect); }
     canvas.width  = Math.max(cw, 220);
     canvas.height = Math.max(ch, 280);
   }
 
-  // ── GEOMETRY: separate gapX / gapY ─────────────────────────────────────────
   function geo() {
     const padX = canvas.width  * 0.055;
     const padY = canvas.height * 0.045;
     const gapX = (canvas.width  - padX * 2) / (COLS - 1);
     const gapY = (canvas.height - padY * 2) / (ROWS - 1);
-    // dotR based on shorter gap so dots stay proportional
     const dotR = Math.max(4, Math.min(gapX, gapY) * 0.11);
     return { padX, padY, gapX, gapY, dotR };
   }
@@ -272,6 +346,7 @@
     boxes  = Array.from({ length: ROWS - 1 }, () => Array(COLS - 1).fill(0));
     currentPlayer = 1;
     document.getElementById('game-over').classList.remove('show');
+    if (diceMode) rollDice();
     updateUi();
     draw();
   }
@@ -298,15 +373,36 @@
     return hLines.flat().every(Boolean) && vLines.flat().every(Boolean);
   }
 
+  // ── TURN ADVANCEMENT ────────────────────────────────────────────────────────
+  function advanceTurn() {
+    currentPlayer = currentPlayer === 1 ? 2 : 1;
+    if (diceMode) rollDice();
+  }
+
   function handleTap(clientX, clientY) {
     if (document.getElementById('game-over').classList.contains('show')) return;
+    if (diceMode && linesLeft <= 0) return;
+
     const { x, y } = toPx(clientX, clientY);
     const seg = nearestSegment(x, y);
     if (!seg) return;
+
     if (seg.type === 'H') hLines[seg.r][seg.c] = currentPlayer;
     else                  vLines[seg.r][seg.c] = currentPlayer;
+
     const claimed = claimBoxes(seg);
-    if (claimed === 0) currentPlayer = currentPlayer === 1 ? 2 : 1;
+
+    if (diceMode) {
+      linesLeft--;
+      if (claimed > 0) {
+        linesLeft += claimed;   // +1 bonus line per box, no re-roll
+      }
+      if (linesLeft <= 0) advanceTurn();
+      else updateDiceUI();
+    } else {
+      if (claimed === 0) advanceTurn();
+    }
+
     updateUi();
     draw();
     if (allDrawn()) showGameOver();
@@ -322,6 +418,7 @@
     const el = document.getElementById('player-display');
     el.className   = 'p' + currentPlayer;
     el.textContent = 'Player ' + currentPlayer;
+    if (diceMode) updateDiceUI();
   }
 
   function showGameOver() {
@@ -360,14 +457,12 @@
         const insX = gapX * 0.07, insY = gapY * 0.07;
         const bx   = p.x + insX, by = p.y + insY;
         const bw   = gapX - insX * 2, bh = gapY - insY * 2;
-
         ctx.fillStyle   = FILL[owner];
         ctx.strokeStyle = CLR[owner] + '55';
         ctx.lineWidth   = 1.5;
         ctx.beginPath();
         ctx.roundRect(bx, by, bw, bh, Math.min(gapX, gapY) * 0.1);
         ctx.fill(); ctx.stroke();
-
         const fontSize = Math.max(9, Math.min(gapX, gapY) * 0.32);
         ctx.font         = `700 ${fontSize}px 'Cinzel', serif`;
         ctx.textAlign    = 'center';
@@ -446,6 +541,7 @@
   document.getElementById('btn-finish').addEventListener('click',      showGameOver);
   document.getElementById('btn-new').addEventListener('click',         resetBoard);
   document.getElementById('btn-play-again').addEventListener('click',  resetBoard);
+  document.getElementById('btn-dice').addEventListener('click',        () => setDiceMode(!diceMode));
 
   window.addEventListener('resize', () => { syncSize(); draw(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { syncSize(); draw(); }, 150));
