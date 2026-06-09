@@ -3,8 +3,9 @@
 ## Test environment
 
 - **Browser:** Any modern browser (Chrome 120+, Edge 120+, Firefox 121+, Safari 17+)
-- **File:** Open `logo-turtle.html` directly from disk (no server required)
+- **Files:** `logo-turtle.html` (Standard) and `logo-turtle-3d.html` (Royal 3D) — open directly from disk, no server required
 - **Screen sizes tested:** Desktop (1280 px wide), mobile (375 px wide)
+- **Applies to:** Both editions unless a test case specifies one file
 
 ---
 
@@ -14,10 +15,10 @@
 
 | Field | Detail |
 |-------|--------|
-| **Setup** | Open `logo-turtle.html` in a browser |
+| **Setup** | Open the file in a browser |
 | **Action** | Observe the page on load |
-| **Expected** | Canvas shows a square and a circle (the default program). Turtle arrow visible. Status bar reads `Program completed.` |
-| **Pass criteria** | Square and circle are drawn; no error message shown |
+| **Expected** | Canvas shows the default program output. Turtle arrow visible. Status bar reads `Program completed.` (Standard) or `✦ Program completed with honour. ✦` (Royal 3D) |
+| **Pass criteria** | Default drawing rendered; no error message shown |
 
 ---
 
@@ -25,10 +26,10 @@
 
 | Field | Detail |
 |-------|--------|
-| **Setup** | Clear the command box |
+| **Setup** | Clear the command scroll |
 | **Action** | Type `fd 100 rt 90 fd 100`, click **Run** |
 | **Expected** | Two perpendicular lines drawn from centre. Turtle arrow is at the end of the second line, heading down |
-| **Pass criteria** | Two lines visible, turtle position HUD shows X ≈ 100, Y ≈ −100 |
+| **Pass criteria** | Two lines visible; HUD shows X ≈ 100, Y ≈ −100 |
 
 ---
 
@@ -36,7 +37,7 @@
 
 | Field | Detail |
 |-------|--------|
-| **Setup** | Clear the command box |
+| **Setup** | Clear the command scroll |
 | **Action** | Type `repeat 4 [fd 100 rt 90]`, click **Run** |
 | **Expected** | A closed square drawn from the centre |
 | **Pass criteria** | Turtle returns to starting position; HUD heading = 0° |
@@ -47,9 +48,9 @@
 
 | Field | Detail |
 |-------|--------|
-| **Setup** | Clear the command box |
+| **Setup** | Clear the command scroll |
 | **Action** | Click the **Circle** chip |
-| **Expected** | A circle drawn from the centre; status bar reads `Program completed.` |
+| **Expected** | A circle drawn from the centre; status bar reads completed message |
 | **Pass criteria** | Visually circular shape; no error in status bar |
 
 ---
@@ -58,7 +59,7 @@
 
 | Field | Detail |
 |-------|--------|
-| **Setup** | Clear the command box |
+| **Setup** | Clear the command scroll |
 | **Action** | Type `fd 50 pu fd 50 pd fd 50`, click **Run** |
 | **Expected** | Two separate line segments with a gap in the middle |
 | **Pass criteria** | Gap is visible; HUD shows Pen: down after the program |
@@ -69,14 +70,14 @@
 
 | Field | Detail |
 |-------|--------|
-| **Setup** | Clear the command box |
+| **Setup** | Clear the command scroll |
 | **Action** | Type `fd 200 rt 45 home`, click **Run** |
 | **Expected** | Line drawn, then turtle snaps back to centre heading 0° |
 | **Pass criteria** | HUD shows X: 0, Y: 0, Heading: 0° |
 
 ---
 
-### TC-07 — `cs` clears the canvas
+### TC-07 — `cs` clears the canvas mid-program
 
 | Field | Detail |
 |-------|--------|
@@ -87,40 +88,51 @@
 
 ---
 
-### TC-08 — Clear button
+### TC-08 — Clear button clears the command scroll only
 
 | Field | Detail |
 |-------|--------|
-| **Setup** | Run any program so lines are on screen |
+| **Setup** | Run any program so lines are on canvas and commands are in the scroll |
 | **Action** | Click **Clear** |
-| **Expected** | Canvas clears instantly; status bar reads `Screen cleared.` |
-| **Pass criteria** | Canvas is blank; turtle arrow still visible at centre |
+| **Expected** | Command scroll (text editor) is emptied. Canvas drawing remains unchanged. Status bar updates. |
+| **Pass criteria** | Text editor is blank; canvas lines still visible; turtle arrow unchanged |
 
 ---
 
-### TC-09 — Reset turtle button
+### TC-09 — Reset button clears canvas and resets turtle
 
 | Field | Detail |
 |-------|--------|
 | **Setup** | Run a program that moves the turtle away from centre |
-| **Action** | Click **Reset turtle** |
-| **Expected** | Canvas clears; turtle returns to centre; HUD shows X: 0, Y: 0, Heading: 0° |
-| **Pass criteria** | All HUD values reset; turtle arrow at canvas centre |
+| **Action** | Click **Reset** |
+| **Expected** | Canvas clears; turtle returns to centre; HUD shows X: 0, Y: 0, Heading: 0°; command scroll is untouched |
+| **Pass criteria** | All HUD values reset; turtle arrow at canvas centre; text editor content unchanged |
 
 ---
 
-### TC-10 — Unknown command error handling
+### TC-10 — Clear then Run on empty scroll
 
 | Field | Detail |
 |-------|--------|
-| **Setup** | Clear the command box |
+| **Setup** | Run a program, then click **Clear** |
+| **Action** | Click **Run** with the empty scroll |
+| **Expected** | No crash. Canvas resets to blank with turtle at centre. Status bar shows completed message. |
+| **Pass criteria** | No JavaScript error; page remains functional |
+
+---
+
+### TC-11 — Unknown command error handling
+
+| Field | Detail |
+|-------|--------|
+| **Setup** | Clear the command scroll |
 | **Action** | Type `fly 100`, click **Run** |
-| **Expected** | Status bar shows an error message: `Unknown command: fly` |
+| **Expected** | Status bar shows an error message: `Unknown command: "fly"` |
 | **Pass criteria** | No crash; canvas cleared; error message visible |
 
 ---
 
-### TC-11 — Dark mode toggle
+### TC-12 — Dark mode toggle
 
 | Field | Detail |
 |-------|--------|
@@ -131,7 +143,7 @@
 
 ---
 
-### TC-12 — Mobile layout (375 px)
+### TC-13 — Mobile layout (375 px)
 
 | Field | Detail |
 |-------|--------|
@@ -142,7 +154,7 @@
 
 ---
 
-### TC-13 — Keyboard navigation
+### TC-14 — Keyboard navigation
 
 | Field | Detail |
 |-------|--------|
@@ -150,3 +162,15 @@
 | **Action** | Tab through all interactive elements |
 | **Expected** | Focus rings visible on all buttons, textarea, and chips |
 | **Pass criteria** | Every control is reachable and activatable via keyboard alone |
+
+---
+
+### TC-15 — Royal 3D Edition: Quick-spell chips (Octagon and Star)
+
+| Field | Detail |
+|-------|--------|
+| **File** | `logo-turtle-3d.html` only |
+| **Setup** | Open the Royal 3D edition |
+| **Action** | Click the **Octagon** chip, then the **Star** chip |
+| **Expected** | Each chip loads its program into the command scroll and runs it immediately |
+| **Pass criteria** | Correct geometric shape drawn for each chip; no errors in status bar |
