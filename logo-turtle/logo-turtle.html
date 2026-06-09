@@ -247,7 +247,7 @@ repeat 360 [fd 1 rt 1]</textarea>
     }
 
     document.getElementById('runBtn').addEventListener('click', runProgram);
-    document.getElementById('clearBtn').addEventListener('click', () => { clearScreen(); drawTurtle(); statusEl.textContent = 'Screen cleared.'; });
+    document.getElementById('clearBtn').addEventListener('click', () => { codeEl.value = ''; codeEl.focus(); statusEl.textContent = 'Editor cleared.'; });
     document.getElementById('resetBtn').addEventListener('click', () => { resetTurtle(); statusEl.textContent = 'Turtle reset.'; });
     document.querySelectorAll('[data-example]').forEach(btn => btn.addEventListener('click', () => { codeEl.value = btn.dataset.example; runProgram(); }));
 
