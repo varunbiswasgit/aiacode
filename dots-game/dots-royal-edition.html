@@ -124,7 +124,7 @@
     <span class="divider">&#10022;</span>
     <span class="p2">Player 2</span><span id="s2"> 0</span>
     <span class="divider">&#10022;</span>
-    <span>Boxes Left</span><span id="remaining"> 16</span>
+    <span>Boxes Left</span><span id="remaining"> 36</span>
   </div>
   <p id="turn-line"><span id="player-display" class="p1">Player 1</span>'s turn</p>
   <p id="status-line">Tap the line between two dots to claim it. <span id="bonus-note">Close a box to play again.</span></p>
@@ -160,7 +160,7 @@
 <script>
   const canvas = document.getElementById('board');
   const ctx    = canvas.getContext('2d');
-  const GRID   = 5;
+  const GRID   = 7;   // 7x7 dots => 6x6 = 36 boxes
   const BOXES  = (GRID - 1) * (GRID - 1);
   const CLR    = { 1: '#60b8ff', 2: '#ff7070' };
   const FILL   = { 1: 'rgba(96,184,255,0.26)', 2: 'rgba(255,112,112,0.26)' };
@@ -175,9 +175,9 @@
   }
 
   function geo() {
-    const pad = canvas.width * 0.11;
+    const pad = canvas.width * 0.08;   // slightly tighter padding for denser grid
     const gap = (canvas.width - pad * 2) / (GRID - 1);
-    return { pad, gap, dotR: Math.max(4, canvas.width * 0.009) };
+    return { pad, gap, dotR: Math.max(3, canvas.width * 0.007) };
   }
 
   function pt(r, c) {
@@ -304,11 +304,10 @@
         const owner = boxes[r][c];
         if (!owner) continue;
         const p   = pt(r, c);
-        const ins = gap * 0.1;
+        const ins = gap * 0.08;
         const bx  = p.x + ins, by = p.y + ins;
         const bw  = gap - ins * 2, bh = gap - ins * 2;
 
-        // filled rounded rect
         ctx.fillStyle   = FILL[owner];
         ctx.strokeStyle = CLR[owner] + '55';
         ctx.lineWidth   = 1;
@@ -317,35 +316,29 @@
         ctx.fill();
         ctx.stroke();
 
-        // P1 / P2 label centred in the box
-        const fontSize = Math.max(9, gap * 0.28);
-        ctx.font        = `700 ${fontSize}px 'Cinzel', serif`;
-        ctx.textAlign   = 'center';
+        // P1 / P2 label
+        const fontSize = Math.max(7, gap * 0.26);
+        ctx.font         = `700 ${fontSize}px 'Cinzel', serif`;
+        ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
-        const cx = bx + bw / 2;
-        const cy = by + bh / 2;
-
-        // subtle dark shadow for legibility
+        const cx = bx + bw / 2, cy = by + bh / 2;
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillText(LABEL[owner], cx + 1, cy + 1);
-
-        // coloured label
-        ctx.fillStyle = CLR[owner];
+        ctx.fillStyle   = CLR[owner];
         ctx.shadowColor = CLR[owner];
-        ctx.shadowBlur  = 6;
+        ctx.shadowBlur  = 5;
         ctx.fillText(LABEL[owner], cx, cy);
         ctx.shadowBlur = 0;
       }
     }
-    // reset text baseline so nothing else is affected
     ctx.textBaseline = 'alphabetic';
   }
 
   function drawSegments() {
     const { gap } = geo();
-    const glowW  = Math.max(8, gap * 0.14);
-    const lineW  = Math.max(3, gap * 0.055);
-    const ghostW = Math.max(5, gap * 0.09);
+    const glowW  = Math.max(6, gap * 0.14);
+    const lineW  = Math.max(2, gap * 0.05);
+    const ghostW = Math.max(4, gap * 0.09);
 
     function seg(p1, p2, owner) {
       if (owner) {
@@ -381,7 +374,7 @@
         ctx.fillStyle = grd; ctx.fill();
         ctx.beginPath(); ctx.arc(p.x, p.y, dotR, 0, Math.PI * 2);
         ctx.fillStyle = '#c8b8ff';
-        ctx.shadowColor = '#a080ff'; ctx.shadowBlur = 8;
+        ctx.shadowColor = '#a080ff'; ctx.shadowBlur = 7;
         ctx.fill(); ctx.shadowBlur = 0;
         ctx.beginPath(); ctx.arc(p.x - dotR * 0.35, p.y - dotR * 0.35, dotR * 0.38, 0, Math.PI * 2);
         ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
