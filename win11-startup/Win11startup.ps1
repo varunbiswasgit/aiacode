@@ -1,5 +1,5 @@
 # Windows 11 Startup Manager (Simplified Version)
-
+cls
 # Prepare script path for default config file
 $ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $defaultConfigPath = Join-Path $ScriptRoot 'Win11StartupConfig.json'
