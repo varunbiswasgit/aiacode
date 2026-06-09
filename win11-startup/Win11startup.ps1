@@ -26,37 +26,33 @@ function Test-ValidConfig($Obj) {
 }
 
 # ---------------------------------------------------------------------------
-# Derive a meaningful process name from shortcut target or display name.
-# Never returns 'explorer'.
+# Derive a meaningful process name -- never returns 'explorer'
 # ---------------------------------------------------------------------------
 function Get-ProcName($TargetPath, $DisplayName) {
     $base = [System.IO.Path]::GetFileNameWithoutExtension($TargetPath)
     if ([string]::IsNullOrEmpty($base) -or $base -ieq 'explorer') {
-        # Fall back to display name with spaces removed as best-effort
         $base = $DisplayName -replace '\s+', ''
     }
     return $base
 }
 
 # ---------------------------------------------------------------------------
-# Check if app is genuinely ready: process exists AND (window visible OR tray).
+# Check genuine app readiness: process exists AND window or tray present.
 # Returns: 'Window' | 'Tray' | 'NotReady'
 # ---------------------------------------------------------------------------
 function Get-AppReadyState($ProcessName) {
     $procs = Get-Process -Name $ProcessName -ErrorAction SilentlyContinue
     if (-not $procs) { return 'NotReady' }
-    # Window check
     if ($procs | Where-Object { $_.MainWindowHandle -ne 0 }) { return 'Window' }
-    # Tray check: process running with a valid session but no main window
-    if ($procs | Where-Object { $_.SessionId -gt 0 }) { return 'Tray' }
+    if ($procs | Where-Object { $_.SessionId -gt 0 })        { return 'Tray' }
     return 'NotReady'
 }
 
 # ---------------------------------------------------------------------------
-# Poll until app is ready or timeout. Returns 'Window' | 'Tray' | 'NotReady'
+# Poll until app is ready or timeouts expire.
+# Returns: 'Window' | 'Tray' | 'NotReady'
 # ---------------------------------------------------------------------------
 function Wait-ForAppReady($ProcessName, $ProcessTimeout, $WindowTimeout) {
-    # Phase 1: wait for process to appear
     $found = $false
     for ($i = 0; $i -lt $ProcessTimeout; $i++) {
         if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) { $found = $true; break }
@@ -64,13 +60,56 @@ function Wait-ForAppReady($ProcessName, $ProcessTimeout, $WindowTimeout) {
     }
     if (-not $found) { return 'NotReady' }
     Write-Host "  Process started. Waiting for window or tray..."
-    # Phase 2: wait for window or tray presence
     for ($j = 0; $j -lt $WindowTimeout; $j++) {
         $state = Get-AppReadyState -ProcessName $ProcessName
         if ($state -ne 'NotReady') { return $state }
         Start-Sleep -Seconds 1
     }
     return 'NotReady'
+}
+
+# ---------------------------------------------------------------------------
+# Update shortcut .lnk AND persist entry to JSON config.
+# Only updates shortcut if ExePath differs from current TargetPath.
+# ---------------------------------------------------------------------------
+function Update-AppEntry {
+    param(
+        $ExistingApp, $Config, $ConfigPath,
+        $Shortcut, $File, $AppDisplayName,
+        $ProcessName, $LaunchType, $ExePath, $Aumid
+    )
+
+    # Update shortcut file only if target has changed
+    if (-not [string]::IsNullOrEmpty($ExePath) -and
+        $Shortcut.TargetPath -ine $ExePath) {
+        try {
+            $Shortcut.TargetPath       = $ExePath
+            $Shortcut.Arguments        = ''
+            $Shortcut.WorkingDirectory = Split-Path $ExePath -Parent
+            $Shortcut.Save()
+            Write-Host "  Shortcut updated -> $ExePath"
+        } catch {
+            Write-Warning "Could not update shortcut: $($_.Exception.Message)"
+        }
+    }
+
+    # Update existing JSON entry or add new one
+    if ($ExistingApp) {
+        $ExistingApp.ProcessName = $ProcessName
+        $ExistingApp.LaunchType  = $LaunchType
+        $ExistingApp.ExePath     = $ExePath
+        $ExistingApp.Aumid       = $Aumid
+    } else {
+        $Config.Shortcuts += [PSCustomObject]@{
+            Name         = $AppDisplayName
+            ShortcutPath = $File.FullName
+            ProcessName  = $ProcessName
+            LaunchType   = $LaunchType
+            ExePath      = $ExePath
+            Aumid        = $Aumid
+        }
+    }
+    Save-Config -Cfg $Config -Path $ConfigPath
 }
 
 # ---------------------------------------------------------------------------
@@ -118,47 +157,36 @@ function Resolve-UwpExe($AppName) {
 }
 
 # ---------------------------------------------------------------------------
-# Shared UWP fork: resolve, update shortcut + JSON, relaunch, check
+# Shared UWP fork: resolve from WindowsApps, update shortcut + JSON, relaunch
+# Falls back to file-picker if no UWP match found.
 # ---------------------------------------------------------------------------
-function Invoke-UwpFork($AppDisplayName, $Shortcut, $File, $ExistingApp, $Config, $ConfigPath, $ProcessTimeout, $WindowTimeout) {
+function Invoke-UwpFork {
+    param(
+        $AppDisplayName, $Shortcut, $File,
+        $ExistingApp, $Config, $ConfigPath,
+        $ProcessTimeout, $WindowTimeout
+    )
     Write-Host "  Attempting UWP resolution for '$AppDisplayName'..."
     $resolved = Resolve-UwpExe -AppName $AppDisplayName
+
     if ($resolved) {
         Write-Host "  Found UWP exe: $($resolved.ExePath)"
-        try {
-            $Shortcut.TargetPath       = $resolved.ExePath
-            $Shortcut.Arguments        = ''
-            $Shortcut.WorkingDirectory = Split-Path $resolved.ExePath -Parent
-            $Shortcut.Save()
-        } catch {
-            Write-Warning "Could not update shortcut: $($_.Exception.Message)"
-        }
-        if ($ExistingApp) {
-            $ExistingApp.ProcessName = $resolved.ProcessName
-            $ExistingApp.LaunchType  = 'UWP'
-            $ExistingApp.ExePath     = $resolved.ExePath
-            $ExistingApp.Aumid       = $resolved.Aumid
-        } else {
-            $Config.Shortcuts += [PSCustomObject]@{
-                Name         = $AppDisplayName
-                ShortcutPath = $File.FullName
-                ProcessName  = $resolved.ProcessName
-                LaunchType   = 'UWP'
-                ExePath      = $resolved.ExePath
-                Aumid        = $resolved.Aumid
-            }
-        }
-        Save-Config -Cfg $Config -Path $ConfigPath
+        Update-AppEntry -ExistingApp $ExistingApp -Config $Config -ConfigPath $ConfigPath `
+            -Shortcut $Shortcut -File $File -AppDisplayName $AppDisplayName `
+            -ProcessName $resolved.ProcessName -LaunchType 'UWP' `
+            -ExePath $resolved.ExePath -Aumid $resolved.Aumid
+
         Write-Host "  Re-launching '$AppDisplayName' as UWP..."
         Start-Process -FilePath $resolved.ExePath -ErrorAction SilentlyContinue
-        $state = Wait-ForAppReady -ProcessName $resolved.ProcessName -ProcessTimeout $ProcessTimeout -WindowTimeout $WindowTimeout
+        $state = Wait-ForAppReady -ProcessName $resolved.ProcessName `
+                     -ProcessTimeout $ProcessTimeout -WindowTimeout $WindowTimeout
         switch ($state) {
             'Window'   { Write-Host "  Window ready. $AppDisplayName is up." }
             'Tray'     { Write-Host "  Running in tray. $AppDisplayName is up." }
             'NotReady' { Write-Warning "'$AppDisplayName' still did not start after UWP resolution." }
         }
     } else {
-        # No UWP match -- file-picker repair
+        # No UWP match found -- offer file-picker repair
         Write-Warning "'$AppDisplayName' did not start and no UWP match found. Select executable manually."
         Add-Type -AssemblyName System.Windows.Forms
         $dlg                  = New-Object System.Windows.Forms.OpenFileDialog
@@ -167,36 +195,18 @@ function Invoke-UwpFork($AppDisplayName, $Shortcut, $File, $ExistingApp, $Config
         $dlg.InitialDirectory = $env:ProgramFiles
         $selectedExe = ''
         if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { $selectedExe = $dlg.FileName }
+
         if ($selectedExe -and (Test-Path -LiteralPath $selectedExe)) {
-            try {
-                $Shortcut.TargetPath       = $selectedExe
-                $Shortcut.Arguments        = ''
-                $Shortcut.WorkingDirectory = Split-Path $selectedExe -Parent
-                $Shortcut.Save()
-            } catch {
-                Write-Warning "Could not update shortcut: $($_.Exception.Message)"
-                return
-            }
             $repairedProc = [System.IO.Path]::GetFileNameWithoutExtension($selectedExe)
-            if ($ExistingApp) {
-                $ExistingApp.ProcessName = $repairedProc
-                $ExistingApp.LaunchType  = 'Win32'
-                $ExistingApp.ExePath     = $selectedExe
-                $ExistingApp.Aumid       = ''
-            } else {
-                $Config.Shortcuts += [PSCustomObject]@{
-                    Name         = $AppDisplayName
-                    ShortcutPath = $File.FullName
-                    ProcessName  = $repairedProc
-                    LaunchType   = 'Win32'
-                    ExePath      = $selectedExe
-                    Aumid        = ''
-                }
-            }
-            Save-Config -Cfg $Config -Path $ConfigPath
+            Update-AppEntry -ExistingApp $ExistingApp -Config $Config -ConfigPath $ConfigPath `
+                -Shortcut $Shortcut -File $File -AppDisplayName $AppDisplayName `
+                -ProcessName $repairedProc -LaunchType 'Win32' `
+                -ExePath $selectedExe -Aumid ''
+
             Write-Host "  Re-launching '$AppDisplayName'..."
             $WshShell.Run('"' + $File.FullName + '"', 1, $false)
-            $state = Wait-ForAppReady -ProcessName $repairedProc -ProcessTimeout $ProcessTimeout -WindowTimeout $WindowTimeout
+            $state = Wait-ForAppReady -ProcessName $repairedProc `
+                         -ProcessTimeout $ProcessTimeout -WindowTimeout $WindowTimeout
             switch ($state) {
                 'Window'   { Write-Host "  Window ready. $AppDisplayName is up." }
                 'Tray'     { Write-Host "  Running in tray. $AppDisplayName is up." }
@@ -303,9 +313,31 @@ foreach ($file in $lnkFiles) {
 
     # Match config entry by Name (renumber-safe)
     $existingApp = $config.Shortcuts | Where-Object { $_.Name -eq $appDisplayName } | Select-Object -First 1
+
+    # Keep ShortcutPath in sync if shortcut was renumbered
     if ($existingApp -and $existingApp.ShortcutPath -ne $file.FullName) {
         $existingApp.ShortcutPath = $file.FullName
         Save-Config -Cfg $config -Path $configPath
+    }
+
+    # ------------------------------------------------------------------
+    # Stale entry detection: clear classification fields so re-detection runs
+    # ------------------------------------------------------------------
+    $isStale = $existingApp -and (
+        [string]::IsNullOrEmpty($existingApp.ProcessName) -or
+        $existingApp.ProcessName -ieq 'explorer' -or
+        ($existingApp.LaunchType -eq 'Win32' -and
+            $existingApp.ExePath -ieq "$env:SystemRoot\explorer.exe") -or
+        ($existingApp.LaunchType -eq 'UWP' -and (
+            [string]::IsNullOrEmpty($existingApp.ExePath) -or
+            -not (Test-Path -LiteralPath $existingApp.ExePath)))
+    )
+    if ($isStale) {
+        Write-Host "Re-detecting $appDisplayName (stale or misclassified entry)..."
+        $existingApp.LaunchType  = $null
+        $existingApp.ProcessName = $null
+        $existingApp.ExePath     = $null
+        $existingApp.Aumid       = $null
     }
 
     # Derive real process name -- never use 'explorer'
@@ -317,7 +349,7 @@ foreach ($file in $lnkFiles) {
                 }
 
     # ------------------------------------------------------------------
-    # Skip-if-running: must have window OR tray presence to skip
+    # Skip-if-running: only skip if window OR tray confirmed
     # ------------------------------------------------------------------
     $currentState = Get-AppReadyState -ProcessName $procName
     if ($currentState -eq 'Window') {
@@ -328,10 +360,9 @@ foreach ($file in $lnkFiles) {
         Write-Host "Skipping $appDisplayName (already running in tray)."
         continue
     }
-    # NotReady = not running or ghost process -- proceed to launch
 
     # ------------------------------------------------------------------
-    # PATH 1: Known UWP with valid ExePath
+    # PATH 1: Known UWP with valid ExePath -> Start-Process directly
     # ------------------------------------------------------------------
     if ($existingApp -and $existingApp.LaunchType -eq 'UWP' -and
         -not [string]::IsNullOrEmpty($existingApp.ExePath) -and
@@ -339,7 +370,8 @@ foreach ($file in $lnkFiles) {
 
         Write-Host "Launching $appDisplayName [UWP]..."
         Start-Process -FilePath $existingApp.ExePath -ErrorAction SilentlyContinue
-        $state = Wait-ForAppReady -ProcessName $procName -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
+        $state = Wait-ForAppReady -ProcessName $procName `
+                     -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
         switch ($state) {
             'Window'   { Write-Host "  Window ready. $appDisplayName is up." }
             'Tray'     { Write-Host "  Running in tray. $appDisplayName is up." }
@@ -354,7 +386,7 @@ foreach ($file in $lnkFiles) {
     }
 
     # ------------------------------------------------------------------
-    # PATH 2 & 3: Known Win32 OR unknown/stale -- WshShell.Run .lnk
+    # PATH 2 & 3: Known Win32 OR unknown/stale -> WshShell.Run .lnk
     # ------------------------------------------------------------------
     if ($existingApp -and $existingApp.LaunchType -eq 'Win32') {
         Write-Host "Launching $appDisplayName [Win32]..."
@@ -364,43 +396,27 @@ foreach ($file in $lnkFiles) {
 
     $WshShell.Run('"' + $file.FullName + '"', 1, $false)
 
-    # If TargetPath is explorer.exe, skip process wait and go straight to UWP fork
+    # If TargetPath is explorer.exe, skip process wait -- go straight to UWP fork
     $isExplorerTarget = $targetPath -ieq "$env:SystemRoot\explorer.exe"
-
     if (-not $isExplorerTarget) {
-        $state = Wait-ForAppReady -ProcessName $procName -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
+        $state = Wait-ForAppReady -ProcessName $procName `
+                     -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
     } else {
-        $state = 'NotReady'   # force UWP fork immediately
+        $state = 'NotReady'
     }
 
     switch ($state) {
         'Window' {
             Write-Host "  Window ready. $appDisplayName is up."
-            if ($existingApp) {
-                $existingApp.ProcessName = $procName; $existingApp.LaunchType = 'Win32'
-                $existingApp.ExePath = $targetPath;   $existingApp.Aumid = ''
-            } else {
-                $config.Shortcuts += [PSCustomObject]@{
-                    Name = $appDisplayName; ShortcutPath = $file.FullName
-                    ProcessName = $procName; LaunchType = 'Win32'
-                    ExePath = $targetPath; Aumid = ''
-                }
-            }
-            Save-Config -Cfg $config -Path $configPath
+            Update-AppEntry -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
+                -Shortcut $shortcut -File $file -AppDisplayName $appDisplayName `
+                -ProcessName $procName -LaunchType 'Win32' -ExePath $targetPath -Aumid ''
         }
         'Tray' {
             Write-Host "  Running in tray. $appDisplayName is up."
-            if ($existingApp) {
-                $existingApp.ProcessName = $procName; $existingApp.LaunchType = 'Win32'
-                $existingApp.ExePath = $targetPath;   $existingApp.Aumid = ''
-            } else {
-                $config.Shortcuts += [PSCustomObject]@{
-                    Name = $appDisplayName; ShortcutPath = $file.FullName
-                    ProcessName = $procName; LaunchType = 'Win32'
-                    ExePath = $targetPath; Aumid = ''
-                }
-            }
-            Save-Config -Cfg $config -Path $configPath
+            Update-AppEntry -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
+                -Shortcut $shortcut -File $file -AppDisplayName $appDisplayName `
+                -ProcessName $procName -LaunchType 'Win32' -ExePath $targetPath -Aumid ''
         }
         'NotReady' {
             Invoke-UwpFork -AppDisplayName $appDisplayName -Shortcut $shortcut -File $file `
