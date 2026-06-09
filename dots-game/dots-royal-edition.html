@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dots: Royal Edition</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Raleway:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Raleway', sans-serif;
+      text-align: center;
+      min-height: 100dvh;
+      padding: 12px 8px;
+      background:
+        radial-gradient(ellipse at 20% 10%, #1a0a3a 0%, transparent 55%),
+        radial-gradient(ellipse at 80% 90%, #0a1a3a 0%, transparent 55%),
+        radial-gradient(ellipse at 60% 40%, #1a1040 0%, transparent 60%),
+        linear-gradient(160deg, #0d0820 0%, #12103a 40%, #0a1828 100%);
+      background-attachment: fixed;
+      color: #e8dfc8;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background:
+        repeating-linear-gradient(105deg, transparent 0px, transparent 80px, rgba(180,140,255,0.03) 80px, rgba(180,140,255,0.03) 81px),
+        repeating-linear-gradient(15deg, transparent 0px, transparent 120px, rgba(100,220,255,0.02) 120px, rgba(100,220,255,0.02) 121px);
+      pointer-events: none;
+      z-index: 0;
+    }
+    #ui, #canvas-wrap, .legend { position: relative; z-index: 1; }
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(1.3rem, 4vw, 2rem);
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      background: linear-gradient(135deg, #f5e083 0%, #e8c84a 30%, #fff8d0 55%, #c8960a 80%, #f5e083 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 10px;
+      filter: drop-shadow(0 2px 8px rgba(220,180,50,0.35));
+    }
+    #scoreboard {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(180,140,255,0.08) 50%, rgba(100,200,255,0.06) 100%);
+      border: 1px solid rgba(200,170,255,0.25);
+      border-radius: 50px;
+      padding: 8px 24px;
+      font-family: 'Cinzel', serif;
+      font-size: clamp(0.85rem, 2.5vw, 1.05rem);
+      letter-spacing: 0.05em;
+      margin: 8px auto;
+      backdrop-filter: blur(10px);
+      box-shadow: 0 0 20px rgba(160,120,255,0.12), inset 0 1px 0 rgba(255,255,255,0.12);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .divider { color: rgba(200,170,255,0.4); font-size: 1.2em; }
+    .p1 { color: #60b8ff; font-weight: 600; text-shadow: 0 0 10px rgba(96,184,255,0.5); }
+    .p2 { color: #ff7070; font-weight: 600; text-shadow: 0 0 10px rgba(255,112,112,0.5); }
+    #turn-line, #status-line {
+      font-size: clamp(0.8rem, 2.2vw, 0.95rem);
+      letter-spacing: 0.06em;
+      color: rgba(220,210,240,0.82);
+      margin: 6px 0 10px;
+    }
+    #bonus-note { color: #f5e083; text-shadow: 0 0 8px rgba(245,224,131,0.6); }
+    .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 12px; }
+    button {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(0.72rem, 2vw, 0.9rem);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      transition: transform 80ms ease, box-shadow 80ms ease;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    #btn-rules {
+      background: linear-gradient(175deg, #ffe57a 0%, #d4a017 40%, #8a6000 100%);
+      color: #1a0e00;
+      box-shadow: 0 6px 0 #5a3d00, 0 8px 16px rgba(180,120,0,0.45), inset 0 1px 0 rgba(255,255,200,0.55), inset 0 -2px 0 rgba(0,0,0,0.2);
+      text-shadow: 0 1px 0 rgba(255,240,160,0.6);
+    }
+    #btn-rules:active { transform: translateY(4px); box-shadow: 0 2px 0 #5a3d00, 0 4px 8px rgba(180,120,0,0.3); }
+    #btn-finish {
+      background: linear-gradient(175deg, #c084fc 0%, #7c3aed 45%, #3b0764 100%);
+      color: #f3e8ff;
+      box-shadow: 0 6px 0 #2e0650, 0 8px 16px rgba(100,40,200,0.45), inset 0 1px 0 rgba(255,200,255,0.35), inset 0 -2px 0 rgba(0,0,0,0.25);
+    }
+    #btn-finish:active { transform: translateY(4px); box-shadow: 0 2px 0 #2e0650, 0 4px 8px rgba(100,40,200,0.3); }
+    #btn-new {
+      background: linear-gradient(175deg, #67e8f9 0%, #0284c7 45%, #0a1a4a 100%);
+      color: #e0f7ff;
+      box-shadow: 0 6px 0 #062040, 0 8px 16px rgba(0,80,180,0.45), inset 0 1px 0 rgba(180,240,255,0.4), inset 0 -2px 0 rgba(0,0,0,0.25);
+    }
+    #btn-new:active { transform: translateY(4px); box-shadow: 0 2px 0 #062040, 0 4px 8px rgba(0,80,180,0.3); }
+    #btn-play-again, #btn-close-rules {
+      font-family: 'Cinzel', serif;
+      font-size: 0.95rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 12px 28px;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      background: linear-gradient(175deg, #6ee7b7 0%, #059669 45%, #022c22 100%);
+      color: #ecfdf5;
+      box-shadow: 0 6px 0 #014d38, 0 8px 16px rgba(0,120,80,0.45), inset 0 1px 0 rgba(180,255,220,0.4), inset 0 -2px 0 rgba(0,0,0,0.25);
+    }
+    #btn-play-again:active, #btn-close-rules:active { transform: translateY(4px); box-shadow: 0 2px 0 #014d38, 0 4px 8px rgba(0,100,60,0.3); }
+    #canvas-wrap {
+      display: inline-block;
+      width: min(92vw, 680px);
+      border-radius: 18px;
+      padding: 3px;
+      background: linear-gradient(135deg, #c084fc 0%, #60b8ff 20%, #f5e083 40%, #6ee7b7 60%, #f472b6 80%, #c084fc 100%);
+      box-shadow: 0 0 40px rgba(150,100,255,0.3), 0 0 80px rgba(80,160,255,0.15), 0 20px 60px rgba(0,0,0,0.6);
+      animation: opalShift 8s linear infinite;
+    }
+    @keyframes opalShift {
+      0% { filter: hue-rotate(0deg) brightness(1); }
+      50% { filter: hue-rotate(30deg) brightness(1.08); }
+      100% { filter: hue-rotate(0deg) brightness(1); }
+    }
+    canvas {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 15px;
+      touch-action: none;
+      cursor: crosshair;
+      background: linear-gradient(145deg, #0f0c29 0%, #1a1560 50%, #0d1b3e 100%);
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 100;
+      padding: 36px 44px;
+      border-radius: 20px;
+      text-align: center;
+      background: linear-gradient(145deg, rgba(20,10,50,0.97) 0%, rgba(30,15,70,0.97) 100%);
+      border: 1px solid rgba(200,160,255,0.3);
+      box-shadow: 0 0 60px rgba(150,80,255,0.3), 0 30px 80px rgba(0,0,0,0.8), inset 0 1px 0 rgba(255,255,255,0.1);
+      backdrop-filter: blur(20px);
+      width: min(92vw, 520px);
+    }
+    .modal.show { display: block; }
+    .modal h2 {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(1.1rem, 4vw, 1.5rem);
+      letter-spacing: 0.1em;
+      margin-bottom: 6px;
+      color: #e8dfc8;
+    }
+    .modal h2.draw {
+      background: linear-gradient(135deg, #f5e083, #fff8d0, #e8c84a);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 2px 6px rgba(220,180,50,0.4));
+    }
+    .modal p, .modal li { color: rgba(220,210,240,0.82); line-height: 1.6; }
+    .modal ul { list-style: none; display: grid; gap: 10px; margin: 14px 0 20px; text-align: left; }
+    .modal li { background: rgba(255,255,255,0.04); border: 1px solid rgba(200,170,255,0.12); border-radius: 12px; padding: 10px 12px; }
+    #winner-text { margin-bottom: 20px; display: block; }
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      color: rgba(220,210,240,0.78);
+      font-size: 0.9rem;
+    }
+    .legend .swatch {
+      display: inline-block;
+      width: 12px; height: 12px; border-radius: 999px; margin-right: 6px; vertical-align: middle;
+      box-shadow: 0 0 8px currentColor;
+    }
+  </style>
+</head>
+<body>
+<div id="ui">
+  <h1>&#9670; Dots &amp; Boxes &#9670;</h1>
+  <div id="scoreboard">
+    <span class="p1">Player 1</span><span id="s1"> 0</span>
+    <span class="divider">&#10022;</span>
+    <span class="p2">Player 2</span><span id="s2"> 0</span>
+    <span class="divider">&#10022;</span>
+    <span>Boxes Left</span><span id="remaining"> 16</span>
+  </div>
+  <p id="turn-line"><span id="player-display" class="p1">Player 1</span>'s turn</p>
+  <p id="status-line">Tap a dot, then an adjacent dot. <span id="bonus-note">Close a box to play again.</span></p>
+  <div class="btn-row">
+    <button id="btn-rules" type="button">&#9670; Rules</button>
+    <button id="btn-finish" type="button">&#9632; Finish</button>
+    <button id="btn-new" type="button">&#8635; New Game</button>
+  </div>
+</div>
+<div id="canvas-wrap">
+  <canvas id="board" width="680" height="680"></canvas>
+</div>
+<div class="legend"><span><span class="swatch" style="background:#60b8ff"></span>Player 1 line and box</span><span><span class="swatch" style="background:#ff7070"></span>Player 2 line and box</span></div>
+<div id="rules-modal" class="modal">
+  <h2>Royal Rules</h2>
+  <ul>
+    <li>Tap one dot, then tap a neighbouring dot to draw one line.</li>
+    <li>Only horizontal or vertical adjacent dots can be connected.</li>
+    <li>If your line completes the fourth side of a square, you claim that box.</li>
+    <li>When you claim a box, you immediately take another turn.</li>
+    <li>The player with more owned boxes wins.</li>
+  </ul>
+  <button id="btn-close-rules" type="button">Close</button>
+</div>
+<div id="game-over" class="modal">
+  <h2 id="game-over-heading"><span id="winner-text"></span>&#127942;</h2>
+  <p id="final-score"></p>
+  <div style="height:18px"></div>
+  <button id="btn-play-again" type="button">&#9670; Play Again</button>
+</div>
+<script>
+  const canvas = document.getElementById('board');
+  const ctx = canvas.getContext('2d');
+  const size = 5;
+  const totalBoxes = (size - 1) * (size - 1);
+  const colors = { 1: '#60b8ff', 2: '#ff7070' };
+  const fills = { 1: 'rgba(96,184,255,0.28)', 2: 'rgba(255,112,112,0.28)' };
+  let horizontal = [], vertical = [], boxes = [];
+  let currentPlayer = 1;
+  let firstDot = null;
+
+  function resetBoard() {
+    horizontal = Array.from({ length: size }, () => Array(size - 1).fill(0));
+    vertical = Array.from({ length: size - 1 }, () => Array(size).fill(0));
+    boxes = Array.from({ length: size - 1 }, () => Array(size - 1).fill(0));
+    currentPlayer = 1;
+    firstDot = null;
+    document.getElementById('game-over').classList.remove('show');
+    updateUi();
+    draw();
+  }
+
+  function resizeCanvas() {
+    const boardSize = Math.min(window.innerWidth - 20, window.innerHeight - 210, 680);
+    canvas.width = Math.max(320, boardSize);
+    canvas.height = canvas.width;
+    draw();
+  }
+
+  function geometry() {
+    const pad = canvas.width * 0.12;
+    const gap = (canvas.width - pad * 2) / (size - 1);
+    return { pad, gap, dotR: canvas.width * 0.0095 + 2, tapR: Math.max(22, canvas.width * 0.04) };
+  }
+
+  function pt(row, col) {
+    const { pad, gap } = geometry();
+    return { x: pad + col * gap, y: pad + row * gap };
+  }
+
+  function getClickedDot(mx, my) {
+    const { tapR } = geometry();
+    for (let r = 0; r < size; r++)
+      for (let c = 0; c < size; c++) {
+        const p = pt(r, c);
+        if (Math.hypot(p.x - mx, p.y - my) <= tapR) return { r, c };
+      }
+    return null;
+  }
+
+  function sameDot(a, b) { return a && b && a.r === b.r && a.c === b.c; }
+  function adjacent(a, b) { return Math.abs(a.r - b.r) + Math.abs(a.c - b.c) === 1; }
+
+  function lineExists(a, b) {
+    if (a.r === b.r) return horizontal[a.r][Math.min(a.c, b.c)] !== 0;
+    return vertical[Math.min(a.r, b.r)][a.c] !== 0;
+  }
+
+  function setLine(a, b, player) {
+    if (a.r === b.r) horizontal[a.r][Math.min(a.c, b.c)] = player;
+    else vertical[Math.min(a.r, b.r)][a.c] = player;
+  }
+
+  function boxCompleted(r, c) {
+    return horizontal[r][c] && horizontal[r + 1][c] && vertical[r][c] && vertical[r][c + 1];
+  }
+
+  function claimBoxes(a, b) {
+    const claimed = [];
+    if (a.r === b.r) {
+      const row = a.r, col = Math.min(a.c, b.c);
+      if (row > 0 && !boxes[row - 1][col] && boxCompleted(row - 1, col)) claimed.push([row - 1, col]);
+      if (row < size - 1 && !boxes[row][col] && boxCompleted(row, col)) claimed.push([row, col]);
+    } else {
+      const row = Math.min(a.r, b.r), col = a.c;
+      if (col > 0 && !boxes[row][col - 1] && boxCompleted(row, col - 1)) claimed.push([row, col - 1]);
+      if (col < size - 1 && !boxes[row][col] && boxCompleted(row, col)) claimed.push([row, col]);
+    }
+    claimed.forEach(([r, c]) => boxes[r][c] = currentPlayer);
+    return claimed.length;
+  }
+
+  function countScore(player) { return boxes.flat().filter(v => v === player).length; }
+
+  function updateUi() {
+    const s1 = countScore(1), s2 = countScore(2);
+    document.getElementById('s1').textContent = ' ' + s1;
+    document.getElementById('s2').textContent = ' ' + s2;
+    document.getElementById('remaining').textContent = ' ' + (totalBoxes - s1 - s2);
+    const el = document.getElementById('player-display');
+    el.className = 'p' + currentPlayer;
+    el.textContent = 'Player ' + currentPlayer;
+  }
+
+  function showGameOver() {
+    const s1 = countScore(1), s2 = countScore(2);
+    const heading = document.getElementById('game-over-heading');
+    const winnerText = document.getElementById('winner-text');
+    heading.classList.remove('draw');
+    if (s1 > s2) winnerText.innerHTML = `<span class="p1">Player 1 Wins! (${s1}-${s2})</span> `;
+    else if (s2 > s1) winnerText.innerHTML = `<span class="p2">Player 2 Wins! (${s2}-${s1})</span> `;
+    else { heading.classList.add('draw'); winnerText.innerHTML = `It's a Draw! (${s1}-${s2}) `; }
+    document.getElementById('final-score').textContent = 'Boxes claimed decide the winner.';
+    document.getElementById('game-over').classList.add('show');
+  }
+
+  function allLinesDrawn() {
+    return horizontal.flat().every(Boolean) && vertical.flat().every(Boolean);
+  }
+
+  function handleDotClick(dot) {
+    if (!dot || document.getElementById('game-over').classList.contains('show')) return;
+    if (!firstDot) { firstDot = dot; draw(); return; }
+    if (sameDot(firstDot, dot)) { firstDot = null; draw(); return; }
+    if (!adjacent(firstDot, dot)) { firstDot = dot; draw(); return; }
+    if (lineExists(firstDot, dot)) { firstDot = null; draw(); return; }
+    setLine(firstDot, dot, currentPlayer);
+    const madeBoxes = claimBoxes(firstDot, dot);
+    firstDot = null;
+    if (madeBoxes === 0) currentPlayer = currentPlayer === 1 ? 2 : 1;
+    updateUi();
+    draw();
+    if (allLinesDrawn()) showGameOver();
+  }
+
+  function drawBackdrop() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(120,100,200,0.07)';
+    ctx.lineWidth = 0.5;
+    const step = canvas.width / 10;
+    for (let x = 0; x <= canvas.width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke(); }
+    for (let y = 0; y <= canvas.height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function drawBoxes() {
+    const { gap } = geometry();
+    for (let r = 0; r < size - 1; r++)
+      for (let c = 0; c < size - 1; c++) {
+        if (!boxes[r][c]) continue;
+        const p = pt(r, c);
+        const inset = gap * 0.12;
+        ctx.fillStyle = fills[boxes[r][c]];
+        ctx.strokeStyle = colors[boxes[r][c]] + '66';
+        ctx.lineWidth = 1;
+        roundRect(p.x + inset, p.y + inset, gap - inset * 2, gap - inset * 2, gap * 0.12);
+        ctx.fill();
+        ctx.stroke();
+      }
+  }
+
+  function drawLines() {
+    const glowWidth = Math.max(7, canvas.width * 0.0105);
+    const lineWidth = Math.max(2.5, canvas.width * 0.0038);
+    for (let r = 0; r < size; r++)
+      for (let c = 0; c < size - 1; c++) {
+        const owner = horizontal[r][c];
+        const p1 = pt(r, c), p2 = pt(r, c + 1);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        if (owner) {
+          ctx.strokeStyle = colors[owner] + '30'; ctx.lineWidth = glowWidth; ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = colors[owner]; ctx.lineWidth = lineWidth; ctx.stroke();
+        } else {
+          ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = lineWidth; ctx.stroke();
+        }
+      }
+    for (let r = 0; r < size - 1; r++)
+      for (let c = 0; c < size; c++) {
+        const owner = vertical[r][c];
+        const p1 = pt(r, c), p2 = pt(r + 1, c);
+        ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+        if (owner) {
+          ctx.strokeStyle = colors[owner] + '30'; ctx.lineWidth = glowWidth; ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
+          ctx.strokeStyle = colors[owner]; ctx.lineWidth = lineWidth; ctx.stroke();
+        } else {
+          ctx.strokeStyle = 'rgba(255,255,255,0.12)'; ctx.lineWidth = lineWidth; ctx.stroke();
+        }
+      }
+    if (firstDot) {
+      const p = pt(firstDot.r, firstDot.c);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, Math.max(14, canvas.width * 0.02), 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255,224,68,0.22)';
+      ctx.fill();
+    }
+  }
+
+  function drawDots() {
+    const { dotR } = geometry();
+    for (let r = 0; r < size; r++)
+      for (let c = 0; c < size; c++) {
+        const p = pt(r, c);
+        const selected = firstDot && firstDot.r === r && firstDot.c === c;
+        const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, selected ? 14 : 10);
+        grd.addColorStop(0, selected ? 'rgba(255,220,50,0.6)' : 'rgba(180,140,255,0.4)');
+        grd.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.beginPath(); ctx.arc(p.x, p.y, selected ? 14 : 10, 0, Math.PI * 2); ctx.fillStyle = grd; ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, selected ? 7 : dotR, 0, Math.PI * 2);
+        ctx.fillStyle = selected ? '#ffe044' : '#c8b8ff';
+        ctx.shadowColor = selected ? '#ffe044' : '#a080ff';
+        ctx.shadowBlur = 8;
+        ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.beginPath(); ctx.arc(p.x - 1.5, p.y - 1.5, selected ? 2.5 : 1.8, 0, Math.PI * 2); ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
+      }
+  }
+
+  function draw() {
+    drawBackdrop();
+    drawBoxes();
+    drawLines();
+    drawDots();
+  }
+
+  canvas.addEventListener('click', e => {
+    const rect = canvas.getBoundingClientRect();
+    handleDotClick(getClickedDot(e.clientX - rect.left, e.clientY - rect.top));
+  });
+  canvas.addEventListener('touchend', e => {
+    const touch = e.changedTouches[0];
+    if (!touch) return;
+    const rect = canvas.getBoundingClientRect();
+    handleDotClick(getClickedDot(touch.clientX - rect.left, touch.clientY - rect.top));
+  }, { passive: true });
+
+  document.getElementById('btn-rules').addEventListener('click', () => document.getElementById('rules-modal').classList.add('show'));
+  document.getElementById('btn-close-rules').addEventListener('click', () => document.getElementById('rules-modal').classList.remove('show'));
+  document.getElementById('btn-finish').addEventListener('click', showGameOver);
+  document.getElementById('btn-new').addEventListener('click', resetBoard);
+  document.getElementById('btn-play-again').addEventListener('click', resetBoard);
+
+  window.addEventListener('resize', resizeCanvas);
+  window.addEventListener('orientationchange', () => setTimeout(resizeCanvas, 150));
+  resizeCanvas();
+  resetBoard();
+</script>
+</body>
+</html>
