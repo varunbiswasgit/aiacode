@@ -26,7 +26,8 @@ function Test-ValidConfig($Obj) {
 }
 
 # ---------------------------------------------------------------------------
-# Derive a meaningful process name -- never returns 'explorer'
+# Derive a meaningful process name -- never returns 'explorer'.
+# Falls back to display name (spaces stripped) if target is explorer.exe.
 # ---------------------------------------------------------------------------
 function Get-ProcName($TargetPath, $DisplayName) {
     $base = [System.IO.Path]::GetFileNameWithoutExtension($TargetPath)
@@ -50,9 +51,15 @@ function Get-AppReadyState($ProcessName) {
 
 # ---------------------------------------------------------------------------
 # Poll until app is ready or timeouts expire.
+# If ProcessName looks like a display-name fallback (no file extension chars,
+# derived from an explorer.exe target), returns 'NotReady' immediately so the
+# caller falls through to UWP fork without waiting.
 # Returns: 'Window' | 'Tray' | 'NotReady'
 # ---------------------------------------------------------------------------
-function Wait-ForAppReady($ProcessName, $ProcessTimeout, $WindowTimeout) {
+function Wait-ForAppReady($ProcessName, $ProcessTimeout, $WindowTimeout, $IsDisplayNameFallback = $false) {
+    # If the proc name is unreliable (explorer target fallback), skip wait entirely
+    if ($IsDisplayNameFallback) { return 'NotReady' }
+
     $found = $false
     for ($i = 0; $i -lt $ProcessTimeout; $i++) {
         if (Get-Process -Name $ProcessName -ErrorAction SilentlyContinue) { $found = $true; break }
@@ -171,11 +178,7 @@ function Invoke-UwpFork {
 
     if ($resolved) {
         Write-Host "  Found UWP exe: $($resolved.ExePath)"
-
-        # Update shortcut explicitly (target was explorer.exe or stale)
         Update-Shortcut -Shortcut $Shortcut -ExePath $resolved.ExePath
-
-        # Persist classification to JSON
         Update-AppEntry -ExistingApp $ExistingApp -Config $Config -ConfigPath $ConfigPath `
             -File $File -AppDisplayName $AppDisplayName `
             -ProcessName $resolved.ProcessName -LaunchType 'UWP' `
@@ -191,7 +194,6 @@ function Invoke-UwpFork {
             'NotReady' { Write-Warning "'$AppDisplayName' still did not start after UWP resolution." }
         }
     } else {
-        # No UWP match -- file-picker repair
         Write-Warning "'$AppDisplayName' did not start and no UWP match found. Select executable manually."
         Add-Type -AssemblyName System.Windows.Forms
         $dlg                  = New-Object System.Windows.Forms.OpenFileDialog
@@ -203,11 +205,7 @@ function Invoke-UwpFork {
 
         if ($selectedExe -and (Test-Path -LiteralPath $selectedExe)) {
             $repairedProc = [System.IO.Path]::GetFileNameWithoutExtension($selectedExe)
-
-            # Update shortcut explicitly (file-picker repair)
             Update-Shortcut -Shortcut $Shortcut -ExePath $selectedExe
-
-            # Persist classification to JSON
             Update-AppEntry -ExistingApp $ExistingApp -Config $Config -ConfigPath $ConfigPath `
                 -File $File -AppDisplayName $AppDisplayName `
                 -ProcessName $repairedProc -LaunchType 'Win32' `
@@ -351,8 +349,11 @@ foreach ($file in $lnkFiles) {
     }
 
     # Derive real process name -- never use 'explorer'
+    # Track whether it is a display-name fallback (explorer.exe target)
+    $isDisplayNameFallback = $targetPath -ieq "$env:SystemRoot\explorer.exe"
     $procName = if ($existingApp -and $existingApp.ProcessName -and
                     $existingApp.ProcessName -ine 'explorer') {
+                    $isDisplayNameFallback = $false   # known good name from JSON
                     $existingApp.ProcessName
                 } else {
                     Get-ProcName -TargetPath $targetPath -DisplayName $appDisplayName
@@ -407,32 +408,22 @@ foreach ($file in $lnkFiles) {
 
     $WshShell.Run('"' + $file.FullName + '"', 1, $false)
 
-    # If TargetPath is explorer.exe, skip process wait -> straight to UWP fork
-    $isExplorerTarget = $targetPath -ieq "$env:SystemRoot\explorer.exe"
-    if (-not $isExplorerTarget) {
-        $state = Wait-ForAppReady -ProcessName $procName `
-                     -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
-    } else {
-        $state = 'NotReady'
-    }
+    # Wait-ForAppReady returns 'NotReady' immediately if IsDisplayNameFallback
+    # (explorer.exe target) -- no inline branching needed here
+    $state = Wait-ForAppReady -ProcessName $procName `
+                 -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout `
+                 -IsDisplayNameFallback $isDisplayNameFallback
 
     switch ($state) {
-        'Window' {
-            Write-Host "  Window ready. $appDisplayName is up."
-            # Shortcut already correct -- only update JSON
-            Update-AppEntry -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
-                -File $file -AppDisplayName $appDisplayName `
-                -ProcessName $procName -LaunchType 'Win32' -ExePath $targetPath -Aumid ''
-        }
-        'Tray' {
-            Write-Host "  Running in tray. $appDisplayName is up."
+        { $_ -in 'Window', 'Tray' } {
+            $label = if ($state -eq 'Window') { 'Window ready' } else { 'Running in tray' }
+            Write-Host "  $label. $appDisplayName is up."
             # Shortcut already correct -- only update JSON
             Update-AppEntry -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
                 -File $file -AppDisplayName $appDisplayName `
                 -ProcessName $procName -LaunchType 'Win32' -ExePath $targetPath -Aumid ''
         }
         'NotReady' {
-            # Launch failed -- attempt UWP resolution (updates shortcut + JSON)
             Invoke-UwpFork -AppDisplayName $appDisplayName -Shortcut $shortcut -File $file `
                 -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
                 -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
