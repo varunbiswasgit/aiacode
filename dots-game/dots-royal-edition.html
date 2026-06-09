@@ -63,7 +63,7 @@
     button {
       font-family: 'Cinzel', serif; font-size: clamp(0.66rem, 1.7vw, 0.85rem); font-weight: 600;
       letter-spacing: 0.08em; padding: 8px 16px; border: none; border-radius: 10px;
-      cursor: pointer; transition: transform 80ms ease, box-shadow 80ms ease;
+      cursor: pointer; transition: transform 80ms ease, box-shadow 80ms ease, opacity 200ms ease;
       -webkit-tap-highlight-color: transparent; user-select: none;
     }
     #btn-rules  { background: linear-gradient(175deg,#ffe57a 0%,#d4a017 40%,#8a6000 100%); color:#1a0e00; box-shadow:0 5px 0 #5a3d00,0 7px 14px rgba(180,120,0,.45),inset 0 1px 0 rgba(255,255,200,.55); text-shadow:0 1px 0 rgba(255,240,160,.6); }
@@ -84,6 +84,12 @@
     }
     #btn-dice:active { transform:translateY(4px); box-shadow:0 1px 0 #14532d; }
     #btn-dice.dice-off:active { box-shadow:0 1px 0 #0f172a; }
+    /* Locked state — visually dimmed, not interactive */
+    #btn-dice.locked {
+      opacity: 0.42;
+      cursor: not-allowed;
+      pointer-events: none;
+    }
 
     /* Dice display panel */
     #dice-panel {
@@ -99,7 +105,6 @@
       font-size: clamp(1.5rem,6vw,2.2rem);
       line-height: 1;
       filter: drop-shadow(0 0 8px rgba(100,255,160,0.6));
-      transition: transform 0.15s ease;
     }
     #dice-face.spin { animation: diceRoll 0.25s ease; }
     @keyframes diceRoll {
@@ -107,7 +112,7 @@
       40%  { transform: rotate(180deg) scale(1.35); }
       100% { transform: rotate(360deg) scale(1);    }
     }
-    #dice-label { color: rgba(220,255,210,0.85); }
+    #dice-label, #dice-label2 { color: rgba(220,255,210,0.85); }
     #dice-moves-left { color: #4ade80; font-weight: 700; text-shadow: 0 0 8px rgba(74,222,128,0.6); }
 
     #btn-play-again, #btn-close-rules {
@@ -176,14 +181,14 @@
   <!-- Dice panel (visible only when dice mode is ON) -->
   <div id="dice-panel">
     <span id="dice-face">&#9856;</span>
-    <span id="dice-label">Roll: <strong id="dice-value">–</strong></span>
+    <span id="dice-label">Roll: <strong id="dice-value">&ndash;</strong></span>
     <span class="divider">|</span>
-    <span id="dice-label2">Lines left: <strong id="dice-moves-left">–</strong></span>
+    <span id="dice-label2">Lines left: <strong id="dice-moves-left">&ndash;</strong></span>
   </div>
 
   <div class="btn-row">
     <button id="btn-rules"  type="button">&#9670; Rules</button>
-    <button id="btn-dice"   type="button" class="dice-off">&#9860; Dice OFF</button>
+    <button id="btn-dice"   type="button" class="dice-off" title="Choose Dice mode before the first line is drawn">&#9860; Dice OFF</button>
     <button id="btn-finish" type="button">&#9632; Finish</button>
     <button id="btn-new"    type="button">&#8635; New Game</button>
   </div>
@@ -205,7 +210,7 @@
     <li>If your line completes the fourth side of a rectangle, you claim that box.</li>
     <li>Claim a box and you get another turn immediately.</li>
     <li>When all lines are drawn, the player with more boxes wins.</li>
-    <li><strong style="color:#4ade80">&#9860; Dice Mode:</strong> Toggle Dice ON to activate. Each turn begins with a dice roll (1–6) — you may draw that many lines. Completing a box earns +1 bonus line (no re-roll). Your turn ends when the line budget hits zero.</li>
+    <li><strong style="color:#4ade80">&#9860; Dice Mode:</strong> Toggle Dice ON <em>before</em> the first line is drawn. Each turn begins with a dice roll (1&ndash;6) &mdash; you may draw that many lines. Completing a box earns +1 bonus line (no re-roll). Turn ends when the line budget hits zero. The mode locks once the game starts; start a New Game to change it.</li>
   </ul>
   <button id="btn-close-rules" type="button">Close</button>
 </div>
@@ -225,9 +230,9 @@
   const ROWS  = 8;
   const BOXES = (COLS - 1) * (ROWS - 1);
 
-  const CLR   = { 1: '#60b8ff', 2: '#ff7070' };
-  const FILL  = { 1: 'rgba(96,184,255,0.26)', 2: 'rgba(255,112,112,0.26)' };
-  const LABEL = { 1: 'P1', 2: 'P2' };
+  const CLR        = { 1: '#60b8ff', 2: '#ff7070' };
+  const FILL       = { 1: 'rgba(96,184,255,0.26)', 2: 'rgba(255,112,112,0.26)' };
+  const LABEL      = { 1: 'P1', 2: 'P2' };
   const DICE_FACES = ['', '\u2680', '\u2681', '\u2682', '\u2683', '\u2684', '\u2685'];
 
   document.getElementById('remaining').textContent = ' ' + BOXES;
@@ -237,6 +242,7 @@
   let diceMode    = false;
   let diceRollVal = 0;
   let linesLeft   = 0;
+  let gameStarted = false;   // true once the first line is drawn
 
   // ── DICE HELPERS ───────────────────────────────────────────────────────────
   function rollDice() {
@@ -274,6 +280,18 @@
       btn.classList.add('dice-off');
       panel.classList.remove('visible');
     }
+  }
+
+  function lockDiceToggle() {
+    const btn = document.getElementById('btn-dice');
+    btn.classList.add('locked');
+    btn.title = 'Mode locked — start a New Game to change';
+  }
+
+  function unlockDiceToggle() {
+    const btn = document.getElementById('btn-dice');
+    btn.classList.remove('locked');
+    btn.title = 'Choose Dice mode before the first line is drawn';
   }
 
   // ── RESPONSIVE CANVAS ──────────────────────────────────────────────────────
@@ -345,6 +363,8 @@
     vLines = Array.from({ length: ROWS - 1 }, () => Array(COLS).fill(0));
     boxes  = Array.from({ length: ROWS - 1 }, () => Array(COLS - 1).fill(0));
     currentPlayer = 1;
+    gameStarted   = false;
+    unlockDiceToggle();
     document.getElementById('game-over').classList.remove('show');
     if (diceMode) rollDice();
     updateUi();
@@ -373,7 +393,7 @@
     return hLines.flat().every(Boolean) && vLines.flat().every(Boolean);
   }
 
-  // ── TURN ADVANCEMENT ────────────────────────────────────────────────────────
+  // ── TURN ADVANCEMENT ───────────────────────────────────────────────────────
   function advanceTurn() {
     currentPlayer = currentPlayer === 1 ? 2 : 1;
     if (diceMode) rollDice();
@@ -387,6 +407,12 @@
     const seg = nearestSegment(x, y);
     if (!seg) return;
 
+    // Lock dice toggle on the very first line drawn
+    if (!gameStarted) {
+      gameStarted = true;
+      lockDiceToggle();
+    }
+
     if (seg.type === 'H') hLines[seg.r][seg.c] = currentPlayer;
     else                  vLines[seg.r][seg.c] = currentPlayer;
 
@@ -394,9 +420,7 @@
 
     if (diceMode) {
       linesLeft--;
-      if (claimed > 0) {
-        linesLeft += claimed;   // +1 bonus line per box, no re-roll
-      }
+      if (claimed > 0) linesLeft += claimed;   // +1 bonus line per box
       if (linesLeft <= 0) advanceTurn();
       else updateDiceUI();
     } else {
@@ -541,7 +565,7 @@
   document.getElementById('btn-finish').addEventListener('click',      showGameOver);
   document.getElementById('btn-new').addEventListener('click',         resetBoard);
   document.getElementById('btn-play-again').addEventListener('click',  resetBoard);
-  document.getElementById('btn-dice').addEventListener('click',        () => setDiceMode(!diceMode));
+  document.getElementById('btn-dice').addEventListener('click',        () => { if (!gameStarted) setDiceMode(!diceMode); });
 
   window.addEventListener('resize', () => { syncSize(); draw(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { syncSize(); draw(); }, 150));
