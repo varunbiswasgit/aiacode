@@ -116,6 +116,21 @@
             text-shadow: 0 1px 0 rgba(255,240,160,0.6);
         }
         #btn-roll:active { transform: translateY(4px); box-shadow: 0 2px 0 #5a3d00, 0 4px 8px rgba(180,120,0,0.3), inset 0 1px 0 rgba(255,255,200,0.3); }
+        #btn-roll.hidden { display: none; }
+
+        /* Dice toggle button */
+        #btn-dice-toggle {
+            background: linear-gradient(175deg, #a3e635 0%, #65a30d 45%, #1a2e05 100%);
+            color: #f7fee7;
+            box-shadow: 0 6px 0 #1a3a00, 0 8px 16px rgba(80,150,0,0.45), inset 0 1px 0 rgba(220,255,160,0.4), inset 0 -2px 0 rgba(0,0,0,0.25);
+            text-shadow: 0 1px 0 rgba(0,0,0,0.3);
+        }
+        #btn-dice-toggle.dice-off {
+            background: linear-gradient(175deg, #94a3b8 0%, #475569 45%, #0f172a 100%);
+            color: #e2e8f0;
+            box-shadow: 0 6px 0 #0a1020, 0 8px 16px rgba(50,70,100,0.45), inset 0 1px 0 rgba(200,210,230,0.3), inset 0 -2px 0 rgba(0,0,0,0.25);
+        }
+        #btn-dice-toggle:active { transform: translateY(4px); }
 
         #btn-finish {
             background: linear-gradient(175deg, #c084fc 0%, #7c3aed 45%, #3b0764 100%);
@@ -133,7 +148,6 @@
         }
         #btn-new:active { transform: translateY(4px); box-shadow: 0 2px 0 #062040, 0 4px 8px rgba(0,80,180,0.3), inset 0 1px 0 rgba(150,220,255,0.2); }
 
-        /* Rules button */
         #btn-rules {
             background: linear-gradient(175deg, #fda4af 0%, #e11d48 45%, #4c0519 100%);
             color: #fff1f2;
@@ -158,6 +172,26 @@
             transition: transform 80ms ease, box-shadow 80ms ease;
         }
         #btn-play-again:active { transform: translateY(4px); box-shadow: 0 2px 0 #014d38, 0 4px 8px rgba(0,100,60,0.3), inset 0 1px 0 rgba(150,255,200,0.2); }
+
+        /* mode badge */
+        #mode-badge {
+            display: inline-block;
+            font-family: 'Cinzel', serif;
+            font-size: clamp(0.65rem, 1.8vw, 0.78rem);
+            letter-spacing: 0.12em;
+            padding: 3px 14px;
+            border-radius: 50px;
+            margin-bottom: 8px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(200,170,255,0.2);
+            color: rgba(200,190,230,0.75);
+            transition: background 0.3s, color 0.3s;
+        }
+        #mode-badge.classic {
+            background: rgba(163,230,53,0.12);
+            border-color: rgba(163,230,53,0.35);
+            color: #bef264;
+        }
 
         #canvas-wrap {
             position: relative;
@@ -266,9 +300,7 @@
             text-align: center;
         }
 
-        .rules-section {
-            margin-bottom: 18px;
-        }
+        .rules-section { margin-bottom: 18px; }
 
         .rules-section h3 {
             font-family: 'Cinzel', serif;
@@ -290,21 +322,13 @@
         }
 
         .rules-section ul,
-        .rules-section ol {
-            padding-left: 20px;
-        }
+        .rules-section ol { padding-left: 20px; }
+        .rules-section li { margin-bottom: 6px; }
 
-        .rules-section li {
-            margin-bottom: 6px;
-        }
-
-        .rules-highlight {
-            color: #f5e083;
-            font-weight: 600;
-        }
-
+        .rules-highlight { color: #f5e083; font-weight: 600; }
         .rules-p1 { color: #60b8ff; font-weight: 600; }
         .rules-p2 { color: #ff7070; font-weight: 600; }
+        .rules-classic { color: #bef264; font-weight: 600; }
 
         #btn-close-rules {
             display: block;
@@ -336,8 +360,10 @@
         <span class="divider">&#10022;</span>
         <span class="p2">Player 2</span><span class="score-val" id="s2"> 0</span>
     </div>
+    <div id="mode-badge">&#9670; Dice Mode</div>
     <p id="turn-line"><span id="player-display" class="p1">Player 1</span>'s turn &nbsp;&bull;&nbsp; Moves left: <span id="moves">0</span></p>
     <div class="btn-row">
+        <button id="btn-dice-toggle" onclick="toggleDiceMode()">&#127922; Dice: ON</button>
         <button id="btn-roll" onclick="rollDice()">&#9670; Roll Dice</button>
         <button id="btn-finish" onclick="checkGameOver()">&#9632; Finish</button>
         <button id="btn-new" onclick="resetGame()">&#8635; New Game</button>
@@ -361,43 +387,53 @@
 
         <div class="rules-section">
             <h3>&#9670; Objective</h3>
-            <p>Claim as many triangles as possible by connecting dots on the board. The player who owns the most completed triangles when no more legal moves remain wins the game.</p>
+            <p>Claim as many triangles as possible by connecting dots on the board. The player with the most completed triangles when no more legal moves remain wins.</p>
         </div>
 
         <div class="rules-section">
             <h3>&#9670; Setup</h3>
             <ul>
-                <li>The board is populated with <span class="rules-highlight">24 randomly placed dots</span> at the start of every game.</li>
+                <li>The board starts with <span class="rules-highlight">24 randomly placed dots</span>.</li>
                 <li>Two players alternate turns: <span class="rules-p1">Player 1 (Blue)</span> and <span class="rules-p2">Player 2 (Red)</span>.</li>
-                <li>No lines or triangles exist at the beginning — the board is blank.</li>
+                <li>No lines or triangles exist at the start.</li>
             </ul>
         </div>
 
         <div class="rules-section">
-            <h3>&#9670; Taking a Turn</h3>
+            <h3>&#9670; Dice Mode (Default)</h3>
             <ol>
-                <li><span class="rules-highlight">Roll the Dice</span> — press the Roll Dice button at the start of your turn to determine how many moves (1–6) you may make this turn.</li>
-                <li><span class="rules-highlight">Draw Lines</span> — click any dot, then click a second dot to draw a line segment between them. Each line drawn consumes one move.</li>
-                <li>Keep drawing until your moves run out. The turn then automatically passes to the other player.</li>
+                <li><span class="rules-highlight">Roll the Dice</span> — press Roll Dice to get 1–6 moves for your turn.</li>
+                <li><span class="rules-highlight">Draw Lines</span> — click any two dots to connect them. Each line uses one move.</li>
+                <li>Turn passes automatically when moves run out.</li>
             </ol>
         </div>
 
         <div class="rules-section">
-            <h3>&#9670; Legal Moves</h3>
-            <p>A line you draw must satisfy all three conditions to be legal:</p>
+            <h3>&#9670; Classic Mode (Dice Off)</h3>
             <ul>
-                <li><span class="rules-highlight">No duplicates</span> — the exact same line cannot be drawn twice.</li>
+                <li>Toggle <span class="rules-classic">Dice: OFF</span> to play in Classic mode — no dice required.</li>
+                <li>Each player draws <span class="rules-highlight">exactly 1 line</span> per turn.</li>
+                <li><span class="rules-highlight">Bonus turn:</span> completing a triangle earns you one more move immediately — just like the classic Dots &amp; Boxes game.</li>
+                <li>Your turn continues as long as each move completes at least one triangle. When a move closes no triangle, the turn passes.</li>
+                <li>No Roll Dice button needed — just click two dots to draw.</li>
+            </ul>
+        </div>
+
+        <div class="rules-section">
+            <h3>&#9670; Legal Moves</h3>
+            <ul>
+                <li><span class="rules-highlight">No duplicates</span> — the same line cannot be drawn twice.</li>
                 <li><span class="rules-highlight">No crossings</span> — the new line must not intersect any existing line (except at shared endpoints).</li>
-                <li><span class="rules-highlight">No passing through dots</span> — the line must not pass through or over any dot that is not one of its two endpoints.</li>
+                <li><span class="rules-highlight">No passing through dots</span> — the line must not pass over any dot that is not one of its two endpoints.</li>
             </ul>
         </div>
 
         <div class="rules-section">
             <h3>&#9670; Claiming Triangles</h3>
             <ul>
-                <li>Whenever your line closes a triangle — meaning three dots are now all connected to each other by three lines — that triangle is <span class="rules-highlight">automatically claimed</span> for you and filled with your color.</li>
-                <li>A triangle is only valid if no other dot sits inside it.</li>
-                <li>Multiple triangles can be completed in a single move if the new line closes more than one triangle simultaneously.</li>
+                <li>When your line closes a triangle — three dots all connected — that triangle is <span class="rules-highlight">automatically claimed</span> and filled with your color.</li>
+                <li>A triangle is valid only if no other dot sits inside it.</li>
+                <li>Multiple triangles can be completed in one move.</li>
             </ul>
         </div>
 
@@ -405,26 +441,16 @@
             <h3>&#9670; Ending the Game</h3>
             <ul>
                 <li>The game ends when <span class="rules-highlight">no legal line can be drawn</span> anywhere on the board.</li>
-                <li>Either player may press <span class="rules-highlight">Finish</span> to declare the game over and reveal the result at any time.</li>
-                <li>The player with the most claimed triangles wins. If both players have the same count, the game ends in a <span class="rules-highlight">draw</span>.</li>
+                <li>Either player may press <span class="rules-highlight">Finish</span> to end the game and reveal results.</li>
+                <li>The player with more triangles wins. Equal counts result in a <span class="rules-highlight">draw</span>.</li>
             </ul>
         </div>
 
         <div class="rules-section">
             <h3>&#9670; Other Controls</h3>
             <ul>
-                <li><span class="rules-highlight">New Game</span> — resets the board, scores, and dots entirely. All progress is lost.</li>
-                <li><span class="rules-highlight">Finish</span> — ends the game immediately and shows the current score as the final result.</li>
-                <li>Clicking a dot you already selected will <span class="rules-highlight">deselect</span> it so you can choose a different starting dot.</li>
-            </ul>
-        </div>
-
-        <div class="rules-section">
-            <h3>&#9670; Tips &amp; Strategy</h3>
-            <ul>
-                <li>Lines that converge near a tight cluster of dots are powerful — they set up multiple triangle completions.</li>
-                <li>Watch your opponent's lines. Avoid giving them the third side of a triangle they are building.</li>
-                <li>A higher dice roll gives you more moves, but also more risk of accidentally handing triangles to your opponent.</li>
+                <li><span class="rules-highlight">New Game</span> — resets the board, scores, and dots entirely.</li>
+                <li>Clicking a selected dot <span class="rules-highlight">deselects</span> it.</li>
             </ul>
         </div>
 
@@ -436,7 +462,9 @@
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
     const colors = { 1: '#60b8ff', 2: '#ff7070' };
+
     let dots = [], lines = [], triangles = [], currentPlayer = 1, movesRemaining = 0, firstDot = null;
+    let diceMode = true; // true = Dice On, false = Classic
 
     const NEAR_PT_PX = 6;
 
@@ -444,7 +472,7 @@
     function px(d) { return { x: d.rx * canvas.width, y: d.ry * canvas.height }; }
 
     function resizeCanvas() {
-        const size = Math.min(window.innerWidth - 20, window.innerHeight - 170, 500);
+        const size = Math.min(window.innerWidth - 20, window.innerHeight - 180, 500);
         canvas.width  = Math.max(size, 200);
         canvas.height = Math.max(size, 200);
         draw();
@@ -518,10 +546,8 @@
         const s2 = triangles.filter(t => t.player === 2).length;
         const heading = document.getElementById('game-over-heading');
         const winnerText = document.getElementById('winner-text');
-
         heading.classList.remove('draw');
         heading.style.cssText = '';
-
         if (s1 > s2) {
             winnerText.innerHTML = `<span class="p1">Player 1 Wins! (${s1}&#8209;${s2})</span> `;
         } else if (s2 > s1) {
@@ -530,7 +556,6 @@
             heading.classList.add('draw');
             winnerText.innerHTML = `It's a Draw! (${s1}&#8209;${s2}) `;
         }
-
         document.getElementById('game-over').style.display = 'block';
     }
 
@@ -595,6 +620,7 @@
         const el = document.getElementById('player-display');
         el.className = 'p' + currentPlayer;
         el.innerHTML = 'Player ' + currentPlayer;
+        document.getElementById('moves').textContent = movesRemaining;
     }
 
     function checkAndFillTriangle(d1, d2) {
@@ -616,15 +642,43 @@
     }
 
     function resetGame() {
-        lines = []; triangles = []; movesRemaining = 0; firstDot = null; currentPlayer = 1;
-        document.getElementById('moves').textContent = '0';
+        lines = []; triangles = []; firstDot = null; currentPlayer = 1;
+        movesRemaining = diceMode ? 0 : 1;
         document.getElementById('game-over').style.display = 'none';
         updateScore(); updateTurnDisplay();
         generateDots(); draw();
     }
 
+    /* ── DICE TOGGLE ─────────────────────────────────────────────────── */
+    function toggleDiceMode() {
+        diceMode = !diceMode;
+        const btn = document.getElementById('btn-dice-toggle');
+        const rollBtn = document.getElementById('btn-roll');
+        const badge = document.getElementById('mode-badge');
+
+        if (diceMode) {
+            btn.textContent = '🎲 Dice: ON';
+            btn.classList.remove('dice-off');
+            rollBtn.classList.remove('hidden');
+            badge.textContent = '◆ Dice Mode';
+            badge.classList.remove('classic');
+            movesRemaining = 0;
+        } else {
+            btn.textContent = '🎲 Dice: OFF';
+            btn.classList.add('dice-off');
+            rollBtn.classList.add('hidden');
+            badge.textContent = '◆ Classic Mode';
+            badge.classList.add('classic');
+            movesRemaining = 1;
+        }
+        firstDot = null;
+        updateTurnDisplay();
+        draw();
+    }
+
     canvas.addEventListener('click', (e) => {
         if (movesRemaining <= 0) return;
+
         const rect = canvas.getBoundingClientRect();
         const mx = e.clientX - rect.left, my = e.clientY - rect.top;
         const tr = tapRadius();
@@ -639,20 +693,38 @@
             firstDot = null; draw(); return;
         }
 
+        const trisBefore = triangles.length;
         lines.push({ p1: firstDot, p2: clickedDot, player: currentPlayer });
         checkAndFillTriangle(firstDot, clickedDot);
+        const trisCompleted = triangles.length - trisBefore;
         firstDot = null;
-        movesRemaining--;
-        document.getElementById('moves').textContent = movesRemaining;
-        if (movesRemaining === 0) {
-            currentPlayer = currentPlayer === 1 ? 2 : 1;
-            updateTurnDisplay();
+
+        if (diceMode) {
+            movesRemaining--;
+            if (movesRemaining === 0) {
+                currentPlayer = currentPlayer === 1 ? 2 : 1;
+                updateTurnDisplay();
+            } else {
+                document.getElementById('moves').textContent = movesRemaining;
+            }
+        } else {
+            // Classic: bonus move on triangle close, else pass turn
+            if (trisCompleted > 0) {
+                movesRemaining = 1;
+                document.getElementById('moves').textContent = movesRemaining;
+            } else {
+                currentPlayer = currentPlayer === 1 ? 2 : 1;
+                movesRemaining = 1;
+                updateTurnDisplay();
+            }
         }
+
         checkAllTrianglesClaimed();
         draw();
     });
 
     function rollDice() {
+        if (!diceMode) return;
         if (movesRemaining === 0) {
             movesRemaining = Math.floor(Math.random() * 6) + 1;
             document.getElementById('moves').textContent = movesRemaining;
@@ -669,12 +741,10 @@
         document.getElementById('btn-rules').focus();
     }
 
-    // Close rules on overlay background click
     document.getElementById('rules-overlay').addEventListener('click', function(e) {
         if (e.target === this) closeRules();
     });
 
-    // Close rules on Escape key
     document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape' && document.getElementById('rules-overlay').classList.contains('open')) {
             closeRules();
