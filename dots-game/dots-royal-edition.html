@@ -13,7 +13,7 @@
       font-family: 'Raleway', sans-serif;
       text-align: center;
       min-height: 100dvh;
-      padding: 10px 8px 16px;
+      padding: 10px 8px 14px;
       background:
         radial-gradient(ellipse at 20% 10%, #1a0a3a 0%, transparent 55%),
         radial-gradient(ellipse at 80% 90%, #0a1a3a 0%, transparent 55%),
@@ -32,37 +32,37 @@
         repeating-linear-gradient(15deg,  transparent 0px, transparent 120px, rgba(100,220,255,0.02) 120px, rgba(100,220,255,0.02) 121px);
       pointer-events: none; z-index: 0;
     }
-    #ui { position: relative; z-index: 1; margin-bottom: 10px; }
+    #ui { position: relative; z-index: 1; margin-bottom: 8px; }
     h1 {
       font-family: 'Cinzel', serif;
       font-size: clamp(1.2rem, 4vw, 1.9rem);
       font-weight: 700; letter-spacing: 0.12em;
       background: linear-gradient(135deg, #f5e083 0%, #e8c84a 30%, #fff8d0 55%, #c8960a 80%, #f5e083 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-      margin-bottom: 8px;
+      margin-bottom: 7px;
       filter: drop-shadow(0 2px 8px rgba(220,180,50,0.35));
     }
     #scoreboard {
-      display: inline-flex; align-items: center; gap: 12px; flex-wrap: wrap; justify-content: center;
+      display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
       background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(180,140,255,0.08) 50%, rgba(100,200,255,0.06) 100%);
       border: 1px solid rgba(200,170,255,0.25); border-radius: 50px;
-      padding: 7px 20px; font-family: 'Cinzel', serif;
-      font-size: clamp(0.78rem, 2.2vw, 1rem); letter-spacing: 0.05em;
-      margin: 6px auto; backdrop-filter: blur(10px);
+      padding: 6px 18px; font-family: 'Cinzel', serif;
+      font-size: clamp(0.75rem, 2vw, 0.95rem); letter-spacing: 0.05em;
+      margin: 5px auto; backdrop-filter: blur(10px);
       box-shadow: 0 0 20px rgba(160,120,255,0.12), inset 0 1px 0 rgba(255,255,255,0.12);
     }
-    .divider { color: rgba(200,170,255,0.4); font-size: 1.2em; }
+    .divider { color: rgba(200,170,255,0.4); font-size: 1.1em; }
     .p1 { color: #60b8ff; font-weight: 600; text-shadow: 0 0 10px rgba(96,184,255,0.5); }
     .p2 { color: #ff7070; font-weight: 600; text-shadow: 0 0 10px rgba(255,112,112,0.5); }
     #turn-line, #status-line {
-      font-size: clamp(0.75rem, 2vw, 0.9rem); letter-spacing: 0.06em;
-      color: rgba(220,210,240,0.82); margin: 4px 0 8px;
+      font-size: clamp(0.72rem, 1.9vw, 0.88rem); letter-spacing: 0.06em;
+      color: rgba(220,210,240,0.82); margin: 3px 0 6px;
     }
     #bonus-note { color: #f5e083; text-shadow: 0 0 8px rgba(245,224,131,0.6); }
-    .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-bottom: 10px; }
+    .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-bottom: 8px; }
     button {
-      font-family: 'Cinzel', serif; font-size: clamp(0.68rem, 1.8vw, 0.88rem); font-weight: 600;
-      letter-spacing: 0.08em; padding: 9px 18px; border: none; border-radius: 10px;
+      font-family: 'Cinzel', serif; font-size: clamp(0.66rem, 1.7vw, 0.85rem); font-weight: 600;
+      letter-spacing: 0.08em; padding: 8px 16px; border: none; border-radius: 10px;
       cursor: pointer; transition: transform 80ms ease, box-shadow 80ms ease;
       -webkit-tap-highlight-color: transparent; user-select: none;
     }
@@ -73,14 +73,14 @@
     #btn-new    { background: linear-gradient(175deg,#67e8f9 0%,#0284c7 45%,#0a1a4a 100%); color:#e0f7ff; box-shadow:0 5px 0 #062040,0 7px 14px rgba(0,80,180,.45),inset 0 1px 0 rgba(180,240,255,.4); }
     #btn-new:active    { transform:translateY(4px); box-shadow:0 1px 0 #062040; }
     #btn-play-again, #btn-close-rules {
-      font-family:'Cinzel',serif; font-size:.9rem; font-weight:600; letter-spacing:.08em;
-      padding:11px 26px; border:none; border-radius:10px; cursor:pointer;
+      font-family:'Cinzel',serif; font-size:.88rem; font-weight:600; letter-spacing:.08em;
+      padding:10px 24px; border:none; border-radius:10px; cursor:pointer;
       background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%); color:#ecfdf5;
       box-shadow:0 5px 0 #014d38,0 7px 14px rgba(0,120,80,.45),inset 0 1px 0 rgba(180,255,220,.4);
     }
     #btn-play-again:active, #btn-close-rules:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
 
-    /* ── CANVAS WRAP: no fixed width — canvas drives its own size ── */
+    /* Canvas wrap — no fixed CSS width; canvas drives its own size */
     #canvas-wrap {
       position: relative; z-index: 1;
       display: inline-block;
@@ -102,7 +102,7 @@
     .modal {
       display: none; position: fixed; top: 50%; left: 50%;
       transform: translate(-50%,-50%); z-index: 100;
-      padding: 32px 40px; border-radius: 20px; text-align: center;
+      padding: 30px 36px; border-radius: 20px; text-align: center;
       background: linear-gradient(145deg,rgba(20,10,50,.97) 0%,rgba(30,15,70,.97) 100%);
       border: 1px solid rgba(200,160,255,.3);
       box-shadow: 0 0 60px rgba(150,80,255,.3),0 30px 80px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.1);
@@ -112,13 +112,13 @@
     .modal h2 { font-family:'Cinzel',serif; font-size:clamp(1.1rem,4vw,1.5rem); letter-spacing:.1em; margin-bottom:6px; color:#e8dfc8; }
     .modal h2.draw { background:linear-gradient(135deg,#f5e083,#fff8d0,#e8c84a); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
     .modal p, .modal li { color:rgba(220,210,240,.82); line-height:1.6; }
-    .modal ul { list-style:none; display:grid; gap:10px; margin:14px 0 20px; text-align:left; }
-    .modal li { background:rgba(255,255,255,.04); border:1px solid rgba(200,170,255,.12); border-radius:12px; padding:10px 12px; }
-    #winner-text { margin-bottom:20px; display:block; }
+    .modal ul { list-style:none; display:grid; gap:9px; margin:12px 0 18px; text-align:left; }
+    .modal li { background:rgba(255,255,255,.04); border:1px solid rgba(200,170,255,.12); border-radius:12px; padding:9px 11px; }
+    #winner-text { margin-bottom:18px; display:block; }
     .legend {
       position: relative; z-index: 1;
-      display:flex; justify-content:center; gap:14px; flex-wrap:wrap; margin-top:10px;
-      color:rgba(220,210,240,.78); font-size:.88rem;
+      display:flex; justify-content:center; gap:14px; flex-wrap:wrap; margin-top:9px;
+      color:rgba(220,210,240,.78); font-size:.87rem;
     }
     .legend .swatch { display:inline-block; width:12px; height:12px; border-radius:999px; margin-right:6px; vertical-align:middle; box-shadow:0 0 8px currentColor; }
   </style>
@@ -131,7 +131,7 @@
     <span class="divider">&#10022;</span>
     <span class="p2">Player 2</span><span id="s2"> 0</span>
     <span class="divider">&#10022;</span>
-    <span>Boxes Left</span><span id="remaining"> 36</span>
+    <span>Boxes Left</span><span id="remaining"> 35</span>
   </div>
   <p id="turn-line"><span id="player-display" class="p1">Player 1</span>'s turn</p>
   <p id="status-line">Tap the line between two dots to claim it. <span id="bonus-note">Close a box to play again.</span></p>
@@ -165,7 +165,7 @@
 <div id="game-over" class="modal">
   <h2 id="game-over-heading"><span id="winner-text"></span>&#127942;</h2>
   <p id="final-score"></p>
-  <div style="height:16px"></div>
+  <div style="height:14px"></div>
   <button id="btn-play-again" type="button">&#9670; Play Again</button>
 </div>
 
@@ -173,55 +173,58 @@
   const canvas = document.getElementById('board');
   const ctx    = canvas.getContext('2d');
 
-  const COLS   = 7;   // dots per row  (6 columns of boxes)
-  const ROWS   = 6;   // dots per col  (5 rows    of boxes)  => 30 boxes
-  const BOXES  = (COLS - 1) * (ROWS - 1);
+  // 6 cols of dots x 8 rows of dots  =>  5 x 7 = 35 rectangular boxes
+  // Fewer columns = wider cells, more rows = fills portrait iPhone height
+  const COLS  = 6;
+  const ROWS  = 8;
+  const BOXES = (COLS - 1) * (ROWS - 1);
 
-  const CLR    = { 1: '#60b8ff', 2: '#ff7070' };
-  const FILL   = { 1: 'rgba(96,184,255,0.26)', 2: 'rgba(255,112,112,0.26)' };
-  const LABEL  = { 1: 'P1', 2: 'P2' };
+  const CLR   = { 1: '#60b8ff', 2: '#ff7070' };
+  const FILL  = { 1: 'rgba(96,184,255,0.26)', 2: 'rgba(255,112,112,0.26)' };
+  const LABEL = { 1: 'P1', 2: 'P2' };
 
-  // Update static HTML initial count
   document.getElementById('remaining').textContent = ' ' + BOXES;
 
   let hLines, vLines, boxes, currentPlayer;
 
-  // ── RESPONSIVE CANVAS ────────────────────────────────────────────────────
-  // Mirrors the Triangles game: use real viewport dims, not CSS wrap width.
-  // Canvas is RECTANGULAR: width = min(vw-16, 720), height keeps cell aspect.
+  // ── RESPONSIVE CANVAS ──────────────────────────────────────────────────────
+  // Cell aspect: COLS-1 wide : ROWS-1 tall  with a slight landscape stretch per cell (4:3)
+  // => canvas height / width  =  (ROWS-1)/(COLS-1) * (3/4)
   function syncSize() {
-    const uiH   = document.getElementById('ui').offsetHeight + 12;
-    const legH  = 32; // legend
+    const uiEl  = document.getElementById('ui');
+    const legH  = 34;
     const vw    = window.innerWidth;
     const vh    = window.innerHeight;
+    const uiH   = uiEl.offsetHeight + 10;
 
-    // Maximum canvas width
-    const maxW  = Math.min(vw - 16, 720);
+    // Cell aspect: each cell is 4 wide : 3 tall  (slightly landscape per cell)
+    const cellAspect = 4 / 3;  // gapX / gapY
+    // canvas height / canvas width = (ROWS-1)/((COLS-1)*cellAspect)
+    const aspect = (ROWS - 1) / ((COLS - 1) * cellAspect);
 
-    // Cell aspect ratio: cells are 5:3 (wider than tall) for a landscape feel
-    // gapX / gapY = 5/3  =>  height = width * (ROWS-1)/(COLS-1) * (3/5)
-    const aspect = (ROWS - 1) / (COLS - 1) * (3 / 5);
-    let cw = maxW;
+    // Start from max available width
+    let cw = Math.min(vw - 16, 760);
     let ch = Math.round(cw * aspect);
 
-    // Clamp so it fits vertically too
-    const maxH = vh - uiH - legH - 28;
+    // Clamp to available vertical space
+    const maxH = vh - uiH - legH - 24;
     if (ch > maxH) {
       ch = maxH;
       cw = Math.round(ch / aspect);
     }
 
-    canvas.width  = Math.max(cw, 240);
-    canvas.height = Math.max(ch, 140);
+    canvas.width  = Math.max(cw, 220);
+    canvas.height = Math.max(ch, 280);
   }
 
-  // ── GEOMETRY: separate gapX and gapY for rectangular cells ────────────
+  // ── GEOMETRY: separate gapX / gapY ─────────────────────────────────────────
   function geo() {
-    const padX = canvas.width  * 0.06;
-    const padY = canvas.height * 0.08;
+    const padX = canvas.width  * 0.055;
+    const padY = canvas.height * 0.045;
     const gapX = (canvas.width  - padX * 2) / (COLS - 1);
     const gapY = (canvas.height - padY * 2) / (ROWS - 1);
-    const dotR = Math.max(3, Math.min(canvas.width, canvas.height) * 0.008);
+    // dotR based on shorter gap so dots stay proportional
+    const dotR = Math.max(4, Math.min(gapX, gapY) * 0.11);
     return { padX, padY, gapX, gapY, dotR };
   }
 
@@ -238,36 +241,31 @@
     };
   }
 
-  // ── HIT DETECTION ────────────────────────────────────────────────────────
-  // Each segment type has its own threshold based on its gap direction.
+  // ── HIT DETECTION ───────────────────────────────────────────────────────────
   function nearestSegment(cx, cy) {
     const { padX, padY, gapX, gapY } = geo();
-    const thH = gapX * 0.52;  // horizontal segment: threshold along X
-    const thV = gapY * 0.52;  // vertical   segment: threshold along Y
+    const thH = gapX * 0.54;
+    const thV = gapY * 0.54;
     let best = null, bestD = Infinity;
 
     for (let r = 0; r < ROWS; r++)
       for (let c = 0; c < COLS - 1; c++) {
         if (hLines[r][c]) continue;
-        const mx = padX + (c + 0.5) * gapX;
-        const my = padY + r * gapY;
-        const d  = Math.hypot(cx - mx, cy - my);
+        const d = Math.hypot(cx - (padX + (c + 0.5) * gapX), cy - (padY + r * gapY));
         if (d < bestD && d <= thH) { bestD = d; best = { type: 'H', r, c }; }
       }
 
     for (let r = 0; r < ROWS - 1; r++)
       for (let c = 0; c < COLS; c++) {
         if (vLines[r][c]) continue;
-        const mx = padX + c * gapX;
-        const my = padY + (r + 0.5) * gapY;
-        const d  = Math.hypot(cx - mx, cy - my);
+        const d = Math.hypot(cx - (padX + c * gapX), cy - (padY + (r + 0.5) * gapY));
         if (d < bestD && d <= thV) { bestD = d; best = { type: 'V', r, c }; }
       }
 
     return best;
   }
 
-  // ── GAME LOGIC ────────────────────────────────────────────────────────────
+  // ── GAME LOGIC ──────────────────────────────────────────────────────────────
   function resetBoard() {
     hLines = Array.from({ length: ROWS },     () => Array(COLS - 1).fill(0));
     vLines = Array.from({ length: ROWS - 1 }, () => Array(COLS).fill(0));
@@ -279,19 +277,19 @@
   }
 
   function boxComplete(r, c) {
-    return hLines[r][c] && hLines[r + 1][c] && vLines[r][c] && vLines[r][c + 1];
+    return hLines[r][c] && hLines[r+1][c] && vLines[r][c] && vLines[r][c+1];
   }
 
   function claimBoxes(seg) {
     let claimed = 0;
     if (seg.type === 'H') {
       const { r, c } = seg;
-      if (r > 0       && !boxes[r-1][c] && boxComplete(r-1, c)) { boxes[r-1][c] = currentPlayer; claimed++; }
-      if (r < ROWS-1  && !boxes[r][c]   && boxComplete(r,   c)) { boxes[r][c]   = currentPlayer; claimed++; }
+      if (r > 0      && !boxes[r-1][c] && boxComplete(r-1, c)) { boxes[r-1][c] = currentPlayer; claimed++; }
+      if (r < ROWS-1 && !boxes[r][c]   && boxComplete(r,   c)) { boxes[r][c]   = currentPlayer; claimed++; }
     } else {
       const { r, c } = seg;
-      if (c > 0       && !boxes[r][c-1] && boxComplete(r, c-1)) { boxes[r][c-1] = currentPlayer; claimed++; }
-      if (c < COLS-1  && !boxes[r][c]   && boxComplete(r, c))   { boxes[r][c]   = currentPlayer; claimed++; }
+      if (c > 0      && !boxes[r][c-1] && boxComplete(r, c-1)) { boxes[r][c-1] = currentPlayer; claimed++; }
+      if (c < COLS-1 && !boxes[r][c]   && boxComplete(r, c))   { boxes[r][c]   = currentPlayer; claimed++; }
     }
     return claimed;
   }
@@ -338,7 +336,7 @@
     document.getElementById('game-over').classList.add('show');
   }
 
-  // ── DRAWING ───────────────────────────────────────────────────────────────
+  // ── DRAWING ─────────────────────────────────────────────────────────────────
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
@@ -359,19 +357,18 @@
         const owner = boxes[r][c];
         if (!owner) continue;
         const p    = pt(r, c);
-        const insX = gapX * 0.08, insY = gapY * 0.08;
-        const bx   = p.x + insX,  by  = p.y + insY;
+        const insX = gapX * 0.07, insY = gapY * 0.07;
+        const bx   = p.x + insX, by = p.y + insY;
         const bw   = gapX - insX * 2, bh = gapY - insY * 2;
 
         ctx.fillStyle   = FILL[owner];
         ctx.strokeStyle = CLR[owner] + '55';
-        ctx.lineWidth   = 1;
+        ctx.lineWidth   = 1.5;
         ctx.beginPath();
         ctx.roundRect(bx, by, bw, bh, Math.min(gapX, gapY) * 0.1);
         ctx.fill(); ctx.stroke();
 
-        // P1 / P2 label — font size based on shorter cell dimension
-        const fontSize = Math.max(7, Math.min(gapX, gapY) * 0.3);
+        const fontSize = Math.max(9, Math.min(gapX, gapY) * 0.32);
         ctx.font         = `700 ${fontSize}px 'Cinzel', serif`;
         ctx.textAlign    = 'center';
         ctx.textBaseline = 'middle';
@@ -379,7 +376,7 @@
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillText(LABEL[owner], cx + 1, cy + 1);
         ctx.fillStyle   = CLR[owner];
-        ctx.shadowColor = CLR[owner]; ctx.shadowBlur = 5;
+        ctx.shadowColor = CLR[owner]; ctx.shadowBlur = 6;
         ctx.fillText(LABEL[owner], cx, cy);
         ctx.shadowBlur = 0;
       }
@@ -389,11 +386,11 @@
 
   function drawSegments() {
     const { gapX, gapY } = geo();
-    const glowWH = Math.max(5, gapX * 0.13);
-    const glowWV = Math.max(5, gapY * 0.2);
-    const lineWH = Math.max(2, gapX * 0.045);
-    const lineWV = Math.max(2, gapY * 0.07);
-    const ghostW = Math.max(4, Math.min(gapX, gapY) * 0.12);
+    const glowWH = Math.max(6,  gapX * 0.15);
+    const glowWV = Math.max(6,  gapY * 0.22);
+    const lineWH = Math.max(2.5, gapX * 0.055);
+    const lineWV = Math.max(2.5, gapY * 0.08);
+    const ghostW = Math.max(5,  Math.min(gapX, gapY) * 0.14);
 
     function drawSeg(p1, p2, owner, glowW, lineW) {
       if (owner) {
@@ -404,7 +401,7 @@
         ctx.lineCap = 'round'; ctx.stroke();
       } else {
         ctx.beginPath(); ctx.moveTo(p1.x, p1.y); ctx.lineTo(p2.x, p2.y);
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.lineWidth = ghostW;
+        ctx.strokeStyle = 'rgba(255,255,255,0.11)'; ctx.lineWidth = ghostW;
         ctx.lineCap = 'round'; ctx.stroke();
       }
     }
@@ -423,20 +420,20 @@
     for (let r = 0; r < ROWS; r++) {
       for (let c = 0; c < COLS; c++) {
         const p = pt(r, c);
-        const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, dotR * 2.8);
+        const grd = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, dotR * 3);
         grd.addColorStop(0, 'rgba(180,140,255,0.45)');
         grd.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.beginPath(); ctx.arc(p.x, p.y, dotR * 2.8, 0, Math.PI*2); ctx.fillStyle = grd; ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x, p.y, dotR * 3, 0, Math.PI*2); ctx.fillStyle = grd; ctx.fill();
         ctx.beginPath(); ctx.arc(p.x, p.y, dotR, 0, Math.PI*2);
-        ctx.fillStyle = '#c8b8ff'; ctx.shadowColor = '#a080ff'; ctx.shadowBlur = 7;
+        ctx.fillStyle = '#c8b8ff'; ctx.shadowColor = '#a080ff'; ctx.shadowBlur = 9;
         ctx.fill(); ctx.shadowBlur = 0;
-        ctx.beginPath(); ctx.arc(p.x - dotR*.35, p.y - dotR*.35, dotR*.38, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(255,255,255,0.7)'; ctx.fill();
+        ctx.beginPath(); ctx.arc(p.x - dotR*.32, p.y - dotR*.32, dotR*.4, 0, Math.PI*2);
+        ctx.fillStyle = 'rgba(255,255,255,0.72)'; ctx.fill();
       }
     }
   }
 
-  // ── EVENTS ────────────────────────────────────────────────────────────────
+  // ── EVENTS ──────────────────────────────────────────────────────────────────
   canvas.addEventListener('click', e => handleTap(e.clientX, e.clientY));
   canvas.addEventListener('touchend', e => {
     e.preventDefault();
@@ -453,7 +450,7 @@
   window.addEventListener('resize', () => { syncSize(); draw(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { syncSize(); draw(); }, 150));
 
-  // ── INIT ──────────────────────────────────────────────────────────────────
+  // ── INIT ────────────────────────────────────────────────────────────────────
   syncSize();
   resetBoard();
 </script>
