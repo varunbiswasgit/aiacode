@@ -77,6 +77,7 @@ Each tool lives in its own self-contained folder. A folder holds the source scri
 | [`win11-startup`](win11-startup/) | PowerShell | Self-healing Windows 11 startup launcher with Win32 shortcut-based repair, dynamic Appx AUMID resolution, and runtime presence-mode detection (Window vs Tray) that removes the need for per-app flags. |
 | [`word-normalize-table`](word-normalize-table/) | VBA (Word) | Normalises all tables in the active document — sets width to 100%, clears row/cell constraints, centres cell content vertically. |
 | [`word-resize-border-images`](word-resize-border-images/) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border, and cleans blank paragraphs including Unicode invisible characters. |
+| [`worldcup2026-scores`](worldcup2026-scores/) | HTML / JavaScript | Single-file browser app showing all 104 FIFA World Cup 2026 matches — group stage through final — with live scores, kickoff times, venues, and country flags. Fetches real-time data from the Zafronix World Cup API (free tier, 250 req/day). No install required — open in any modern browser. |
 
 ---
 
