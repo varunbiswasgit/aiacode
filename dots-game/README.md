@@ -15,6 +15,8 @@ Classic Dots and Boxes on a 5×5 grid (16 claimable boxes). Players take turns s
 1. Open `dots-royal-edition.html` in any modern browser (Chrome, Edge, Firefox, Safari).
 2. No dependencies, no internet connection required after page load (fonts load from Google Fonts on first open).
 
+Alternatively, open `shell.html` to always load the latest version of `dots-royal-edition.html` directly from GitHub on every page load.
+
 ---
 
 ## Interaction Model
@@ -67,6 +69,7 @@ Shares the Royal Edition aesthetic from `triangles-game`:
 | File | Description |
 |------|-------------|
 | `dots-royal-edition.html` | Complete self-contained game |
+| `shell.html` | Thin loader — fetches latest `dots-royal-edition.html` from GitHub on every page load |
 | `README.md` | This file |
 | `TESTING.md` | Manual test cases |
 
@@ -77,3 +80,4 @@ Shares the Royal Edition aesthetic from `triangles-game`:
 | Version | Summary |
 |---------|---------|
 | v1 | Initial release — 5×5 grid, dot-to-dot selection, box claiming, extra-turn logic, Rules / Finish / New Game controls, Royal Edition visual style |
+| v2 | Added `shell.html` — thin loader that fetches latest `dots-royal-edition.html` from GitHub raw on every page load; cache-busted with `?t=Date.now()` |

@@ -26,6 +26,8 @@ Replicates the classic LOGO turtle experience (as used in MS LOGO and similar ed
 5. Click **Reset** to clear the canvas and return the turtle to the centre.
 6. Use the quick-access **example chips** (Square, Triangle, Circle, Flower, Octagon, Star) to load and run pre-written programs.
 
+Alternatively, open `shell.html` to always load the latest version of `logo-turtle-3d.html` directly from GitHub on every page load.
+
 ---
 
 ## Button Reference
@@ -105,6 +107,18 @@ Below the canvas, a live status row shows:
 
 ---
 
+## Files
+
+| File | Description |
+|------|-------------|
+| `logo-turtle.html` | Standard edition |
+| `logo-turtle-3d.html` | Royal 3D edition |
+| `shell.html` | Thin loader — fetches latest `logo-turtle-3d.html` from GitHub on every page load |
+| `README.md` | This file |
+| `TESTING.md` | Manual test cases |
+
+---
+
 ## Version history
 
 | Version | Summary |
@@ -112,3 +126,4 @@ Below the canvas, a live status row shows:
 | v1 | Initial release — fd, bk, rt, lt, pu, pd, home, cs, repeat; light/dark mode; four example chips |
 | v2 | Added Royal 3D Edition (`logo-turtle-3d.html`) — velvet/gold theme, starfield background, 3D panel depth effects, six quick-spell chips (added Octagon and Star) |
 | v3 | Fixed Clear button in both editions — Clear now clears the command scroll (text editor) only; Reset handles canvas clear and turtle state reset |
+| v4 | Added `shell.html` — thin loader that fetches latest `logo-turtle-3d.html` from GitHub raw on every page load; cache-busted with `?t=Date.now()` |
