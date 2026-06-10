@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FIFA World Cup 2026 - All Matches</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { text-align: center; font-size: 2.5rem; margin-bottom: 10px; color: #00d9ff; }
+        .subtitle { text-align: center; color: #888; margin-bottom: 30px; }
+        .controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .btn {
+            padding: 12px 24px;
+            background: #00d9ff;
+            color: #1a1a2e;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .btn:hover { background: #00b8d4; }
+        .btn:disabled { background: #555; cursor: not-allowed; }
+        .api-note {
+            text-align: center;
+            color: #aaa;
+            font-size: 0.85rem;
+            margin-bottom: 20px;
+            padding: 10px;
+            background: rgba(0, 217, 255, 0.1);
+            border-radius: 8px;
+        }
+        .matches-grid { display: grid; gap: 12px; }
+        .match-card {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 16px;
+            display: grid;
+            grid-template-columns: 100px 1.5fr 100px;
+            gap: 15px;
+            align-items: center;
+        }
+        .match-date { font-size: 0.85rem; color: #aaa; text-align: center; }
+        .match-date .time { color: #00d9ff; font-weight: bold; margin-top: 4px; }
+        .match-teams { display: flex; justify-content: center; align-items: center; gap: 20px; }
+        .team { display: flex; flex-direction: column; align-items: center; text-align: center; }
+        .team-name { font-size: 1.1rem; font-weight: 600; }
+        .team-flag { font-size: 2rem; margin-bottom: 4px; }
+        .match-score { display: flex; justify-content: center; align-items: center; font-size: 1.5rem; font-weight: bold; color: #00d9ff; min-width: 80px; text-align: center; }
+        .round { text-align: center; color: #fff; font-size: 0.9rem; font-weight: bold; margin-bottom: 20px; padding: 8px; background: rgba(0, 217, 255, 0.2); border-radius: 8px; }
+        .loading { text-align: center; padding: 40px; color: #888; font-size: 1.2rem; }
+        .error { text-align: center; padding: 40px; color: #ff6b6b; font-size: 1.1rem; background: rgba(255, 107, 107, 0.1); border-radius: 12px; margin: 20px; }
+        .data-source { text-align: center; color: #888; font-size: 0.8rem; margin-top: 20px; }
+        @media (max-width: 768px) {
+            .match-card { grid-template-columns: 1fr; gap: 10px; }
+            .match-teams { gap: 10px; }
+            .team-name { font-size: 0.95rem; }
+            .match-score { min-width: 60px; font-size: 1.3rem; }
+            h1 { font-size: 1.8rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏆 FIFA World Cup 2026</h1>
+        <p class="subtitle">All 104 Matches — Live Scores & Results</p>
+        <div class="api-note">
+            Using free API key: <strong>zwc_free_63de5553ae6aa1f348523270</strong> (Zafronix — 250 req/day, no card)
+        </div>
+        <div class="controls">
+            <button class="btn" id="refreshBtn">Refresh Scores</button>
+        </div>
+        <div id="content"></div>
+        <div class="data-source" id="dataSource"></div>
+    </div>
+
+    <script>
+        const content = document.getElementById('content');
+        const dataSource = document.getElementById('dataSource');
+        const refreshBtn = document.getElementById('refreshBtn');
+        const API_KEY = 'zwc_free_63de5553ae6aa1f348523270';
+        const API_URL = 'https://api.zafronix.com/fifa/worldcup/v1/matches?year=2026';
+
+        refreshBtn.addEventListener('click', fetchMatches);
+
+        async function fetchMatches() {
+            refreshBtn.disabled = true;
+            refreshBtn.textContent = 'Loading...';
+            content.innerHTML = '<div class="loading">Loading 2026 World Cup matches...</div>';
+            try {
+                const response = await fetch(API_URL, { headers: { 'X-API-Key': API_KEY } });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const data = await response.json();
+                if (data.data && data.data.length > 0) {
+                    renderMatches(data.data);
+                    dataSource.textContent = `Data source: Zafronix API — ${data.count || data.data.length} matches (2026 World Cup)`;
+                } else {
+                    throw new Error('No matches found in API response');
+                }
+            } catch (error) {
+                content.innerHTML = `<div class="error"><p>❌ Failed to load from API</p><p style="font-size:0.9rem;margin-top:10px;">${error.message}</p></div>`;
+            } finally {
+                refreshBtn.disabled = false;
+                refreshBtn.textContent = 'Refresh Scores';
+            }
+        }
+
+        function renderMatches(matches) {
+            if (!matches || matches.length === 0) { content.innerHTML = '<div class="loading">No matches found</div>'; return; }
+            const grouped = {};
+            matches.forEach(m => {
+                const stage = m.stage || m.stageNormalized || 'Unknown';
+                if (!grouped[stage]) grouped[stage] = [];
+                grouped[stage].push(m);
+            });
+            let html = '';
+            for (const [stage, list] of Object.entries(grouped)) {
+                html += `<div class="round">${formatStage(stage)}</div><div class="matches-grid">`;
+                list.forEach(m => {
+                    const home = m.homeTeam || 'TBD';
+                    const away = m.awayTeam || 'TBD';
+                    const hs = m.homeScore, as_ = m.awayScore;
+                    const hasResult = hs !== null && as_ !== null && hs !== undefined && as_ !== undefined;
+                    const score = hasResult
+                        ? `<span class="match-score">${hs} - ${as_}</span>`
+                        : `<span class="match-score" style="color:#666;">-</span>`;
+                    const venue = m.stadium ? `<div style="font-size:0.75rem;color:#666;margin-top:4px;">${m.stadium}, ${m.city || ''}</div>` : '';
+                    html += `
+                        <div class="match-card">
+                            <div class="match-date"><div>${formatDate(m.date)}</div><div class="time">${m.kickoff || ''}</div>${venue}</div>
+                            <div class="match-teams">
+                                <div class="team"><span class="team-flag">${getFlag(home)}</span><span class="team-name">${home}</span></div>
+                                ${score}
+                                <div class="team"><span class="team-flag">${getFlag(away)}</span><span class="team-name">${away}</span></div>
+                            </div>
+                            <div></div>
+                        </div>`;
+                });
+                html += '</div>';
+            }
+            content.innerHTML = html;
+        }
+
+        function formatDate(d) {
+            if (!d) return '';
+            try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+            catch { return d; }
+        }
+
+        function formatStage(s) {
+            const map = {
+                group_a:'Group A',group_b:'Group B',group_c:'Group C',group_d:'Group D',
+                group_e:'Group E',group_f:'Group F',group_g:'Group G',group_h:'Group H',
+                group_i:'Group I',group_j:'Group J',group_k:'Group K',group_l:'Group L',
+                round_of_16:'Round of 16',quarter_final:'Quarter-finals',
+                semi_final:'Semi-finals',final:'Final'
+            };
+            return map[s] || s;
+        }
+
+        function getFlag(name) {
+            const f = {
+                'USA':'🇺🇸','United States':'🇺🇸','Mexico':'🇲🇽','Canada':'🇨🇦','Paraguay':'🇵🇾',
+                'Brazil':'🇧🇷','Argentina':'🇦🇷','Colombia':'🇨🇴','Uruguay':'🇺🇾','Ecuador':'🇪🇨','Chile':'🇨🇱',
+                'France':'🇫🇷','Spain':'🇪🇸','Germany':'🇩🇪','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Portugal':'🇵🇹',
+                'Netherlands':'🇳🇱','Belgium':'🇧🇪','Croatia':'🇭🇷','Switzerland':'🇨🇭',
+                'Denmark':'🇩🇰','Austria':'🇦🇹','Sweden':'🇸🇪','Norway':'🇳🇴','Poland':'🇵🇱',
+                'Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','Czechia':'🇨🇿','Czech Republic':'🇨🇿',
+                'Bosnia and Herzegovina':'🇧🇦','Bosnia':'🇧🇦',
+                'Korea Republic':'🇰🇷','South Korea':'🇰🇷','Japan':'🇯🇵',
+                'Australia':'🇦🇺','New Zealand':'🇳🇿','Uzbekistan':'🇺🇿',
+                'Morocco':'🇲🇦','Senegal':'🇸🇳','Egypt':'🇪🇬','Algeria':'🇩🇿',
+                'Tunisia':'🇹🇳','Ghana':'🇬🇭','South Africa':'🇿🇦',
+                "Côte d'Ivoire":'🇨🇮',"Cote d'Ivoire":'🇨🇮','Cabo Verde':'🇨🇻',
+                'Congo DR':'🇨🇬','Nigeria':'🇳🇬',
+                'Saudi Arabia':'🇸🇦','IR Iran':'🇮🇷','Iran':'🇮🇷',
+                'Iraq':'🇮🇶','Jordan':'🇯🇴','Qatar':'🇶🇦',
+                'Türkiye':'🇹🇷','Turkey':'🇹🇷',
+                'Curaçao':'🇨🇼','Haiti':'🇭🇹','Jamaica':'🇯🇲','TBD':'🏳️'
+            };
+            for (const [k, v] of Object.entries(f)) { if (name.includes(k)) return v; }
+            return '🏳️';
+        }
+
+        fetchMatches();
+    </script>
+</body>
+</html>
