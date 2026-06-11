@@ -1,184 +1,403 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>FIFA World Cup 2026 - All Matches</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-            color: #fff;
-            padding: 20px;
-            min-height: 100vh;
-        }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { text-align: center; font-size: 2.5rem; margin-bottom: 10px; color: #00d9ff; }
-        .subtitle { text-align: center; color: #888; margin-bottom: 30px; }
-        .controls { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-        .btn {
-            padding: 12px 24px;
-            background: #00d9ff;
-            color: #1a1a2e;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            cursor: pointer;
-            font-weight: bold;
-        }
-        .btn:hover { background: #00b8d4; }
-        .btn:disabled { background: #555; cursor: not-allowed; }
-        .matches-grid { display: grid; gap: 12px; }
-        .match-card {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 16px;
-            display: grid;
-            grid-template-columns: 100px 1.5fr 100px;
-            gap: 15px;
-            align-items: center;
-        }
-        .match-date { font-size: 0.85rem; color: #aaa; text-align: center; }
-        .match-date .time { color: #00d9ff; font-weight: bold; margin-top: 4px; }
-        .match-teams { display: flex; justify-content: center; align-items: center; gap: 20px; }
-        .team { display: flex; flex-direction: column; align-items: center; text-align: center; }
-        .team-name { font-size: 1.1rem; font-weight: 600; }
-        .team-flag { font-size: 2rem; margin-bottom: 4px; }
-        .match-score { display: flex; justify-content: center; align-items: center; font-size: 1.5rem; font-weight: bold; color: #00d9ff; min-width: 80px; text-align: center; }
-        .round { text-align: center; color: #fff; font-size: 0.9rem; font-weight: bold; margin-bottom: 20px; padding: 8px; background: rgba(0, 217, 255, 0.2); border-radius: 8px; }
-        .loading { text-align: center; padding: 40px; color: #888; font-size: 1.2rem; }
-        .error { text-align: center; padding: 40px; color: #ff6b6b; font-size: 1.1rem; background: rgba(255, 107, 107, 0.1); border-radius: 12px; margin: 20px; }
-        .data-source { text-align: center; color: #888; font-size: 0.8rem; margin-top: 20px; }
-        @media (max-width: 768px) {
-            .match-card { grid-template-columns: 1fr; gap: 10px; }
-            .match-teams { gap: 10px; }
-            .team-name { font-size: 0.95rem; }
-            .match-score { min-width: 60px; font-size: 1.3rem; }
-            h1 { font-size: 1.8rem; }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FIFA World Cup 2026 – All Matches</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Raleway:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Raleway', sans-serif;
+      text-align: center;
+      min-height: 100dvh;
+      padding: 10px 8px 14px;
+      background:
+        radial-gradient(ellipse at 20% 10%, #1a0a3a 0%, transparent 55%),
+        radial-gradient(ellipse at 80% 90%, #0a1a3a 0%, transparent 55%),
+        radial-gradient(ellipse at 60% 40%, #1a1040 0%, transparent 60%),
+        linear-gradient(160deg, #0d0820 0%, #12103a 40%, #0a1828 100%);
+      background-attachment: fixed;
+      color: #e8dfc8;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background:
+        repeating-linear-gradient(105deg, transparent 0px, transparent 80px, rgba(180,140,255,0.03) 80px, rgba(180,140,255,0.03) 81px),
+        repeating-linear-gradient(15deg,  transparent 0px, transparent 120px, rgba(100,220,255,0.02) 120px, rgba(100,220,255,0.02) 121px);
+      pointer-events: none; z-index: 0;
+    }
+
+    #ui { position: relative; z-index: 1; margin-bottom: 8px; }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(1.2rem, 4vw, 2rem);
+      font-weight: 700; letter-spacing: 0.12em;
+      background: linear-gradient(135deg, #f5e083 0%, #e8c84a 30%, #fff8d0 55%, #c8960a 80%, #f5e083 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      margin-bottom: 7px;
+      filter: drop-shadow(0 2px 8px rgba(220,180,50,0.35));
+    }
+
+    .subtitle {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(0.65rem, 1.8vw, 0.8rem);
+      letter-spacing: 0.1em;
+      color: rgba(200,190,230,0.65);
+      margin-bottom: 10px;
+    }
+
+    #hud {
+      display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
+      background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(180,140,255,0.08) 50%, rgba(100,200,255,0.06) 100%);
+      border: 1px solid rgba(200,170,255,0.25); border-radius: 50px;
+      padding: 6px 18px; font-family: 'Cinzel', serif;
+      font-size: clamp(0.75rem, 2vw, 0.95rem); letter-spacing: 0.05em;
+      margin: 5px auto 10px; backdrop-filter: blur(10px);
+      box-shadow: 0 0 20px rgba(160,120,255,0.12), inset 0 1px 0 rgba(255,255,255,0.12);
+    }
+    .divider { color: rgba(200,170,255,0.4); font-size: 1.1em; }
+    .hud-label { color: rgba(200,190,230,0.7); }
+    .hud-val   { color: #f5e083; font-weight: 700; text-shadow: 0 0 8px rgba(245,224,131,0.5); }
+    #hud-live  { color: #4ade80; font-weight: 700; text-shadow: 0 0 8px rgba(74,222,128,0.6); }
+
+    .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-bottom: 10px; }
+
+    button {
+      font-family: 'Cinzel', serif; font-size: clamp(0.66rem, 1.7vw, 0.85rem); font-weight: 600;
+      letter-spacing: 0.08em; padding: 8px 16px; border: none; border-radius: 10px;
+      cursor: pointer; transition: transform 80ms ease, box-shadow 80ms ease, opacity 200ms ease;
+      -webkit-tap-highlight-color: transparent; user-select: none;
+    }
+
+    #refreshBtn {
+      background: linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%); color:#ecfdf5;
+      box-shadow:0 5px 0 #014d38,0 7px 14px rgba(0,120,80,.45),inset 0 1px 0 rgba(180,255,220,.4);
+    }
+    #refreshBtn:active   { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
+    #refreshBtn:disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
+
+    /* ── stage heading ─────────────────────────────────────────────── */
+    .round {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(0.72rem, 2vw, 0.9rem);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: #c084fc;
+      background: linear-gradient(135deg, rgba(192,132,252,0.12) 0%, rgba(96,184,255,0.08) 100%);
+      border: 1px solid rgba(192,132,252,0.25);
+      border-radius: 50px;
+      padding: 5px 20px;
+      margin: 20px auto 10px;
+      display: inline-block;
+      backdrop-filter: blur(6px);
+    }
+
+    /* ── match grid ────────────────────────────────────────────────── */
+    .matches-grid { display: grid; gap: 8px; max-width: 820px; margin: 0 auto; }
+
+    .match-card {
+      position: relative;
+      background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(180,140,255,0.07) 50%, rgba(100,200,255,0.04) 100%);
+      border: 1px solid rgba(200,170,255,0.15);
+      border-radius: 14px;
+      padding: 12px 16px;
+      display: grid;
+      grid-template-columns: 110px 1fr 110px;
+      gap: 12px;
+      align-items: center;
+      backdrop-filter: blur(8px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.07);
+      transition: border-color 120ms ease;
+    }
+    .match-card:hover { border-color: rgba(200,170,255,0.32); }
+
+    .match-date {
+      font-family: 'Raleway', sans-serif;
+      font-size: clamp(0.7rem, 1.6vw, 0.8rem);
+      color: rgba(200,190,230,0.65);
+      text-align: center;
+      line-height: 1.5;
+    }
+    .match-date .time {
+      font-family: 'Cinzel', serif;
+      color: #f5e083;
+      font-weight: 700;
+      font-size: clamp(0.72rem, 1.8vw, 0.84rem);
+      text-shadow: 0 0 6px rgba(245,224,131,0.4);
+      margin-top: 2px;
+    }
+    .match-date .venue {
+      font-size: clamp(0.62rem, 1.4vw, 0.72rem);
+      color: rgba(180,170,210,0.45);
+      margin-top: 2px;
+    }
+
+    .match-teams {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .team {
+      display: flex; flex-direction: column;
+      align-items: center; text-align: center;
+      flex: 1;
+    }
+    .team-flag  { font-size: 1.8rem; margin-bottom: 3px; line-height: 1; }
+    .team-name  {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(0.62rem, 1.6vw, 0.78rem);
+      font-weight: 600; letter-spacing: 0.04em;
+      color: #e8dfc8;
+    }
+
+    .match-score {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(1.1rem, 3vw, 1.5rem);
+      font-weight: 700;
+      color: #f5e083;
+      text-shadow: 0 0 10px rgba(245,224,131,0.5);
+      min-width: 64px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+    .match-score.pending { color: rgba(200,170,255,0.4); text-shadow: none; }
+
+    /* ── status states ─────────────────────────────────────────────── */
+    .loading {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(0.85rem, 2.2vw, 1rem);
+      letter-spacing: 0.1em;
+      color: rgba(200,190,230,0.65);
+      padding: 40px 20px;
+    }
+
+    .error {
+      font-family: 'Raleway', sans-serif;
+      font-size: clamp(0.82rem, 2.2vw, 0.93rem);
+      color: #ff7070;
+      background: rgba(255,112,112,0.08);
+      border: 1px solid rgba(255,112,112,0.2);
+      border-radius: 14px;
+      padding: 24px 20px;
+      margin: 20px auto;
+      max-width: 520px;
+    }
+
+    .data-source {
+      font-family: 'Raleway', sans-serif;
+      font-size: clamp(0.62rem, 1.5vw, 0.72rem);
+      color: rgba(180,170,210,0.45);
+      margin-top: 24px;
+      letter-spacing: 0.04em;
+    }
+
+    /* ── opal wrap (decorative outer border for the grid area) ─────── */
+    #content-wrap {
+      position: relative; z-index: 1;
+      display: inline-block; width: 100%; max-width: 860px;
+      border-radius: 18px; padding: 3px;
+      background: linear-gradient(135deg,#c084fc 0%,#60b8ff 20%,#f5e083 40%,#6ee7b7 60%,#f472b6 80%,#c084fc 100%);
+      box-shadow: 0 0 40px rgba(150,100,255,.2), 0 0 80px rgba(80,160,255,.1), 0 20px 60px rgba(0,0,0,.5);
+      animation: opalShift 8s linear infinite;
+    }
+    @keyframes opalShift {
+      0%   { filter: hue-rotate(0deg)  brightness(1);    }
+      50%  { filter: hue-rotate(30deg) brightness(1.08); }
+      100% { filter: hue-rotate(0deg)  brightness(1);    }
+    }
+    #content-inner {
+      border-radius: 15px;
+      background: linear-gradient(145deg,#0f0c29 0%,#1a1560 50%,#0d1b3e 100%);
+      padding: 16px 12px 20px;
+      text-align: center;
+    }
+
+    @media (max-width: 540px) {
+      .match-card { grid-template-columns: 1fr; gap: 8px; }
+      .match-teams { gap: 8px; }
+      .team-flag { font-size: 1.5rem; }
+    }
+  </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🏆 FIFA World Cup 2026</h1>
-        <p class="subtitle">All 104 Matches — Live Scores & Results</p>
-        <div class="controls">
-            <button class="btn" id="refreshBtn">Refresh Scores</button>
-        </div>
-        <div id="content"></div>
-        <div class="data-source" id="dataSource"></div>
-    </div>
 
-    <script>
-        const content = document.getElementById('content');
-        const dataSource = document.getElementById('dataSource');
-        const refreshBtn = document.getElementById('refreshBtn');
-        const API_KEY = 'zwc_free_63de5553ae6aa1f348523270';
-        const API_URL = 'https://api.zafronix.com/fifa/worldcup/v1/matches?year=2026';
+<div id="ui">
+  <h1>&#127942; FIFA World Cup 2026</h1>
+  <p class="subtitle">ALL 104 MATCHES &nbsp;&#10022;&nbsp; LIVE SCORES &amp; RESULTS</p>
+  <div id="hud">
+    <span class="hud-label">Matches</span>
+    <span class="hud-val" id="hud-total">&ndash;</span>
+    <span class="divider">&#10022;</span>
+    <span class="hud-label">Played</span>
+    <span class="hud-val" id="hud-played">&ndash;</span>
+    <span class="divider">&#10022;</span>
+    <span class="hud-label">Live</span>
+    <span id="hud-live">&ndash;</span>
+  </div>
+  <div class="btn-row">
+    <button id="refreshBtn" type="button">&#8635; Refresh Scores</button>
+  </div>
+</div>
 
-        refreshBtn.addEventListener('click', fetchMatches);
+<div id="content-wrap">
+  <div id="content-inner">
+    <div id="content"></div>
+  </div>
+</div>
 
-        async function fetchMatches() {
-            refreshBtn.disabled = true;
-            refreshBtn.textContent = 'Loading...';
-            content.innerHTML = '<div class="loading">Loading 2026 World Cup matches...</div>';
-            try {
-                const response = await fetch(API_URL, { headers: { 'X-API-Key': API_KEY } });
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-                const data = await response.json();
-                if (data.data && data.data.length > 0) {
-                    renderMatches(data.data);
-                    dataSource.textContent = `Data source: Zafronix API — ${data.count || data.data.length} matches (2026 World Cup)`;
-                } else {
-                    throw new Error('No matches found in API response');
-                }
-            } catch (error) {
-                content.innerHTML = `<div class="error"><p>❌ Failed to load from API</p><p style="font-size:0.9rem;margin-top:10px;">${error.message}</p></div>`;
-            } finally {
-                refreshBtn.disabled = false;
-                refreshBtn.textContent = 'Refresh Scores';
-            }
-        }
+<div class="data-source" id="dataSource"></div>
 
-        function renderMatches(matches) {
-            if (!matches || matches.length === 0) { content.innerHTML = '<div class="loading">No matches found</div>'; return; }
-            const grouped = {};
-            matches.forEach(m => {
-                const stage = m.stage || m.stageNormalized || 'Unknown';
-                if (!grouped[stage]) grouped[stage] = [];
-                grouped[stage].push(m);
-            });
-            let html = '';
-            for (const [stage, list] of Object.entries(grouped)) {
-                html += `<div class="round">${formatStage(stage)}</div><div class="matches-grid">`;
-                list.forEach(m => {
-                    const home = m.homeTeam || 'TBD';
-                    const away = m.awayTeam || 'TBD';
-                    const hs = m.homeScore, as_ = m.awayScore;
-                    const hasResult = hs !== null && as_ !== null && hs !== undefined && as_ !== undefined;
-                    const score = hasResult
-                        ? `<span class="match-score">${hs} - ${as_}</span>`
-                        : `<span class="match-score" style="color:#666;">-</span>`;
-                    const venue = m.stadium ? `<div style="font-size:0.75rem;color:#666;margin-top:4px;">${m.stadium}, ${m.city || ''}</div>` : '';
-                    html += `
-                        <div class="match-card">
-                            <div class="match-date"><div>${formatDate(m.date)}</div><div class="time">${m.kickoff || ''}</div>${venue}</div>
-                            <div class="match-teams">
-                                <div class="team"><span class="team-flag">${getFlag(home)}</span><span class="team-name">${home}</span></div>
-                                ${score}
-                                <div class="team"><span class="team-flag">${getFlag(away)}</span><span class="team-name">${away}</span></div>
-                            </div>
-                            <div></div>
-                        </div>`;
-                });
-                html += '</div>';
-            }
-            content.innerHTML = html;
-        }
+<script>
+  const content    = document.getElementById('content');
+  const dataSource = document.getElementById('dataSource');
+  const refreshBtn = document.getElementById('refreshBtn');
+  const API_KEY    = 'zwc_free_63de5553ae6aa1f348523270';
+  const API_URL    = 'https://api.zafronix.com/fifa/worldcup/v1/matches?year=2026';
 
-        function formatDate(d) {
-            if (!d) return '';
-            try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
-            catch { return d; }
-        }
+  refreshBtn.addEventListener('click', fetchMatches);
 
-        function formatStage(s) {
-            const map = {
-                group_a:'Group A',group_b:'Group B',group_c:'Group C',group_d:'Group D',
-                group_e:'Group E',group_f:'Group F',group_g:'Group G',group_h:'Group H',
-                group_i:'Group I',group_j:'Group J',group_k:'Group K',group_l:'Group L',
-                round_of_16:'Round of 16',quarter_final:'Quarter-finals',
-                semi_final:'Semi-finals',final:'Final'
-            };
-            return map[s] || s;
-        }
+  async function fetchMatches() {
+    refreshBtn.disabled = true;
+    refreshBtn.textContent = 'Loading\u2026';
+    content.innerHTML = '<div class="loading">&#9670; Loading 2026 World Cup matches\u2026</div>';
+    try {
+      const response = await fetch(API_URL, { headers: { 'X-API-Key': API_KEY } });
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const data = await response.json();
+      if (data.data && data.data.length > 0) {
+        renderMatches(data.data);
+        dataSource.textContent = `Data source: Zafronix API \u2014 ${data.count || data.data.length} matches`;
+      } else {
+        throw new Error('No matches found in API response');
+      }
+    } catch (error) {
+      content.innerHTML = `<div class="error"><strong>\u274C Failed to load from API</strong><br><span style="font-size:.9em;opacity:.8">${error.message}</span></div>`;
+    } finally {
+      refreshBtn.disabled = false;
+      refreshBtn.textContent = '\u8635 Refresh Scores';
+    }
+  }
 
-        function getFlag(name) {
-            const f = {
-                'USA':'🇺🇸','United States':'🇺🇸','Mexico':'🇲🇽','Canada':'🇨🇦','Paraguay':'🇵🇾',
-                'Brazil':'🇧🇷','Argentina':'🇦🇷','Colombia':'🇨🇴','Uruguay':'🇺🇾','Ecuador':'🇪🇨','Chile':'🇨🇱',
-                'France':'🇫🇷','Spain':'🇪🇸','Germany':'🇩🇪','England':'🏴󠁧󠁢󠁥󠁮󠁧󠁿','Portugal':'🇵🇹',
-                'Netherlands':'🇳🇱','Belgium':'🇧🇪','Croatia':'🇭🇷','Switzerland':'🇨🇭',
-                'Denmark':'🇩🇰','Austria':'🇦🇹','Sweden':'🇸🇪','Norway':'🇳🇴','Poland':'🇵🇱',
-                'Scotland':'🏴󠁧󠁢󠁳󠁣󠁴󠁿','Czechia':'🇨🇿','Czech Republic':'🇨🇿',
-                'Bosnia and Herzegovina':'🇧🇦','Bosnia':'🇧🇦',
-                'Korea Republic':'🇰🇷','South Korea':'🇰🇷','Japan':'🇯🇵',
-                'Australia':'🇦🇺','New Zealand':'🇳🇿','Uzbekistan':'🇺🇿',
-                'Morocco':'🇲🇦','Senegal':'🇸🇳','Egypt':'🇪🇬','Algeria':'🇩🇿',
-                'Tunisia':'🇹🇳','Ghana':'🇬🇭','South Africa':'🇿🇦',
-                "Côte d'Ivoire":'🇨🇮',"Cote d'Ivoire":'🇨🇮','Cabo Verde':'🇨🇻',
-                'Congo DR':'🇨🇬','Nigeria':'🇳🇬',
-                'Saudi Arabia':'🇸🇦','IR Iran':'🇮🇷','Iran':'🇮🇷',
-                'Iraq':'🇮🇶','Jordan':'🇯🇴','Qatar':'🇶🇦',
-                'Türkiye':'🇹🇷','Turkey':'🇹🇷',
-                'Curaçao':'🇨🇼','Haiti':'🇭🇹','Jamaica':'🇯🇲','TBD':'🏳️'
-            };
-            for (const [k, v] of Object.entries(f)) { if (name.includes(k)) return v; }
-            return '🏳️';
-        }
+  function renderMatches(matches) {
+    if (!matches || matches.length === 0) {
+      content.innerHTML = '<div class="loading">No matches found</div>'; return;
+    }
 
-        fetchMatches();
-    </script>
+    // HUD counts
+    const played = matches.filter(m => m.homeScore !== null && m.homeScore !== undefined).length;
+    const live   = matches.filter(m => m.status === 'live' || m.status === 'in_progress').length;
+    document.getElementById('hud-total').textContent  = matches.length;
+    document.getElementById('hud-played').textContent = played;
+    document.getElementById('hud-live').textContent   = live || '0';
+
+    const grouped = {};
+    matches.forEach(m => {
+      const stage = m.stage || m.stageNormalized || 'Unknown';
+      if (!grouped[stage]) grouped[stage] = [];
+      grouped[stage].push(m);
+    });
+
+    let html = '';
+    for (const [stage, list] of Object.entries(grouped)) {
+      html += `<div class="round">${formatStage(stage)}</div><div class="matches-grid">`;
+      list.forEach(m => {
+        const home = m.homeTeam || 'TBD';
+        const away = m.awayTeam || 'TBD';
+        const hs = m.homeScore, as_ = m.awayScore;
+        const hasResult = hs !== null && as_ !== null && hs !== undefined && as_ !== undefined;
+        const scoreHtml = hasResult
+          ? `<span class="match-score">${hs} &ndash; ${as_}</span>`
+          : `<span class="match-score pending">vs</span>`;
+        const venueHtml = m.stadium
+          ? `<div class="venue">${m.stadium}${m.city ? ', ' + m.city : ''}</div>` : '';
+        html += `
+          <div class="match-card">
+            <div class="match-date">
+              <div>${formatDate(m.date)}</div>
+              <div class="time">${m.kickoff || ''}</div>
+              ${venueHtml}
+            </div>
+            <div class="match-teams">
+              <div class="team"><span class="team-flag">${getFlag(home)}</span><span class="team-name">${home}</span></div>
+              ${scoreHtml}
+              <div class="team"><span class="team-flag">${getFlag(away)}</span><span class="team-name">${away}</span></div>
+            </div>
+            <div></div>
+          </div>`;
+      });
+      html += '</div>';
+    }
+    content.innerHTML = html;
+  }
+
+  function formatDate(d) {
+    if (!d) return '';
+    try { return new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); }
+    catch { return d; }
+  }
+
+  function formatStage(s) {
+    const map = {
+      group_a:'Group A',group_b:'Group B',group_c:'Group C',group_d:'Group D',
+      group_e:'Group E',group_f:'Group F',group_g:'Group G',group_h:'Group H',
+      group_i:'Group I',group_j:'Group J',group_k:'Group K',group_l:'Group L',
+      round_of_16:'Round of 16',quarter_final:'Quarter-finals',
+      semi_final:'Semi-finals',final:'Final'
+    };
+    return map[s] || s;
+  }
+
+  function getFlag(name) {
+    const f = {
+      'USA':'\uD83C\uDDFA\uD83C\uDDF8','United States':'\uD83C\uDDFA\uD83C\uDDF8',
+      'Mexico':'\uD83C\uDDF2\uD83C\uDDFD','Canada':'\uD83C\uDDE8\uD83C\uDDE6',
+      'Paraguay':'\uD83C\uDDF5\uD83C\uDDFE','Brazil':'\uD83C\uDDE7\uD83C\uDDF7',
+      'Argentina':'\uD83C\uDDE6\uD83C\uDDF7','Colombia':'\uD83C\uDDE8\uD83C\uDDF4',
+      'Uruguay':'\uD83C\uDDFA\uD83C\uDDFE','Ecuador':'\uD83C\uDDEA\uD83C\uDDE8',
+      'Chile':'\uD83C\uDDE8\uD83C\uDDF1','France':'\uD83C\uDDEB\uD83C\uDDF7',
+      'Spain':'\uD83C\uDDEA\uD83C\uDDF8','Germany':'\uD83C\uDDE9\uD83C\uDDEA',
+      'England':'\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F',
+      'Portugal':'\uD83C\uDDF5\uD83C\uDDF9','Netherlands':'\uD83C\uDDF3\uD83C\uDDF1',
+      'Belgium':'\uD83C\uDDE7\uD83C\uDDEA','Croatia':'\uD83C\uDDED\uD83C\uDDF7',
+      'Switzerland':'\uD83C\uDDE8\uD83C\uDDED','Denmark':'\uD83C\uDDE9\uD83C\uDDF0',
+      'Austria':'\uD83C\uDDE6\uD83C\uDDF9','Sweden':'\uD83C\uDDF8\uD83C\uDDEA',
+      'Norway':'\uD83C\uDDF3\uD83C\uDDF4','Poland':'\uD83C\uDDF5\uD83C\uDDF1',
+      'Scotland':'\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC73\uDB40\uDC63\uDB40\uDC74\uDB40\uDC7F',
+      'Czechia':'\uD83C\uDDE8\uD83C\uDDFF','Czech Republic':'\uD83C\uDDE8\uD83C\uDDFF',
+      'Bosnia and Herzegovina':'\uD83C\uDDE7\uD83C\uDDE6','Bosnia':'\uD83C\uDDE7\uD83C\uDDE6',
+      'Korea Republic':'\uD83C\uDDF0\uD83C\uDDF7','South Korea':'\uD83C\uDDF0\uD83C\uDDF7',
+      'Japan':'\uD83C\uDDEF\uD83C\uDDF5','Australia':'\uD83C\uDDE6\uD83C\uDDFA',
+      'New Zealand':'\uD83C\uDDF3\uD83C\uDDFF','Uzbekistan':'\uD83C\uDDFA\uD83C\uDDFF',
+      'Morocco':'\uD83C\uDDF2\uD83C\uDDE6','Senegal':'\uD83C\uDDF8\uD83C\uDDF3',
+      'Egypt':'\uD83C\uDDEA\uD83C\uDDEC','Algeria':'\uD83C\uDDE9\uD83C\uDDFF',
+      'Tunisia':'\uD83C\uDDF9\uD83C\uDDF3','Ghana':'\uD83C\uDDEC\uD83C\uDDED',
+      'South Africa':'\uD83C\uDDFF\uD83C\uDDE6',
+      "C\u00F4te d'Ivoire":'\uD83C\uDDE8\uD83C\uDDEE',"Cote d'Ivoire":'\uD83C\uDDE8\uD83C\uDDEE',
+      'Cabo Verde':'\uD83C\uDDE8\uD83C\uDDFB','Congo DR':'\uD83C\uDDE8\uD83C\uDDEC',
+      'Nigeria':'\uD83C\uDDF3\uD83C\uDDEC','Saudi Arabia':'\uD83C\uDDF8\uD83C\uDDE6',
+      'IR Iran':'\uD83C\uDDEE\uD83C\uDDF7','Iran':'\uD83C\uDDEE\uD83C\uDDF7',
+      'Iraq':'\uD83C\uDDEE\uD83C\uDDF6','Jordan':'\uD83C\uDDEF\uD83C\uDDF4',
+      'Qatar':'\uD83C\uDDF6\uD83C\uDDE6',
+      'T\u00FCrkiye':'\uD83C\uDDF9\uD83C\uDDF7','Turkey':'\uD83C\uDDF9\uD83C\uDDF7',
+      'Cura\u00E7ao':'\uD83C\uDDE8\uD83C\uDDFC','Haiti':'\uD83C\uDDED\uD83C\uDDF9',
+      'Jamaica':'\uD83C\uDDEF\uD83C\uDDF2','TBD':'\uD83C\uDFF3\uFE0F'
+    };
+    for (const [k, v] of Object.entries(f)) { if (name.includes(k)) return v; }
+    return '\uD83C\uDFF3\uFE0F';
+  }
+
+  fetchMatches();
+</script>
 </body>
 </html>
