@@ -133,6 +133,16 @@
         }
         #btn-dice-toggle:active { transform: translateY(4px); }
 
+        /* ── Locked state: game in progress ── */
+        #btn-dice-toggle.locked {
+            opacity: 0.4;
+            cursor: not-allowed;
+            pointer-events: none;
+            filter: grayscale(0.5) brightness(0.8);
+            box-shadow: none;
+            transform: none !important;
+        }
+
         #btn-finish {
             background: linear-gradient(175deg, #c084fc 0%, #7c3aed 45%, #3b0764 100%);
             color: #f3e8ff;
@@ -362,7 +372,7 @@
     <div id="mode-badge">&#9670; Dice Mode</div>
     <p id="turn-line"><span id="player-display" class="p1">Player 1</span>'s turn &nbsp;&bull;&nbsp; Moves left: <span id="moves">0</span></p>
     <div class="btn-row">
-        <button id="btn-dice-toggle" onclick="toggleDiceMode()">&#127922; Dice: ON</button>
+        <button id="btn-dice-toggle" onclick="toggleDiceMode()" aria-disabled="false">&#127922; Dice: ON</button>
         <button id="btn-roll" onclick="rollDice()">&#9670; Roll Dice</button>
         <button id="btn-finish" onclick="checkGameOver()">&#9632; Finish</button>
         <button id="btn-new" onclick="resetGame()">&#8635; New Game</button>
@@ -468,6 +478,12 @@
 
     function tapRadius() { return canvas.width * 0.1; }
     function px(d) { return { x: d.rx * canvas.width, y: d.ry * canvas.height }; }
+
+    function setDiceToggleLocked(locked) {
+        const btn = document.getElementById('btn-dice-toggle');
+        btn.classList.toggle('locked', locked);
+        btn.setAttribute('aria-disabled', locked ? 'true' : 'false');
+    }
 
     function resizeCanvas() {
         const uiH = document.getElementById('ui').offsetHeight + 24;
@@ -644,11 +660,13 @@
         lines = []; triangles = []; firstDot = null; currentPlayer = 1;
         movesRemaining = diceMode ? 0 : 1;
         document.getElementById('game-over').style.display = 'none';
+        setDiceToggleLocked(false);
         updateScore(); updateTurnDisplay();
         generateDots(); draw();
     }
 
     function toggleDiceMode() {
+        if (lines.length > 0) return; // locked during active game
         diceMode = !diceMode;
         const btn = document.getElementById('btn-dice-toggle');
         const rollBtn = document.getElementById('btn-roll');
@@ -693,6 +711,10 @@
 
         const trisBefore = triangles.length;
         lines.push({ p1: firstDot, p2: clickedDot, player: currentPlayer });
+
+        // Lock toggle on first line drawn
+        if (lines.length === 1) setDiceToggleLocked(true);
+
         checkAndFillTriangle(firstDot, clickedDot);
         const trisCompleted = triangles.length - trisBefore;
         firstDot = null;
