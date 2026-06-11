@@ -62,6 +62,52 @@ Each tool lives in its own self-contained folder. A folder holds the source scri
 
 ---
 
+## HTML Projects — Structure & Contributors Rule
+
+**All HTML projects (games and browser tools) follow the same two-file pattern. This rule applies to all contributors, including AI agents.**
+
+### Required files in every HTML project folder
+
+| File | Purpose |
+|------|---------|
+| `index.html` | **Core game/tool** — complete HTML + CSS + JavaScript in a single self-contained file. Fully functional when opened directly in a browser. |
+| `shell.html` | **Shell loader** — thin iframe loader that fetches `index.html` from the GitHub raw API on page open and injects it into a full-viewport iframe. No auto-refresh. |
+| `README.md` | Purpose, features, controls, file structure, and version history. |
+| `TESTING.md` | Step-by-step manual test cases with Setup, Action, Expected, and Pass columns. |
+
+### Creating a new HTML project subfolder
+
+1. **Create the folder** with a descriptive kebab-case name (e.g. `my-new-game/`).
+2. **Write `index.html`** — single-file, no external CDN dependencies, works via `file://` or any web server.
+3. **Write `shell.html`** — copy the loader pattern from [`triangles-game/shell.html`](triangles-game/shell.html) and update:
+   - `<title>` — your game/tool name
+   - `border-top-color` on `.spinner` — your accent colour (e.g. `#e94560`)
+   - `iframe title` attribute — your game/tool name
+   - `SOURCE` constant — raw GitHub URL pointing to your folder's `index.html`:
+     ```
+     https://raw.githubusercontent.com/varunbiswasgit/aiacode/main/YOUR_FOLDER_NAME/index.html
+     ```
+4. **Write `README.md`** — include features, controls (if a game), scoring (if relevant), file structure table, and a version history table starting at v1.
+5. **Write `TESTING.md`** — minimum one test case per distinct behaviour; use the four-column format (Setup / Action / Expected / Pass).
+6. **Update this file** — add a row to the Scripts table below with folder name, type `HTML / JavaScript`, and a one-line description.
+
+### Updating an existing HTML project
+
+| What changed | Files to update |
+|---|---|
+| `index.html` content or logic | `README.md` (version history row), `TESTING.md` (affected test cases), global `README.md` (description if behaviour changed) |
+| `shell.html` loader | `README.md` (version history row) |
+| New feature added | All of the above |
+
+### Running HTML projects
+
+| File | How to run |
+|------|------------|
+| `index.html` | Open directly in any browser — works via `file://` or any web server |
+| `shell.html` | Open in any browser with an internet connection — fetches the latest `index.html` from GitHub raw API at load time |
+
+---
+
 ## Scripts
 
 | Folder | Type | Description |
