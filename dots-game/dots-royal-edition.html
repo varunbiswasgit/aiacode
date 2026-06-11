@@ -35,7 +35,7 @@
     #ui { position: relative; z-index: 1; margin-bottom: 8px; }
     h1 {
       font-family: 'Cinzel', serif;
-      font-size: clamp(1.2rem, 4vw, 1.9rem);
+      font-size: clamp(1.2rem, 4vw, 2rem);
       font-weight: 700; letter-spacing: 0.12em;
       background: linear-gradient(135deg, #f5e083 0%, #e8c84a 30%, #fff8d0 55%, #c8960a 80%, #f5e083 100%);
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
@@ -238,7 +238,6 @@
 
   document.getElementById('remaining').textContent = ' ' + BOXES;
 
-  // ── STATE ──────────────────────────────────────────────────────────────────
   let hLines, vLines, boxes, currentPlayer;
   let diceMode    = false;
   let diceRollVal = 0;
@@ -246,7 +245,6 @@
   let needsRoll   = false;
   let gameStarted = false;
 
-  // ── DICE HELPERS ───────────────────────────────────────────────────────────
   function rollDice() {
     diceRollVal = Math.floor(Math.random() * 6) + 1;
     linesLeft   = diceRollVal;
@@ -328,7 +326,6 @@
     }
   }
 
-  // ── RESPONSIVE CANVAS ──────────────────────────────────────────────────────
   function syncSize() {
     const uiEl  = document.getElementById('ui');
     const legH  = 34;
@@ -367,7 +364,6 @@
     };
   }
 
-  // ── HIT DETECTION ──────────────────────────────────────────────────────────
   function nearestSegment(cx, cy) {
     const { padX, padY, gapX, gapY } = geo();
     const thH = gapX * 0.54;
@@ -388,7 +384,6 @@
     return best;
   }
 
-  // ── GAME LOGIC ──────────────────────────────────────────────────────────────
   function resetBoard() {
     hLines = Array.from({ length: ROWS },     () => Array(COLS - 1).fill(0));
     vLines = Array.from({ length: ROWS - 1 }, () => Array(COLS).fill(0));
@@ -430,7 +425,6 @@
     return hLines.flat().every(Boolean) && vLines.flat().every(Boolean);
   }
 
-  // ── TURN ADVANCEMENT ───────────────────────────────────────────────────────
   function advanceTurn() {
     currentPlayer = currentPlayer === 1 ? 2 : 1;
     if (diceMode) {
@@ -460,15 +454,13 @@
     if (seg.type === 'H') hLines[seg.r][seg.c] = currentPlayer;
     else                  vLines[seg.r][seg.c] = currentPlayer;
 
-    claimBoxes(seg);   // score the box; no effect on turn in either mode here
+    claimBoxes(seg);
 
     if (diceMode) {
-      // Pure budget drain — boxes score but never preserve the turn
       linesLeft--;
       updateDiceUI();
       if (linesLeft <= 0) advanceTurn();
     } else {
-      // Classic: no box claimed = pass turn; box claimed = play again
       const claimed = claimBoxes(seg);
       if (claimed === 0) advanceTurn();
     }
@@ -502,7 +494,6 @@
     document.getElementById('game-over').classList.add('show');
   }
 
-  // ── DRAWING ─────────────────────────────────────────────────────────────────
   function draw() {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     ctx.save();
@@ -594,7 +585,6 @@
     }
   }
 
-  // ── EVENTS ──────────────────────────────────────────────────────────────────
   canvas.addEventListener('click', e => handleTap(e.clientX, e.clientY));
   canvas.addEventListener('touchend', e => {
     e.preventDefault();
@@ -613,7 +603,6 @@
   window.addEventListener('resize', () => { syncSize(); draw(); });
   window.addEventListener('orientationchange', () => setTimeout(() => { syncSize(); draw(); }, 150));
 
-  // ── INIT ────────────────────────────────────────────────────────────────────
   syncSize();
   resetBoard();
 </script>

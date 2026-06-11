@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Triangles: Royal Edition</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Raleway:wght@400;500;600&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -12,7 +14,7 @@
             font-family: 'Raleway', sans-serif;
             text-align: center;
             min-height: 100dvh;
-            padding: 12px 8px;
+            padding: 10px 8px 14px;
             background:
                 radial-gradient(ellipse at 20% 10%, #1a0a3a 0%, transparent 55%),
                 radial-gradient(ellipse at 80% 90%, #0a1a3a 0%, transparent 55%),
@@ -42,7 +44,7 @@
 
         h1 {
             font-family: 'Cinzel', serif;
-            font-size: clamp(1.3rem, 4vw, 2rem);
+            font-size: clamp(1.2rem, 4vw, 2rem);
             font-weight: 700;
             letter-spacing: 0.12em;
             background: linear-gradient(135deg, #f5e083 0%, #e8c84a 30%, #fff8d0 55%, #c8960a 80%, #f5e083 100%);
@@ -57,16 +59,16 @@
         #scoreboard {
             display: inline-flex;
             align-items: center;
-            gap: 14px;
+            gap: 10px;
             background: linear-gradient(135deg,
                 rgba(255,255,255,0.06) 0%,
                 rgba(180,140,255,0.08) 50%,
                 rgba(100,200,255,0.06) 100%);
             border: 1px solid rgba(200,170,255,0.25);
             border-radius: 50px;
-            padding: 8px 24px;
+            padding: 6px 18px;
             font-family: 'Cinzel', serif;
-            font-size: clamp(0.85rem, 2.5vw, 1.05rem);
+            font-size: clamp(0.75rem, 2vw, 0.95rem);
             letter-spacing: 0.05em;
             margin: 8px auto;
             backdrop-filter: blur(10px);
@@ -96,10 +98,10 @@
 
         button {
             font-family: 'Cinzel', serif;
-            font-size: clamp(0.72rem, 2vw, 0.9rem);
+            font-size: clamp(0.66rem, 1.7vw, 0.85rem);
             font-weight: 600;
             letter-spacing: 0.08em;
-            padding: 10px 20px;
+            padding: 8px 16px;
             border: none;
             border-radius: 10px;
             cursor: pointer;
@@ -118,7 +120,6 @@
         #btn-roll:active { transform: translateY(4px); box-shadow: 0 2px 0 #5a3d00, 0 4px 8px rgba(180,120,0,0.3), inset 0 1px 0 rgba(255,255,200,0.3); }
         #btn-roll.hidden { display: none; }
 
-        /* Dice toggle button */
         #btn-dice-toggle {
             background: linear-gradient(175deg, #a3e635 0%, #65a30d 45%, #1a2e05 100%);
             color: #f7fee7;
@@ -173,7 +174,6 @@
         }
         #btn-play-again:active { transform: translateY(4px); box-shadow: 0 2px 0 #014d38, 0 4px 8px rgba(0,100,60,0.3), inset 0 1px 0 rgba(150,255,200,0.2); }
 
-        /* mode badge */
         #mode-badge {
             display: inline-block;
             font-family: 'Cinzel', serif;
@@ -253,7 +253,6 @@
 
         #winner-text { margin-bottom: 20px; display: block; }
 
-        /* ── RULES MODAL ──────────────────────────────────────────────── */
         #rules-overlay {
             display: none;
             position: fixed;
@@ -380,7 +379,6 @@
     <button id="btn-play-again" onclick="resetGame()">&#9670; Play Again</button>
 </div>
 
-<!-- ── RULES MODAL ─────────────────────────────────────────────────────── -->
 <div id="rules-overlay" role="dialog" aria-modal="true" aria-labelledby="rules-title">
     <div id="rules-modal">
         <h2 id="rules-title">&#9670; How to Play &#9670;</h2>
@@ -413,8 +411,8 @@
             <ul>
                 <li>Toggle <span class="rules-classic">Dice: OFF</span> to play in Classic mode — no dice required.</li>
                 <li>Each player draws <span class="rules-highlight">exactly 1 line</span> per turn.</li>
-                <li><span class="rules-highlight">Bonus turn:</span> completing a triangle earns you one more move immediately — just like the classic Dots &amp; Boxes game.</li>
-                <li>Your turn continues as long as each move completes at least one triangle. When a move closes no triangle, the turn passes.</li>
+                <li><span class="rules-highlight">Bonus turn:</span> completing a triangle earns you one more move immediately.</li>
+                <li>Your turn continues as long as each move completes at least one triangle.</li>
                 <li>No Roll Dice button needed — just click two dots to draw.</li>
             </ul>
         </div>
@@ -464,7 +462,7 @@
     const colors = { 1: '#60b8ff', 2: '#ff7070' };
 
     let dots = [], lines = [], triangles = [], currentPlayer = 1, movesRemaining = 0, firstDot = null;
-    let diceMode = true; // true = Dice On, false = Classic
+    let diceMode = true;
 
     const NEAR_PT_PX = 6;
 
@@ -649,7 +647,6 @@
         generateDots(); draw();
     }
 
-    /* ── DICE TOGGLE ─────────────────────────────────────────────────── */
     function toggleDiceMode() {
         diceMode = !diceMode;
         const btn = document.getElementById('btn-dice-toggle');
@@ -708,7 +705,6 @@
                 document.getElementById('moves').textContent = movesRemaining;
             }
         } else {
-            // Classic: bonus move on triangle close, else pass turn
             if (trisCompleted > 0) {
                 movesRemaining = 1;
                 document.getElementById('moves').textContent = movesRemaining;
