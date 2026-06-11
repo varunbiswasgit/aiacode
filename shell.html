@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>aiacode — Repository Shell</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #0d1117;
+      color: #c9d1d9;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh;
+    }
+    header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 16px 32px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    header h1 { font-size: 20px; color: #e94560; letter-spacing: 1px; }
+    header p  { font-size: 13px; color: #8b949e; }
+    #refresh-btn {
+      background: #21262d;
+      border: 1px solid #30363d;
+      color: #c9d1d9;
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 13px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+      white-space: nowrap;
+    }
+    #refresh-btn:hover    { background: #30363d; }
+    #refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #refresh-btn.spinning svg { animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    main { max-width: 1100px; margin: 0 auto; padding: 32px 24px; }
+    #status-bar { font-size: 12px; color: #8b949e; margin-bottom: 24px; min-height: 18px; }
+    #status-bar.error { color: #f85149; }
+    #grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 10px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .card:hover { border-color: #e94560; box-shadow: 0 0 10px #e9456033; }
+    .card-header { display: flex; align-items: center; gap: 10px; }
+    .card-icon   { font-size: 20px; width: 32px; text-align: center; flex-shrink: 0; }
+    .card-name   { font-size: 15px; font-weight: 600; color: #e94560; word-break: break-all; }
+    .card-desc   { font-size: 13px; color: #8b949e; line-height: 1.5; flex: 1; }
+    .card-meta   { font-size: 11px; color: #6e7681; display: flex; gap: 12px; flex-wrap: wrap; }
+    .badge {
+      background: #21262d;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 2px 8px;
+      font-size: 11px;
+      color: #8b949e;
+    }
+    .card-links  { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+    .btn {
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      text-decoration: none;
+      border: 1px solid #30363d;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .btn-primary  { background: #e94560; color: #fff; border-color: #e94560; }
+    .btn-primary:hover  { background: #c73652; border-color: #c73652; }
+    .btn-secondary { background: #21262d; color: #c9d1d9; }
+    .btn-secondary:hover { background: #30363d; }
+    .skeleton {
+      background: #21262d;
+      border-radius: 10px;
+      height: 140px;
+      animation: pulse 1.4s ease-in-out infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    footer {
+      text-align: center;
+      padding: 32px;
+      font-size: 12px;
+      color: #6e7681;
+      border-top: 1px solid #21262d;
+      margin-top: 48px;
+    }
+    footer a { color: #e94560; text-decoration: none; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>aiacode</h1>
+    <p>AI-Assisted Automation Scripts &amp; Browser Tools</p>
+  </div>
+  <button id="refresh-btn" onclick="loadRepo()">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+      <path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+      <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+    </svg>
+    Refresh
+  </button>
+</header>
+
+<main>
+  <div id="status-bar"></div>
+  <div id="grid"></div>
+</main>
+
+<footer>
+  Data loaded from
+  <a href="https://github.com/varunbiswasgit/aiacode" target="_blank">varunbiswasgit/aiacode</a>
+  via the GitHub public API. No auto-refresh — click Refresh to reload.
+</footer>
+
+<script>
+  const OWNER  = 'varunbiswasgit';
+  const REPO   = 'aiacode';
+  const API    = `https://api.github.com/repos/${OWNER}/${REPO}/contents`;
+  const RAW    = `https://raw.githubusercontent.com/${OWNER}/${REPO}/main`;
+  const GITHUB = `https://github.com/${OWNER}/${REPO}/tree/main`;
+
+  const ICONS = {
+    game:'🎮', turtle:'🐢', tetris:'🟦', dots:'🔵', triangles:'🔺',
+    worldcup:'⚽', word:'📝', excel:'📊', outlook:'📧',
+    win11:'🖥️', startup:'🚀', clean:'🧹', split:'✂️',
+    bold:'🅱️', resize:'🖼️', normalize:'📐',
+    default:'📁'
+  };
+
+  const SKIP = new Set(['.github']);
+
+  // Folders with a launchable index.html
+  const PLAYABLE = ['game','tetris','turtle','dots','triangles','worldcup','scores'];
+
+  function iconFor(name) {
+    const n = name.toLowerCase();
+    for (const [key, icon] of Object.entries(ICONS)) {
+      if (n.includes(key)) return icon;
+    }
+    return ICONS.default;
+  }
+
+  function typeLabel(name) {
+    const n = name.toLowerCase();
+    if (PLAYABLE.some(k => n.includes(k)))        return 'HTML / JS';
+    if (['win11','startup','clean','keyword'].some(k => n.includes(k))) return 'PowerShell';
+    if (n.includes('split'))                       return 'VBA + Python';
+    if (n.includes('outlook'))                     return 'VBA + PS';
+    if (['excel','word','bold','resize','normalize'].some(k => n.includes(k))) return 'VBA';
+    return 'Script';
+  }
+
+  function setStatus(msg, isError = false) {
+    const el = document.getElementById('status-bar');
+    el.textContent = msg;
+    el.className = isError ? 'error' : '';
+  }
+
+  function showSkeletons(n = 6) {
+    document.getElementById('grid').innerHTML =
+      Array(n).fill('<div class="skeleton"></div>').join('');
+  }
+
+  async function fetchDesc(folder) {
+    try {
+      const res = await fetch(`${RAW}/${folder}/README.md`);
+      if (!res.ok) return '';
+      const text = await res.text();
+      for (const line of text.split('\n')) {
+        const t = line.trim();
+        if (t && !t.startsWith('#') && !t.startsWith('---'))
+          return t.replace(/[`*_]/g, '').substring(0, 160);
+      }
+      return '';
+    } catch { return ''; }
+  }
+
+  function renderCard(folder, desc) {
+    const canPlay = PLAYABLE.some(k => folder.toLowerCase().includes(k));
+    return `
+      <div class="card">
+        <div class="card-header">
+          <span class="card-icon">${iconFor(folder)}</span>
+          <span class="card-name">${folder}</span>
+        </div>
+        <p class="card-desc">${desc || 'No description available.'}</p>
+        <div class="card-meta"><span class="badge">${typeLabel(folder)}</span></div>
+        <div class="card-links">
+          ${canPlay ? `<a class="btn btn-primary" href="${RAW}/${folder}/index.html" target="_blank">&#9654; Open</a>` : ''}
+          <a class="btn btn-secondary" href="${GITHUB}/${folder}" target="_blank">GitHub &rarr;</a>
+        </div>
+      </div>`;
+  }
+
+  async function loadRepo() {
+    const btn = document.getElementById('refresh-btn');
+    btn.disabled = true;
+    btn.classList.add('spinning');
+    setStatus('Loading repository…');
+    showSkeletons();
+
+    try {
+      const res = await fetch(API);
+      if (!res.ok) throw new Error(`GitHub API error ${res.status}`);
+      const items = await res.json();
+      const folders = items.filter(i => i.type === 'dir' && !SKIP.has(i.name));
+
+      if (!folders.length) {
+        document.getElementById('grid').innerHTML = '<p style="color:#8b949e">No tool folders found.</p>';
+        setStatus('Loaded — no tool folders found.');
+        return;
+      }
+
+      const descs = await Promise.all(folders.map(f => fetchDesc(f.name)));
+      document.getElementById('grid').innerHTML = folders.map((f,i) => renderCard(f.name, descs[i])).join('');
+      setStatus(`${folders.length} folders loaded — last refreshed at ${new Date().toLocaleTimeString()}`);
+    } catch (err) {
+      document.getElementById('grid').innerHTML = '';
+      setStatus(`Error: ${err.message}`, true);
+    } finally {
+      btn.disabled = false;
+      btn.classList.remove('spinning');
+    }
+  }
+
+  // Load once on page open — no auto-refresh
+  loadRepo();
+</script>
+</body>
+</html>
