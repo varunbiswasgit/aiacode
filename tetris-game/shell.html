@@ -6,7 +6,7 @@
     <title>Tetris: Royal 3D Edition</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { background: #1a1a2e; min-height: 100vh; }
+        body { background: #1a1a2e; min-height: 100vh; overflow: hidden; }
         #shell-loader {
             display: flex;
             flex-direction: column;
@@ -32,6 +32,7 @@
             max-width: 400px;
             background: rgba(255,107,107,0.1);
             border-radius: 12px;
+            line-height: 1.6;
         }
         #shell-frame {
             display: none;
@@ -52,31 +53,33 @@
         const SOURCE = 'https://raw.githubusercontent.com/varunbiswasgit/aiacode/main/tetris-game/tetris-royal-3d.html';
         const loader = document.getElementById('shell-loader');
         const frame  = document.getElementById('shell-frame');
-
-        function showGame() {
-            frame.style.display = 'block';
-            loader.style.display = 'none';
-        }
+        let blobUrl  = null;
 
         function showError(msg) {
             loader.innerHTML = `<div class="error"><p>&#10060; Failed to load game</p><p style="font-size:0.85rem;margin-top:8px;">${msg}</p><p style="font-size:0.8rem;margin-top:8px;color:#aaa;">Try refreshing the page.</p></div>`;
         }
 
-        // Timeout fallback — never hang forever
-        const timeout = setTimeout(() => showError('Request timed out.'), 10000);
+        async function load() {
+            try {
+                const res = await fetch(SOURCE + '?t=' + Date.now());
+                if (!res.ok) throw new Error('GitHub returned HTTP ' + res.status);
+                const html = await res.text();
+                // Use a blob URL — same-origin so iframe restrictions don't apply
+                const blob = new Blob([html], { type: 'text/html' });
+                blobUrl = URL.createObjectURL(blob);
+                frame.onload = function() {
+                    frame.style.display = 'block';
+                    loader.style.display = 'none';
+                };
+                frame.src = blobUrl;
+            } catch (err) {
+                showError(err.message || 'Network error.');
+            }
+        }
 
-        frame.onload = function() {
-            clearTimeout(timeout);
-            showGame();
-        };
-
-        frame.onerror = function() {
-            clearTimeout(timeout);
-            showError('Could not reach GitHub.');
-        };
-
-        // Setting src triggers a native browser load — no CORS issues
-        frame.src = SOURCE + '?t=' + Date.now();
+        // 12s hard timeout
+        const timeout = setTimeout(() => showError('Request timed out — check your connection.'), 12000);
+        load().then(() => clearTimeout(timeout));
     <\/script>
 </body>
 </html>
