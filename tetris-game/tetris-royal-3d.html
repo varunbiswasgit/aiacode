@@ -82,11 +82,52 @@
     #btn-pause:active { transform:translateY(4px); box-shadow:0 1px 0 #92400e; }
     #btn-pause:disabled { opacity:0.35; cursor:not-allowed; pointer-events:none; }
 
+    #btn-dice-toggle {
+      background: linear-gradient(175deg,#818cf8 0%,#4338ca 45%,#1e1b4b 100%); color:#eef2ff;
+      box-shadow:0 5px 0 #312e81,0 7px 14px rgba(67,56,202,.4),inset 0 1px 0 rgba(200,210,255,.4);
+    }
+    #btn-dice-toggle:active { transform:translateY(4px); box-shadow:0 1px 0 #312e81; }
+    #btn-dice-toggle.disabled,
+    #btn-dice-toggle[disabled] {
+      opacity: 0.42;
+      cursor: default;
+      pointer-events: none;
+      filter: grayscale(0.15) brightness(0.92);
+      box-shadow: none;
+    }
+
+    #btn-roll {
+      background: linear-gradient(175deg,#f9a8d4 0%,#db2777 45%,#500724 100%); color:#fdf2f8;
+      box-shadow:0 5px 0 #831843,0 7px 14px rgba(219,39,119,.4),inset 0 1px 0 rgba(255,200,230,.4);
+    }
+    #btn-roll:active { transform:translateY(4px); box-shadow:0 1px 0 #831843; }
+    #btn-roll:disabled { opacity:0.35; cursor:not-allowed; pointer-events:none; }
+
     #btn-rules {
       background: linear-gradient(175deg,#fda4af 0%,#e11d48 45%,#4c0519 100%); color:#fff1f2;
       box-shadow:0 5px 0 #3b0a1e,0 7px 14px rgba(200,20,60,.45),inset 0 1px 0 rgba(255,200,210,.4);
     }
     #btn-rules:active { transform:translateY(4px); box-shadow:0 1px 0 #3b0a1e; }
+
+    #mode-badge {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(0.6rem, 1.5vw, 0.72rem); letter-spacing: 0.1em;
+      padding: 3px 12px; border-radius: 99px;
+      background: rgba(129,140,248,0.18); color: #a5b4fc;
+      border: 1px solid rgba(129,140,248,0.3);
+      margin-left: 2px;
+    }
+    #mode-badge.classic {
+      background: rgba(200,170,255,0.1); color: rgba(200,190,230,0.6);
+      border-color: rgba(200,170,255,0.15);
+    }
+
+    #dice-info {
+      font-family: 'Raleway', sans-serif;
+      font-size: clamp(0.68rem, 1.8vw, 0.8rem);
+      color: #a5b4fc; margin-bottom: 6px;
+      min-height: 1.2em;
+    }
 
     #game-area {
       position: relative; z-index: 1;
@@ -170,7 +211,7 @@
       background: linear-gradient(145deg,rgba(20,10,50,.97) 0%,rgba(30,15,70,.97) 100%);
       border: 1px solid rgba(200,160,255,.3);
       box-shadow: 0 0 60px rgba(150,80,255,.3),0 30px 80px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.1);
-      backdrop-filter: blur(20px); width: min(92vw,420px);
+      backdrop-filter: blur(20px); width: min(92vw,440px);
     }
     .modal.show { display: block; }
     .modal h2 {
@@ -180,41 +221,48 @@
       -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
       filter: drop-shadow(0 2px 6px rgba(220,180,50,.35));
     }
-    .modal p { color: rgba(220,210,240,.82); font-size: clamp(.82rem,2.2vw,.93rem); margin-bottom:16px; }
+    .modal p { color: rgba(220,210,240,.82); font-size: clamp(.82rem,2.2vw,.93rem); margin-bottom:14px; }
     .modal-btn {
       font-family:'Cinzel',serif; font-size:.88rem; font-weight:600; letter-spacing:.08em;
       padding:10px 24px; border:none; border-radius:10px; cursor:pointer;
       background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%); color:#ecfdf5;
       box-shadow:0 5px 0 #014d38,0 7px 14px rgba(0,120,80,.45),inset 0 1px 0 rgba(180,255,220,.4);
       transition: transform 80ms ease, box-shadow 80ms ease;
-      margin-top: 4px;
+      margin-top: 6px;
     }
     .modal-btn:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
 
-    /* Name input in game-over modal */
+    /* Player identity row */
     #name-row {
       display: flex; gap: 8px; align-items: center; justify-content: center;
-      margin-bottom: 12px;
+      margin-bottom: 6px; flex-wrap: wrap;
     }
     #player-name {
       font-family: 'Raleway', sans-serif; font-size: .9rem;
       padding: 7px 12px; border-radius: 8px; border: 1px solid rgba(200,170,255,0.35);
       background: rgba(255,255,255,0.07); color: #e8dfc8;
-      width: 160px; outline: none;
+      width: 180px; outline: none;
     }
     #player-name:focus { border-color: #c084fc; }
+    #session-tag {
+      font-size: .68rem; color: rgba(200,190,230,.4);
+      letter-spacing: .05em; margin-bottom: 10px;
+    }
+
+    /* Save button */
     #btn-save-score {
       font-family:'Cinzel',serif; font-size:.78rem; font-weight:600; letter-spacing:.06em;
       padding:7px 14px; border:none; border-radius:8px; cursor:pointer;
       background:linear-gradient(175deg,#c084fc 0%,#7c3aed 50%,#2e1065 100%); color:#f5f3ff;
       box-shadow:0 4px 0 #3b1f7a,inset 0 1px 0 rgba(255,255,255,.2);
       transition: transform 80ms ease, box-shadow 80ms ease;
+      margin-top: 4px;
     }
     #btn-save-score:active { transform:translateY(3px); box-shadow:0 1px 0 #3b1f7a; }
     #btn-save-score:disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
     #save-status { font-size:.75rem; color: rgba(200,190,230,.7); margin-bottom:8px; min-height:1em; }
 
-    /* Leaderboard table */
+    /* Leaderboard */
     #leaderboard {
       width: 100%; margin-bottom: 14px;
       border-collapse: collapse;
@@ -222,17 +270,18 @@
       font-size: clamp(.72rem, 2vw, .82rem);
     }
     #leaderboard thead th {
-      font-family: 'Cinzel', serif; font-size: .68rem; letter-spacing: .1em;
+      font-family: 'Cinzel', serif; font-size: .66rem; letter-spacing: .1em;
       color: #c084fc; text-transform: uppercase;
-      padding: 4px 6px; border-bottom: 1px solid rgba(200,170,255,.2);
+      padding: 4px 5px; border-bottom: 1px solid rgba(200,170,255,.2);
     }
     #leaderboard tbody td {
-      padding: 5px 6px; color: rgba(220,210,240,.85);
+      padding: 5px 5px; color: rgba(220,210,240,.85);
       border-bottom: 1px solid rgba(255,255,255,.05);
     }
     #leaderboard tbody tr:first-child td { color: #f5e083; font-weight: 600; }
     #leaderboard .rank { color: rgba(200,190,230,.5); }
     #leaderboard .lb-score { color: #6ee7b7; font-weight: 600; font-variant-numeric: tabular-nums; }
+    #leaderboard .lb-session { color: rgba(200,190,230,.3); font-size: .65rem; }
 
     #rules-overlay {
       display: none; position: fixed; inset: 0; z-index: 200;
@@ -296,10 +345,15 @@
     <span class="divider">&#10022;</span>
     <span class="hud-label">Lines</span>
     <span class="hud-val" id="lines-val">0</span>
+    <span class="divider">&#10022;</span>
+    <span id="mode-badge" class="classic">&#9670; Classic</span>
   </div>
+  <div id="dice-info" id="dice-info"></div>
   <div class="btn-row">
     <button id="btn-start"  onclick="startGame()">&#9670; Start</button>
     <button id="btn-pause"  onclick="togglePause()" disabled>&#9646;&#9646; Pause</button>
+    <button id="btn-dice-toggle" onclick="toggleDiceMode()">&#127922; Dice: OFF</button>
+    <button id="btn-roll" onclick="rollDice()" disabled style="display:none">&#127922; Roll</button>
     <button id="btn-rules"  onclick="openRules()">&#9432; Rules</button>
   </div>
 </div>
@@ -324,18 +378,33 @@
   </div>
 </div>
 
-<!-- Welcome modal -->
+<!-- Welcome / Game-over modal -->
 <div id="msg-modal" class="modal show">
   <h2 id="msg-title">TETRIS</h2>
   <p id="msg-sub">Royal 3D Edition</p>
+
+  <!-- Player identity (no login — just a label + session tag) -->
   <div id="name-row">
-    <input id="player-name" type="text" maxlength="20" placeholder="Your name" autocomplete="off" />
+    <input id="player-name" type="text" maxlength="30"
+      placeholder="Your name or email (optional)"
+      autocomplete="off" />
   </div>
+  <div id="session-tag"></div>
+
   <div id="save-status"></div>
+
+  <!-- Leaderboard -->
   <table id="leaderboard">
-    <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Level</th><th>Date</th></tr></thead>
-    <tbody id="lb-body"><tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:10px 0">Loading scores…</td></tr></tbody>
+    <thead>
+      <tr>
+        <th>#</th><th>Player</th><th>Score</th><th>Lvl</th><th>Date</th>
+      </tr>
+    </thead>
+    <tbody id="lb-body">
+      <tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:10px 0">Loading scores&#8230;</td></tr>
+    </tbody>
   </table>
+
   <button class="modal-btn" onclick="startGame()">&#9670; Start Game</button>
 </div>
 
@@ -383,461 +452,590 @@
 </div>
 
 <script>
-  // ─── GitHub API config ──────────────────────────────────────────────────────
-  // Using a fine-grained read+write token scoped only to this one repo file.
-  // Rotate this token if you see unexpected writes.
-  const GH_OWNER  = 'varunbiswasgit';
-  const GH_REPO   = 'aiacode';
-  const GH_BRANCH = 'main';
-  const GH_PATH   = 'tetris-game/scores.json';
-  const GH_API    = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`;
-  // Replace PAT_TOKEN below with a GitHub fine-grained PAT (contents: read+write for this repo)
-  const GH_TOKEN  = '__REPLACE_WITH_PAT__';
+// ─── Identity: zero-auth session fingerprint ────────────────────────────────
 
-  async function fetchLeaderboard() {
-    try {
-      const res  = await fetch(GH_API + '?ref=' + GH_BRANCH, {
-        headers: { 'Authorization': 'token ' + GH_TOKEN, 'Accept': 'application/vnd.github.v3+json' }
-      });
-      if (!res.ok) return [];
-      const data = await res.json();
-      const json = JSON.parse(atob(data.content.replace(/\n/g, '')));
-      return json.scores || [];
-    } catch { return []; }
+// Codename adjectives + nouns for auto-generated player names
+const ADJECTIVES = ['Cosmic','Neon','Phantom','Cyber','Turbo','Shadow','Crystal','Blaze','Storm','Apex','Iron','Ghost'];
+const NOUNS      = ['Falcon','Viper','Wolf','Nova','Titan','Raven','Phoenix','Comet','Hawk','Blade','Knight','Echo'];
+
+function randomCodename() {
+  const adj  = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
+  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
+  const num  = Math.floor(1000 + Math.random() * 9000);
+  return `${adj}${noun}#${num}`;
+}
+
+// Device fingerprint: hashed combo of immutable browser signals
+function deviceFingerprint() {
+  const raw = [
+    navigator.language || '',
+    navigator.platform || '',
+    screen.width + 'x' + screen.height,
+    Intl.DateTimeFormat().resolvedOptions().timeZone || ''
+  ].join('|');
+  // simple djb2 hash → 6-char hex
+  let h = 5381;
+  for (let i = 0; i < raw.length; i++) h = ((h << 5) + h) ^ raw.charCodeAt(i);
+  return (h >>> 0).toString(16).slice(0, 6).toUpperCase();
+}
+
+// Session ID: random 8-char string, lives for this browser tab only
+function makeSessionId() {
+  return Math.random().toString(36).slice(2, 6).toUpperCase() +
+         Math.random().toString(36).slice(2, 6).toUpperCase();
+}
+
+const SESSION_ID  = makeSessionId();          // unique per tab/reload
+const DEVICE_ID   = deviceFingerprint();      // consistent per device
+const SESSION_TAG = `${DEVICE_ID}-${SESSION_ID}`; // combined persona tag
+
+// Pre-fill name input with a fun codename; user can overwrite
+window.addEventListener('DOMContentLoaded', () => {
+  const nameEl = document.getElementById('player-name');
+  if (nameEl && !nameEl.value) nameEl.value = randomCodename();
+  const tagEl = document.getElementById('session-tag');
+  if (tagEl) tagEl.textContent = `Session: ${SESSION_TAG}`;
+});
+
+// ─── GitHub API config ──────────────────────────────────────────────────────
+const GH_OWNER  = 'varunbiswasgit';
+const GH_REPO   = 'aiacode';
+const GH_BRANCH = 'main';
+const GH_PATH   = 'tetris-game/scores.json';
+const GH_API    = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`;
+// A fine-grained PAT scoped only to contents:write on this repo.
+// Replace with your token — this never touches auth or account settings.
+const GH_TOKEN  = '__REPLACE_WITH_PAT__';
+
+async function fetchScores() {
+  try {
+    // Public repo — read works without a token
+    const res  = await fetch(GH_API + '?ref=' + GH_BRANCH + '&t=' + Date.now(),
+      { headers: { 'Accept': 'application/vnd.github.v3+json' } });
+    if (!res.ok) return [];
+    const data = await res.json();
+    const json = JSON.parse(atob(data.content.replace(/\n/g, '')));
+    return json.scores || [];
+  } catch { return []; }
+}
+
+async function saveScore(entry) {
+  const saveBtn = document.getElementById('btn-save-score');
+  const status  = document.getElementById('save-status');
+  if (GH_TOKEN === '__REPLACE_WITH_PAT__') {
+    status.textContent = '\u26A0\uFE0F Add GH_TOKEN in source to enable saving.';
+    return;
   }
+  if (saveBtn) saveBtn.disabled = true;
+  status.textContent = 'Saving\u2026';
+  try {
+    // Read current file (need SHA)
+    const getRes  = await fetch(GH_API + '?ref=' + GH_BRANCH,
+      { headers: { 'Authorization': 'token ' + GH_TOKEN, 'Accept': 'application/vnd.github.v3+json' } });
+    const getData = await getRes.json();
+    const fileSHA = getData.sha;
+    const current = JSON.parse(atob(getData.content.replace(/\n/g, '')));
 
-  async function saveScoreToGitHub(entry) {
-    const saveBtn = document.getElementById('btn-save-score');
-    const status  = document.getElementById('save-status');
-    if (GH_TOKEN === '__REPLACE_WITH_PAT__') {
-      status.textContent = '\u26A0\uFE0F Set GH_TOKEN in the source to enable saving.';
-      return;
-    }
-    saveBtn.disabled = true;
-    status.textContent = 'Saving\u2026';
-    try {
-      // 1. Read current file (need SHA for update)
-      const getRes  = await fetch(GH_API + '?ref=' + GH_BRANCH, {
-        headers: { 'Authorization': 'token ' + GH_TOKEN, 'Accept': 'application/vnd.github.v3+json' }
-      });
-      const getData = await getRes.json();
-      const fileSHA = getData.sha;
-      const current = JSON.parse(atob(getData.content.replace(/\n/g, '')));
+    // Prepend new entry, keep latest 100
+    current.scores.unshift(entry);
+    if (current.scores.length > 100) current.scores = current.scores.slice(0, 100);
 
-      // 2. Append new entry, keep latest 100
-      current.scores.unshift(entry);
-      if (current.scores.length > 100) current.scores = current.scores.slice(0, 100);
-
-      // 3. Write back
-      const body = JSON.stringify({
-        message: `score: ${entry.name} scored ${entry.score} (level ${entry.level})`,
+    // Write back
+    const putRes = await fetch(GH_API, {
+      method: 'PUT',
+      headers: {
+        'Authorization': 'token ' + GH_TOKEN,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json'
+      },
+      body: JSON.stringify({
+        message: `score: ${entry.name} → ${entry.score} (lv${entry.level})`,
         content: btoa(unescape(encodeURIComponent(JSON.stringify(current, null, 2)))),
         sha: fileSHA,
         branch: GH_BRANCH
-      });
-      const putRes = await fetch(GH_API, {
-        method: 'PUT',
-        headers: {
-          'Authorization': 'token ' + GH_TOKEN,
-          'Content-Type': 'application/json',
-          'Accept': 'application/vnd.github.v3+json'
-        },
-        body
-      });
-      if (putRes.ok) {
-        status.textContent = '\u2713 Score saved!';
-        renderLeaderboard(current.scores);
-      } else {
-        const err = await putRes.json();
-        status.textContent = '\u274C ' + (err.message || 'Save failed.');
-      }
-    } catch (e) {
-      status.textContent = '\u274C ' + e.message;
+      })
+    });
+    if (putRes.ok) {
+      status.textContent = '\u2713 Saved!';
+      renderLeaderboard(current.scores);
+    } else {
+      const err = await putRes.json();
+      status.textContent = '\u274C ' + (err.message || 'Save failed.');
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  } catch (e) {
+    status.textContent = '\u274C ' + e.message;
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+function renderLeaderboard(scores) {
+  const tbody = document.getElementById('lb-body');
+  if (!scores || scores.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:10px 0">No scores yet. Be the first!</td></tr>';
+    return;
+  }
+  const top = scores.slice().sort((a, b) => b.score - a.score).slice(0, 8);
+  tbody.innerHTML = top.map((s, i) => {
+    const medal = i === 0 ? '\uD83E\uDD47' : i === 1 ? '\uD83E\uDD48' : i === 2 ? '\uD83E\uDD49' : (i + 1);
+    const dateStr = s.date ? s.date.slice(0, 10) : '';
+    const isMe = s.sessionTag && s.sessionTag === SESSION_TAG;
+    const rowStyle = isMe ? ' style="background:rgba(192,132,252,0.08)"' : '';
+    return `<tr${rowStyle}>
+      <td class="rank">${medal}</td>
+      <td>${s.name || 'Anonymous'}${isMe ? ' <span style="color:#c084fc;font-size:.65rem">(you)</span>' : ''}</td>
+      <td class="lb-score">${s.score.toLocaleString()}</td>
+      <td>${s.level}</td>
+      <td style="color:rgba(200,190,230,.4);font-size:.68rem">${dateStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Load leaderboard on startup
+fetchScores().then(renderLeaderboard);
+
+// ─── Dice mode ──────────────────────────────────────────────────────────────
+let diceMode = false;
+let movesRemaining = 0;
+
+function setDiceToggleEnabled(enabled) {
+  const btn = document.getElementById('btn-dice-toggle');
+  if (enabled) {
+    btn.removeAttribute('disabled');
+    btn.setAttribute('aria-disabled', 'false');
+    btn.classList.remove('disabled');
+  } else {
+    btn.setAttribute('disabled', 'true');
+    btn.setAttribute('aria-disabled', 'true');
+    btn.classList.add('disabled');
+  }
+}
+
+function toggleDiceMode() {
+  if (!gameOver && lines > 0) return; // block mid-game
+  diceMode = !diceMode;
+  const btn   = document.getElementById('btn-dice-toggle');
+  const roll  = document.getElementById('btn-roll');
+  const badge = document.getElementById('mode-badge');
+  const info  = document.getElementById('dice-info');
+  if (diceMode) {
+    btn.textContent  = '\uD83C\uDFB2 Dice: ON';
+    badge.textContent = '\u25C6 Dice Mode';
+    badge.classList.remove('classic');
+    roll.style.display = 'inline-block';
+    roll.disabled = gameOver;
+    movesRemaining = 0;
+    info.textContent = 'Roll the dice to get your moves!';
+  } else {
+    btn.textContent  = '\uD83C\uDFB2 Dice: OFF';
+    badge.textContent = '\u25C6 Classic';
+    badge.classList.add('classic');
+    roll.style.display = 'none';
+    roll.disabled = true;
+    movesRemaining = 1;
+    info.textContent = '';
+  }
+  draw();
+}
+
+function rollDice() {
+  if (gameOver || paused) return;
+  const roll = Math.floor(Math.random() * 6) + 1;
+  movesRemaining += roll;
+  const info = document.getElementById('dice-info');
+  info.textContent = `\uD83C\uDFB2 Rolled ${roll}! Moves left: ${movesRemaining}`;
+  document.getElementById('btn-roll').disabled = true;
+  setTimeout(() => { document.getElementById('btn-roll').disabled = false; }, 400);
+}
+
+// ─── Game engine ─────────────────────────────────────────────────────────────
+const COLS = 10, ROWS = 20;
+
+const COLORS = [
+  null,
+  '#00f5ff','#ffd700','#bf00ff','#00e676',
+  '#ff1744','#0040ff','#ff6d00',
+];
+
+const GLOW = [
+  null,
+  'rgba(0,245,255,0.55)','rgba(255,215,0,0.55)','rgba(191,0,255,0.55)',
+  'rgba(0,230,118,0.55)','rgba(255,23,68,0.55)','rgba(0,64,255,0.55)',
+  'rgba(255,109,0,0.55)',
+];
+
+const SHAPES = [
+  null,
+  [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
+  [[2,2],[2,2]],
+  [[0,3,0],[3,3,3],[0,0,0]],
+  [[0,4,4],[4,4,0],[0,0,0]],
+  [[5,5,0],[0,5,5],[0,0,0]],
+  [[6,0,0],[6,6,6],[0,0,0]],
+  [[0,0,7],[7,7,7],[0,0,0]],
+];
+
+const canvas  = document.getElementById('board');
+const ctx     = canvas.getContext('2d');
+const nCanvas = document.getElementById('next');
+const nCtx    = nCanvas.getContext('2d');
+
+let BLOCK = 30;
+
+function syncSize() {
+  const uiH      = document.getElementById('ui').offsetHeight + 12;
+  const vw       = window.innerWidth;
+  const vh       = window.innerHeight;
+  const panelW   = vw >= 480 ? 130 : 0;
+  const maxBoardW = Math.min(vw - panelW - 32, 360);
+  const maxBoardH = vh - uiH - 28;
+  const bFromW = Math.floor(maxBoardW / COLS);
+  const bFromH = Math.floor(maxBoardH / ROWS);
+  BLOCK = Math.max(14, Math.min(bFromW, bFromH));
+  canvas.width  = BLOCK * COLS;
+  canvas.height = BLOCK * ROWS;
+  const nb = Math.max(14, Math.min(BLOCK, 26));
+  nCanvas.width  = nb * 5;
+  nCanvas.height = nb * 5;
+}
+
+let board, score, lines, level, dropInterval, animId;
+let piece, nextPiece;
+let paused = false, gameOver = true;
+let lastTime = 0, dropCounter = 0;
+
+function createBoard() {
+  return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
+}
+
+function newPiece(type) {
+  const shape = SHAPES[type].map(r => [...r]);
+  return { type, shape,
+    x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
+}
+
+function randomType() { return Math.floor(Math.random() * 7) + 1; }
+
+function collides(p, dx = 0, dy = 0, shape = p.shape) {
+  for (let r = 0; r < shape.length; r++)
+    for (let c = 0; c < shape[r].length; c++) {
+      if (!shape[r][c]) continue;
+      const nx = p.x + c + dx, ny = p.y + r + dy;
+      if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
+      if (ny >= 0 && board[ny][nx]) return true;
+    }
+  return false;
+}
+
+function rotate(shape) {
+  const N = shape.length;
+  return shape[0].map((_, c) => shape.map((_, r) => shape[N - 1 - r][c]));
+}
+
+function tryRotate() {
+  const rotated = rotate(piece.shape);
+  for (const kick of [0, -1, 1, -2, 2]) {
+    if (!collides(piece, kick, 0, rotated)) {
+      piece.x += kick; piece.shape = rotated; return;
     }
   }
+}
 
-  function renderLeaderboard(scores) {
-    const tbody = document.getElementById('lb-body');
-    if (!scores || scores.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:10px 0">No scores yet. Be the first!</td></tr>';
+function tryMove(dx) {
+  if (diceMode) {
+    if (movesRemaining <= 0) {
+      document.getElementById('dice-info').textContent = 'No moves left! Roll the dice.';
       return;
     }
-    const top = scores.slice().sort((a, b) => b.score - a.score).slice(0, 5);
-    tbody.innerHTML = top.map((s, i) => `
-      <tr>
-        <td class="rank">${i + 1}</td>
-        <td>${s.name || 'Anonymous'}</td>
-        <td class="lb-score">${s.score.toLocaleString()}</td>
-        <td>${s.level}</td>
-        <td style="color:rgba(200,190,230,.45);font-size:.7rem">${s.date ? s.date.slice(0,10) : ''}</td>
-      </tr>
-    `).join('');
+    if (!collides(piece, dx)) {
+      piece.x += dx;
+      movesRemaining--;
+      document.getElementById('dice-info').textContent =
+        movesRemaining > 0 ? `Moves left: ${movesRemaining}` : 'No moves left! Roll again.';
+    }
+  } else {
+    if (!collides(piece, dx)) piece.x += dx;
   }
+}
 
-  // Load leaderboard on startup
-  fetchLeaderboard().then(renderLeaderboard);
+function lockPiece() {
+  piece.shape.forEach((row, r) =>
+    row.forEach((cell, c) => { if (cell) board[piece.y + r][piece.x + c] = cell; }));
+  clearLines();
+  piece = nextPiece;
+  nextPiece = newPiece(randomType());
+  drawNext();
+  if (collides(piece)) endGame();
+}
 
-  // ─── Game engine ───────────────────────────────────────────────────────────
-  const COLS = 10, ROWS = 20;
-
-  const COLORS = [
-    null,
-    '#00f5ff','#ffd700','#bf00ff','#00e676',
-    '#ff1744','#0040ff','#ff6d00',
-  ];
-
-  const GLOW = [
-    null,
-    'rgba(0,245,255,0.55)','rgba(255,215,0,0.55)','rgba(191,0,255,0.55)',
-    'rgba(0,230,118,0.55)','rgba(255,23,68,0.55)','rgba(0,64,255,0.55)',
-    'rgba(255,109,0,0.55)',
-  ];
-
-  const SHAPES = [
-    null,
-    [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
-    [[2,2],[2,2]],
-    [[0,3,0],[3,3,3],[0,0,0]],
-    [[0,4,4],[4,4,0],[0,0,0]],
-    [[5,5,0],[0,5,5],[0,0,0]],
-    [[6,0,0],[6,6,6],[0,0,0]],
-    [[0,0,7],[7,7,7],[0,0,0]],
-  ];
-
-  const canvas  = document.getElementById('board');
-  const ctx     = canvas.getContext('2d');
-  const nCanvas = document.getElementById('next');
-  const nCtx    = nCanvas.getContext('2d');
-
-  let BLOCK = 30;
-
-  function syncSize() {
-    const uiH      = document.getElementById('ui').offsetHeight + 12;
-    const vw       = window.innerWidth;
-    const vh       = window.innerHeight;
-    const panelW   = vw >= 480 ? 130 : 0;
-    const maxBoardW = Math.min(vw - panelW - 32, 360);
-    const maxBoardH = vh - uiH - 28;
-    const bFromW = Math.floor(maxBoardW / COLS);
-    const bFromH = Math.floor(maxBoardH / ROWS);
-    BLOCK = Math.max(14, Math.min(bFromW, bFromH));
-    canvas.width  = BLOCK * COLS;
-    canvas.height = BLOCK * ROWS;
-    const nb = Math.max(14, Math.min(BLOCK, 26));
-    nCanvas.width  = nb * 5;
-    nCanvas.height = nb * 5;
-  }
-
-  let board, score, lines, level, dropInterval, animId;
-  let piece, nextPiece;
-  let paused = false, gameOver = true;
-  let lastTime = 0, dropCounter = 0;
-
-  function createBoard() {
-    return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
-  }
-
-  function newPiece(type) {
-    const shape = SHAPES[type].map(r => [...r]);
-    return { type, shape,
-      x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
-  }
-
-  function randomType() { return Math.floor(Math.random() * 7) + 1; }
-
-  function collides(p, dx = 0, dy = 0, shape = p.shape) {
-    for (let r = 0; r < shape.length; r++)
-      for (let c = 0; c < shape[r].length; c++) {
-        if (!shape[r][c]) continue;
-        const nx = p.x + c + dx, ny = p.y + r + dy;
-        if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
-        if (ny >= 0 && board[ny][nx]) return true;
-      }
-    return false;
-  }
-
-  function rotate(shape) {
-    const N = shape.length;
-    return shape[0].map((_, c) => shape.map((_, r) => shape[N - 1 - r][c]));
-  }
-
-  function tryRotate() {
-    const rotated = rotate(piece.shape);
-    for (const kick of [0, -1, 1, -2, 2]) {
-      if (!collides(piece, kick, 0, rotated)) {
-        piece.x += kick; piece.shape = rotated; return;
-      }
+function clearLines() {
+  let cleared = 0;
+  for (let r = ROWS - 1; r >= 0; r--) {
+    if (board[r].every(c => c !== 0)) {
+      board.splice(r, 1);
+      board.unshift(new Array(COLS).fill(0));
+      cleared++; r++;
     }
   }
+  if (!cleared) return;
+  const pts = [0, 100, 300, 500, 800];
+  score += (pts[cleared] || 800) * level;
+  lines += cleared;
+  level = Math.floor(lines / 10) + 1;
+  dropInterval = Math.max(80, 1000 - (level - 1) * 92);
+  updateHUD();
+}
 
-  function lockPiece() {
+function hardDrop() {
+  while (!collides(piece, 0, 1)) { piece.y++; score += 2; }
+  lockPiece(); updateHUD();
+}
+
+function ghostY() {
+  let gy = piece.y;
+  while (!collides({ ...piece, y: gy + 1 })) gy++;
+  return gy;
+}
+
+function drawBlock3D(context, x, y, colorIdx, size) {
+  const col  = COLORS[colorIdx];
+  const glow = GLOW[colorIdx];
+  const px = x * size, py = y * size;
+  const s  = size - 1;
+  context.fillStyle = glow;
+  context.fillRect(px, py, size, size);
+  context.fillStyle = col;
+  context.fillRect(px + 1, py + 1, s - 1, s - 1);
+  context.fillStyle = 'rgba(255,255,255,0.30)';
+  context.fillRect(px + 1, py + 1, s - 1, 3);
+  context.fillRect(px + 1, py + 1, 3, s - 1);
+  context.fillStyle = 'rgba(0,0,0,0.35)';
+  context.fillRect(px + 1, py + s - 3, s - 1, 3);
+  context.fillRect(px + s - 3, py + 1, 3, s - 1);
+  context.fillStyle = 'rgba(255,255,255,0.18)';
+  context.fillRect(px + 4, py + 4, Math.floor(size * 0.3), Math.floor(size * 0.3));
+}
+
+function draw() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.strokeStyle = 'rgba(120,100,200,0.07)';
+  ctx.lineWidth = 0.5;
+  for (let r = 0; r <= ROWS; r++) {
+    ctx.beginPath(); ctx.moveTo(0, r * BLOCK); ctx.lineTo(canvas.width, r * BLOCK); ctx.stroke();
+  }
+  for (let c = 0; c <= COLS; c++) {
+    ctx.beginPath(); ctx.moveTo(c * BLOCK, 0); ctx.lineTo(c * BLOCK, canvas.height); ctx.stroke();
+  }
+  board.forEach((row, r) =>
+    row.forEach((cell, c) => { if (cell) drawBlock3D(ctx, c, r, cell, BLOCK); }));
+  if (!gameOver) {
+    const gy = ghostY();
     piece.shape.forEach((row, r) =>
-      row.forEach((cell, c) => { if (cell) board[piece.y + r][piece.x + c] = cell; }));
-    clearLines();
-    piece = nextPiece;
-    nextPiece = newPiece(randomType());
-    drawNext();
-    if (collides(piece)) endGame();
-  }
-
-  function clearLines() {
-    let cleared = 0;
-    for (let r = ROWS - 1; r >= 0; r--) {
-      if (board[r].every(c => c !== 0)) {
-        board.splice(r, 1);
-        board.unshift(new Array(COLS).fill(0));
-        cleared++; r++;
-      }
-    }
-    if (!cleared) return;
-    const pts = [0, 100, 300, 500, 800];
-    score += (pts[cleared] || 800) * level;
-    lines += cleared;
-    level = Math.floor(lines / 10) + 1;
-    dropInterval = Math.max(80, 1000 - (level - 1) * 92);
-    updateHUD();
-  }
-
-  function hardDrop() {
-    while (!collides(piece, 0, 1)) { piece.y++; score += 2; }
-    lockPiece(); updateHUD();
-  }
-
-  function ghostY() {
-    let gy = piece.y;
-    while (!collides({ ...piece, y: gy + 1 })) gy++;
-    return gy;
-  }
-
-  function drawBlock3D(context, x, y, colorIdx, size) {
-    const col  = COLORS[colorIdx];
-    const glow = GLOW[colorIdx];
-    const px = x * size, py = y * size;
-    const s  = size - 1;
-    context.fillStyle = glow;
-    context.fillRect(px, py, size, size);
-    context.fillStyle = col;
-    context.fillRect(px + 1, py + 1, s - 1, s - 1);
-    context.fillStyle = 'rgba(255,255,255,0.30)';
-    context.fillRect(px + 1, py + 1, s - 1, 3);
-    context.fillRect(px + 1, py + 1, 3, s - 1);
-    context.fillStyle = 'rgba(0,0,0,0.35)';
-    context.fillRect(px + 1, py + s - 3, s - 1, 3);
-    context.fillRect(px + s - 3, py + 1, 3, s - 1);
-    context.fillStyle = 'rgba(255,255,255,0.18)';
-    context.fillRect(px + 4, py + 4, Math.floor(size * 0.3), Math.floor(size * 0.3));
-  }
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = 'rgba(120,100,200,0.07)';
-    ctx.lineWidth = 0.5;
-    for (let r = 0; r <= ROWS; r++) {
-      ctx.beginPath(); ctx.moveTo(0, r * BLOCK); ctx.lineTo(canvas.width, r * BLOCK); ctx.stroke();
-    }
-    for (let c = 0; c <= COLS; c++) {
-      ctx.beginPath(); ctx.moveTo(c * BLOCK, 0); ctx.lineTo(c * BLOCK, canvas.height); ctx.stroke();
-    }
-    board.forEach((row, r) =>
-      row.forEach((cell, c) => { if (cell) drawBlock3D(ctx, c, r, cell, BLOCK); }));
-    if (!gameOver) {
-      const gy = ghostY();
-      piece.shape.forEach((row, r) =>
-        row.forEach((cell, c) => {
-          if (!cell) return;
-          ctx.fillStyle = 'rgba(255,255,255,0.10)';
-          ctx.fillRect((piece.x + c) * BLOCK + 1, (gy + r) * BLOCK + 1, BLOCK - 2, BLOCK - 2);
-          ctx.strokeStyle = 'rgba(255,255,255,0.20)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect((piece.x + c) * BLOCK + 1, (gy + r) * BLOCK + 1, BLOCK - 2, BLOCK - 2);
-        }));
-      piece.shape.forEach((row, r) =>
-        row.forEach((cell, c) => {
-          if (cell) drawBlock3D(ctx, piece.x + c, piece.y + r, cell, BLOCK);
-        }));
-    }
-    if (paused) {
-      ctx.fillStyle = 'rgba(10,6,30,0.72)';
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.font = `700 ${Math.floor(BLOCK * 0.9)}px 'Cinzel', serif`;
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillStyle = '#f5e083';
-      ctx.shadowColor = 'rgba(245,224,131,0.6)'; ctx.shadowBlur = 16;
-      ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
-      ctx.shadowBlur = 0;
-    }
-  }
-
-  function drawNext() {
-    nCtx.clearRect(0, 0, nCanvas.width, nCanvas.height);
-    const s  = nextPiece.shape;
-    const nb = Math.floor(nCanvas.width / 5);
-    const ox = Math.floor((5 - s[0].length) / 2);
-    const oy = Math.floor((5 - s.length) / 2);
-    s.forEach((row, r) =>
       row.forEach((cell, c) => {
-        if (cell) drawBlock3D(nCtx, ox + c, oy + r, cell, nb);
+        if (!cell) return;
+        ctx.fillStyle = 'rgba(255,255,255,0.10)';
+        ctx.fillRect((piece.x + c) * BLOCK + 1, (gy + r) * BLOCK + 1, BLOCK - 2, BLOCK - 2);
+        ctx.strokeStyle = 'rgba(255,255,255,0.20)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect((piece.x + c) * BLOCK + 1, (gy + r) * BLOCK + 1, BLOCK - 2, BLOCK - 2);
+      }));
+    piece.shape.forEach((row, r) =>
+      row.forEach((cell, c) => {
+        if (cell) drawBlock3D(ctx, piece.x + c, piece.y + r, cell, BLOCK);
       }));
   }
-
-  function updateHUD() {
-    document.getElementById('score-val').textContent = score;
-    document.getElementById('level-val').textContent = level;
-    document.getElementById('lines-val').textContent = lines;
+  if (paused) {
+    ctx.fillStyle = 'rgba(10,6,30,0.72)';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.font = `700 ${Math.floor(BLOCK * 0.9)}px 'Cinzel', serif`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#f5e083';
+    ctx.shadowColor = 'rgba(245,224,131,0.6)'; ctx.shadowBlur = 16;
+    ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
+    ctx.shadowBlur = 0;
   }
+}
 
-  function loop(time = 0) {
-    if (!paused && !gameOver) {
-      const delta = time - lastTime;
-      lastTime = time;
-      dropCounter += delta;
-      if (dropCounter >= dropInterval) {
-        if (!collides(piece, 0, 1)) piece.y++;
+function drawNext() {
+  nCtx.clearRect(0, 0, nCanvas.width, nCanvas.height);
+  const s  = nextPiece.shape;
+  const nb = Math.floor(nCanvas.width / 5);
+  const ox = Math.floor((5 - s[0].length) / 2);
+  const oy = Math.floor((5 - s.length) / 2);
+  s.forEach((row, r) =>
+    row.forEach((cell, c) => {
+      if (cell) drawBlock3D(nCtx, ox + c, oy + r, cell, nb);
+    }));
+}
+
+function updateHUD() {
+  document.getElementById('score-val').textContent = score;
+  document.getElementById('level-val').textContent = level;
+  document.getElementById('lines-val').textContent = lines;
+}
+
+function loop(time = 0) {
+  if (!paused && !gameOver) {
+    const delta = time - lastTime;
+    lastTime = time;
+    dropCounter += delta;
+    if (dropCounter >= dropInterval) {
+      if (!collides(piece, 0, 1)) piece.y++;
+      else lockPiece();
+      dropCounter = 0;
+    }
+    draw();
+  }
+  animId = requestAnimationFrame(loop);
+}
+
+function startGame() {
+  board = createBoard(); score = 0; lines = 0; level = 1;
+  dropInterval = 1000; dropCounter = 0;
+  paused = false; gameOver = false;
+  piece     = newPiece(randomType());
+  nextPiece = newPiece(randomType());
+  drawNext(); updateHUD();
+  document.getElementById('msg-modal').classList.remove('show');
+  document.getElementById('btn-pause').disabled = false;
+  document.getElementById('btn-pause').textContent = '\u23F8 Pause';
+  // Disable dice toggle while game is live
+  setDiceToggleEnabled(false);
+  if (diceMode) {
+    movesRemaining = 0;
+    document.getElementById('btn-roll').disabled = false;
+    document.getElementById('dice-info').textContent = 'Roll the dice to get your moves!';
+  } else {
+    movesRemaining = 1;
+  }
+  // Reset save UI
+  const saveBtn = document.getElementById('btn-save-score');
+  if (saveBtn) saveBtn.disabled = false;
+  document.getElementById('save-status').textContent = '';
+  cancelAnimationFrame(animId);
+  lastTime = 0; loop();
+}
+
+function endGame() {
+  gameOver = true;
+  document.getElementById('btn-pause').disabled = true;
+  document.getElementById('btn-roll').disabled  = true;
+  // Re-enable dice toggle so player can switch mode before next game
+  setDiceToggleEnabled(true);
+
+  const m      = document.getElementById('msg-modal');
+  const title  = document.getElementById('msg-title');
+  const sub    = document.getElementById('msg-sub');
+  const status = document.getElementById('save-status');
+
+  title.textContent = 'GAME OVER';
+  sub.textContent   = 'Score: ' + score.toLocaleString() + '  \u2022  Level ' + level + '  \u2022  Lines ' + lines;
+  status.textContent = '';
+
+  // Inject save button if not present
+  let saveBtn = document.getElementById('btn-save-score');
+  if (!saveBtn) {
+    saveBtn = document.createElement('button');
+    saveBtn.id = 'btn-save-score';
+    saveBtn.textContent = '\uD83C\uDFC6 Save Score';
+    m.querySelector('.modal-btn').insertAdjacentElement('beforebegin', saveBtn);
+  }
+  saveBtn.disabled = false;
+  saveBtn.onclick = function() {
+    const name = (document.getElementById('player-name').value.trim() || randomCodename()).slice(0, 30);
+    saveScore({
+      name,
+      score,
+      level,
+      lines,
+      sessionTag: SESSION_TAG,   // device+session fingerprint (not PII)
+      date: new Date().toISOString()
+    });
+  };
+
+  m.querySelector('.modal-btn').textContent = '\u25B6 Play Again';
+  fetchScores().then(renderLeaderboard);
+  m.classList.add('show');
+  draw();
+}
+
+function togglePause() {
+  if (gameOver) return;
+  paused = !paused;
+  document.getElementById('btn-pause').textContent = paused ? '\u25B6 Resume' : '\u23F8 Pause';
+  if (!paused) { lastTime = performance.now(); }
+  draw();
+}
+
+document.addEventListener('keydown', e => {
+  if (gameOver) return;
+  switch (e.code) {
+    case 'ArrowLeft':  if (!paused) tryMove(-1); break;
+    case 'ArrowRight': if (!paused) tryMove(1);  break;
+    case 'ArrowDown':
+      if (!paused) {
+        if (!collides(piece,0,1)) { piece.y++; score++; updateHUD(); }
         else lockPiece();
         dropCounter = 0;
       }
-      draw();
-    }
-    animId = requestAnimationFrame(loop);
+      break;
+    case 'ArrowUp': if (!paused) tryRotate(); break;
+    case 'Space':
+      e.preventDefault();
+      if (!paused) hardDrop();
+      break;
+    case 'KeyP': togglePause(); break;
   }
+  if (!paused && !gameOver) draw();
+});
 
-  function startGame() {
-    board = createBoard(); score = 0; lines = 0; level = 1;
-    dropInterval = 1000; dropCounter = 0;
-    paused = false; gameOver = false;
-    piece     = newPiece(randomType());
-    nextPiece = newPiece(randomType());
-    drawNext(); updateHUD();
-    document.getElementById('msg-modal').classList.remove('show');
-    document.getElementById('btn-pause').disabled = false;
-    document.getElementById('btn-pause').textContent = '\u23F8 Pause';
-    // Re-show save button & clear status for next game over
-    const saveBtn = document.getElementById('btn-save-score');
-    if (saveBtn) { saveBtn.disabled = false; }
-    document.getElementById('save-status').textContent = '';
-    cancelAnimationFrame(animId);
-    lastTime = 0; loop();
-  }
+let touchStartX = 0, touchStartY = 0;
 
-  function endGame() {
-    gameOver = true;
-    document.getElementById('btn-pause').disabled = true;
-    const m      = document.getElementById('msg-modal');
-    const title  = document.getElementById('msg-title');
-    const sub    = document.getElementById('msg-sub');
-    const status = document.getElementById('save-status');
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.changedTouches[0];
+  touchStartX = t.clientX; touchStartY = t.clientY;
+}, { passive: false });
 
-    title.textContent = 'GAME OVER';
-    sub.textContent   = 'Score: ' + score.toLocaleString() + '  \u2022  Level ' + level + '  \u2022  Lines ' + lines;
-    status.textContent = '';
-
-    // Show save button
-    let saveBtn = document.getElementById('btn-save-score');
-    if (!saveBtn) {
-      saveBtn = document.createElement('button');
-      saveBtn.id = 'btn-save-score';
-      saveBtn.textContent = '\uD83C\uDFC6 Save Score';
-      m.querySelector('.modal-btn').insertAdjacentElement('beforebegin', saveBtn);
-    }
-    saveBtn.disabled = false;
-    saveBtn.onclick = function() {
-      const name = (document.getElementById('player-name').value.trim() || 'Anonymous').slice(0, 20);
-      const entry = {
-        name,
-        score,
-        level,
-        lines,
-        date: new Date().toISOString()
-      };
-      saveScoreToGitHub(entry);
-    };
-
-    m.querySelector('.modal-btn').textContent = '\u25B6 Play Again';
-    // Refresh leaderboard on game over
-    fetchLeaderboard().then(renderLeaderboard);
-    m.classList.add('show');
-    draw();
-  }
-
-  function togglePause() {
-    if (gameOver) return;
-    paused = !paused;
-    document.getElementById('btn-pause').textContent = paused ? '\u25B6 Resume' : '\u23F8 Pause';
-    if (!paused) { lastTime = performance.now(); }
-    draw();
-  }
-
-  document.addEventListener('keydown', e => {
-    if (gameOver) return;
-    switch (e.code) {
-      case 'ArrowLeft':  if (!paused && !collides(piece,-1)) piece.x--; break;
-      case 'ArrowRight': if (!paused && !collides(piece, 1)) piece.x++; break;
-      case 'ArrowDown':
-        if (!paused) {
-          if (!collides(piece,0,1)) { piece.y++; score++; updateHUD(); }
-          else lockPiece();
-          dropCounter = 0;
-        }
-        break;
-      case 'ArrowUp': if (!paused) tryRotate(); break;
-      case 'Space':
-        e.preventDefault();
-        if (!paused) hardDrop();
-        break;
-      case 'KeyP': togglePause(); break;
-    }
-    if (!paused && !gameOver) draw();
-  });
-
-  let touchStartX = 0, touchStartY = 0;
-
-  canvas.addEventListener('touchstart', e => {
-    e.preventDefault();
-    const t = e.changedTouches[0];
-    touchStartX = t.clientX; touchStartY = t.clientY;
-  }, { passive: false });
-
-  canvas.addEventListener('touchend', e => {
-    e.preventDefault();
-    if (gameOver || paused) return;
-    const t = e.changedTouches[0];
-    const dx = t.clientX - touchStartX;
-    const dy = t.clientY - touchStartY;
-    const absDx = Math.abs(dx), absDy = Math.abs(dy);
-    const SWIPE = BLOCK * 0.8;
-    if (absDx < SWIPE && absDy < SWIPE) {
-      tryRotate();
-    } else if (absDx >= absDy) {
-      const steps = Math.round(dx / BLOCK);
-      const dir = steps > 0 ? 1 : -1;
-      for (let i = 0; i < Math.abs(steps); i++) {
-        if (!collides(piece, dir)) piece.x += dir;
-      }
+canvas.addEventListener('touchend', e => {
+  e.preventDefault();
+  if (gameOver || paused) return;
+  const t = e.changedTouches[0];
+  const dx = t.clientX - touchStartX;
+  const dy = t.clientY - touchStartY;
+  const absDx = Math.abs(dx), absDy = Math.abs(dy);
+  const SWIPE = BLOCK * 0.8;
+  if (absDx < SWIPE && absDy < SWIPE) {
+    tryRotate();
+  } else if (absDx >= absDy) {
+    const steps = Math.round(dx / BLOCK);
+    const dir = steps > 0 ? 1 : -1;
+    for (let i = 0; i < Math.abs(steps); i++) tryMove(dir);
+  } else {
+    if (dy > 0) {
+      while (!collides(piece, 0, 1)) { piece.y++; score++; }
+      lockPiece(); updateHUD();
     } else {
-      if (dy > 0) {
-        while (!collides(piece, 0, 1)) { piece.y++; score++; }
-        lockPiece(); updateHUD();
-      } else {
-        hardDrop();
-      }
+      hardDrop();
     }
-    draw();
-  }, { passive: false });
-
-  function openRules() { document.getElementById('rules-overlay').classList.add('open'); }
-  function closeRules() { document.getElementById('rules-overlay').classList.remove('open'); }
-  document.getElementById('rules-overlay').addEventListener('click', function(e) {
-    if (e.target === this) closeRules();
-  });
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape' && document.getElementById('rules-overlay').classList.contains('open')) closeRules();
-  });
-
-  window.addEventListener('resize', () => { syncSize(); draw(); if (!gameOver) drawNext(); });
-  window.addEventListener('orientationchange', () => setTimeout(() => { syncSize(); draw(); if (!gameOver) drawNext(); }, 150));
-
-  syncSize();
+  }
   draw();
+}, { passive: false });
+
+function openRules() { document.getElementById('rules-overlay').classList.add('open'); }
+function closeRules() { document.getElementById('rules-overlay').classList.remove('open'); }
+document.getElementById('rules-overlay').addEventListener('click', function(e) {
+  if (e.target === this) closeRules();
+});
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && document.getElementById('rules-overlay').classList.contains('open')) closeRules();
+});
+
+window.addEventListener('resize', () => { syncSize(); draw(); if (!gameOver) drawNext(); });
+window.addEventListener('orientationchange', () => setTimeout(() => { syncSize(); draw(); if (!gameOver) drawNext(); }, 150));
+
+syncSize();
+draw();
 </script>
 </body>
 </html>
