@@ -123,7 +123,6 @@
       letter-spacing:.04em;margin-bottom:4px;
     }
     #msg-sub{font-size:0.78rem;color:rgba(200,190,230,.6);margin-bottom:18px;}
-    /* Persona fields inside modal */
     .modal-field{margin-bottom:10px;text-align:left;}
     .modal-field label{
       display:block;font-size:0.6rem;text-transform:uppercase;letter-spacing:.08em;
@@ -159,7 +158,6 @@
       box-shadow:0 4px 0 #065f46,0 6px 14px rgba(5,150,105,.4),inset 0 1px 0 rgba(167,243,208,.3);
     }
     #modal-start-btn:hover:not(:disabled){box-shadow:0 6px 0 #065f46,0 8px 18px rgba(5,150,105,.5),inset 0 1px 0 rgba(167,243,208,.4);}
-    /* Game over modal re-use */
     #gameover-modal{
       position:fixed;inset:0;z-index:200;display:none;
       align-items:center;justify-content:center;
@@ -179,7 +177,6 @@
       background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%);color:#ecfdf5;
       box-shadow:0 4px 0 #065f46,0 6px 14px rgba(5,150,105,.4),inset 0 1px 0 rgba(167,243,208,.3);
     }
-    /* Rules */
     .rules-overlay{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(5,3,20,0.88);backdrop-filter:blur(8px);}
     .rules-overlay.open{display:flex;}
     .rules-box{
@@ -204,13 +201,11 @@
 </head>
 <body>
 
-<!-- Loading shell -->
 <div id="loading-shell">
   <div class="ls-dots"><div class="ls-dot"></div><div class="ls-dot"></div><div class="ls-dot"></div></div>
   <div id="loading-status">Loading Tetris&hellip;</div>
 </div>
 
-<!-- Main app -->
 <div id="app">
   <div id="ui">
     <div class="stats">
@@ -242,12 +237,10 @@
   </div>
 </div>
 
-<!-- Startup modal: nickname + email + member word -->
 <div id="msg-modal" role="dialog" aria-modal="true" aria-labelledby="msg-title">
   <div class="modal-box">
     <div id="msg-title">TETRIS ROYAL</div>
     <div id="msg-sub">3D Edition &mdash; Enter your details to unlock the game.</div>
-
     <div class="modal-field">
       <label>Nickname</label>
       <input type="text" id="m-nickname" maxlength="24" placeholder="Your name" autocomplete="off" />
@@ -261,12 +254,10 @@
       <input type="text" id="m-secret" maxlength="40" placeholder="Enter secret word&hellip;" autocomplete="off" />
       <div id="m-secret-hint" class="hint-neutral">&#128274; Enter a valid member word to unlock.</div>
     </div>
-
     <button class="btn" id="modal-start-btn" onclick="startGame()" disabled>&#9654; Start Game</button>
   </div>
 </div>
 
-<!-- Game over modal -->
 <div id="gameover-modal" role="dialog" aria-modal="true">
   <div class="modal-box">
     <div id="go-title">GAME OVER</div>
@@ -277,37 +268,28 @@
   </div>
 </div>
 
-<!-- Rules -->
 <div id="rules-overlay" class="rules-overlay" role="dialog" aria-modal="true">
   <div class="rules-box">
     <h2>&#9670; How to Play</h2>
-    <div class="rules-section">
-      <h3>&#9670; Controls</h3>
-      <ul>
-        <li><span class="rh">&larr; &rarr;</span> &mdash; Move left / right</li>
-        <li><span class="rh">&uarr;</span> &mdash; Rotate</li>
-        <li><span class="rh">&darr;</span> &mdash; Soft drop</li>
-        <li><span class="rh">Space</span> &mdash; Hard drop</li>
-        <li><span class="rh">P</span> &mdash; Pause / Resume</li>
-        <li><span class="rh">Swipe</span> &mdash; Touch gestures</li>
-      </ul>
+    <div class="rules-section"><h3>&#9670; Controls</h3><ul>
+      <li><span class="rh">&larr; &rarr;</span> &mdash; Move left / right</li>
+      <li><span class="rh">&uarr;</span> &mdash; Rotate</li>
+      <li><span class="rh">&darr;</span> &mdash; Soft drop</li>
+      <li><span class="rh">Space</span> &mdash; Hard drop</li>
+      <li><span class="rh">P</span> &mdash; Pause / Resume</li>
+      <li><span class="rh">Swipe</span> &mdash; Touch gestures</li>
+    </ul></div>
+    <div class="rules-section"><h3>&#9670; Scoring</h3><ul>
+      <li><span class="rh">1 line</span> &mdash; 100 &times; level</li>
+      <li><span class="rh">2 lines</span> &mdash; 300 &times; level</li>
+      <li><span class="rh">3 lines</span> &mdash; 500 &times; level</li>
+      <li><span class="rh">4 lines (Tetris!)</span> &mdash; 800 &times; level</li>
+      <li><span class="rh">Hard drop</span> &mdash; +2 per row</li>
+    </ul></div>
+    <div class="rules-section"><h3>&#9670; Member Word</h3>
+      <p>Enter a valid <span class="rh">member word</span> to unlock the game.</p>
     </div>
-    <div class="rules-section">
-      <h3>&#9670; Scoring</h3>
-      <ul>
-        <li><span class="rh">1 line</span> &mdash; 100 &times; level</li>
-        <li><span class="rh">2 lines</span> &mdash; 300 &times; level</li>
-        <li><span class="rh">3 lines</span> &mdash; 500 &times; level</li>
-        <li><span class="rh">4 lines (Tetris!)</span> &mdash; 800 &times; level</li>
-        <li><span class="rh">Hard drop</span> &mdash; +2 per row</li>
-      </ul>
-    </div>
-    <div class="rules-section">
-      <h3>&#9670; Member Word</h3>
-      <p>Enter a valid <span class="rh">member word</span> to unlock the game. The word list is loaded from <code>member-words.json</code>.</p>
-    </div>
-    <div class="rules-section">
-      <h3>&#9670; Levelling</h3>
+    <div class="rules-section"><h3>&#9670; Levelling</h3>
       <p>Every 10 lines cleared raises the level. Speed caps at level 10.</p>
     </div>
     <button id="btn-close-rules" onclick="closeRules()">&#10003; Got It &mdash; Close</button>
@@ -315,72 +297,59 @@
 </div>
 
 <script>
-// ── Member words ──────────────────────────────────────────────────────────────
 let MEMBER_WORDS = new Set();
 let wordsLoaded  = false;
 
 async function loadMemberWords() {
   try {
-    const WORDS_URL = 'https://raw.githubusercontent.com/varunbiswasgit/aiacode/main/tetris-game/member-words.json';
-    const res  = await fetch(WORDS_URL + '?t=' + Date.now());
+    const res = await fetch('https://raw.githubusercontent.com/varunbiswasgit/aiacode/main/tetris-game/member-words.json?t=' + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     MEMBER_WORDS = new Set((data.words || []).map(w => w.toLowerCase().trim()));
-    wordsLoaded  = true;
-  } catch (err) {
-    console.warn('Could not load member-words.json:', err);
-    wordsLoaded = true; // allow UI to respond even if fetch failed
+    wordsLoaded = true;
+  } catch(err) {
+    console.warn('member-words load failed:', err);
+    wordsLoaded = true;
   }
   checkSecret();
 }
 
-// ── Email validation ──────────────────────────────────────────────────────────
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-function isValidEmail(v) { v=(v||'').trim(); return v===''||EMAIL_RE.test(v); }
+function isValidEmail(v){ v=(v||'').trim(); return v===''||EMAIL_RE.test(v); }
 
-// ── Secret word check ─────────────────────────────────────────────────────────
 let memberUnlocked = false;
-
-function checkSecret() {
-  const raw   = (document.getElementById('m-secret').value || '').trim().toLowerCase();
-  const hint  = document.getElementById('m-secret-hint');
-  const badge = document.getElementById('m-member-badge');
-  const inp   = document.getElementById('m-secret');
-  const startBtn  = document.getElementById('btn-start');
-  const modalBtn  = document.getElementById('modal-start-btn');
-  if (!wordsLoaded) return;
-  if (raw === '') {
-    memberUnlocked = false;
-    hint.className = 'hint-neutral';
-    hint.textContent = '\uD83D\uDD12 Enter a valid member word to unlock.';
-    badge.classList.remove('show');
-    inp.classList.remove('secret-valid','secret-invalid');
-    startBtn.disabled = true; modalBtn.disabled = true;
-    return;
+function checkSecret(){
+  const raw  = (document.getElementById('m-secret').value||'').trim().toLowerCase();
+  const hint = document.getElementById('m-secret-hint');
+  const badge= document.getElementById('m-member-badge');
+  const inp  = document.getElementById('m-secret');
+  const sb   = document.getElementById('btn-start');
+  const mb   = document.getElementById('modal-start-btn');
+  if(!wordsLoaded) return;
+  if(raw===''){
+    memberUnlocked=false; hint.className='hint-neutral';
+    hint.textContent='\uD83D\uDD12 Enter a valid member word to unlock.';
+    badge.classList.remove('show'); inp.classList.remove('secret-valid','secret-invalid');
+    sb.disabled=true; mb.disabled=true; return;
   }
-  if (MEMBER_WORDS.has(raw)) {
-    memberUnlocked = true;
-    hint.className = 'hint-ok';
-    hint.textContent = '\u2713 Member word accepted \u2014 you\u2019re in!';
-    badge.classList.add('show');
-    inp.classList.remove('secret-invalid'); inp.classList.add('secret-valid');
-    startBtn.disabled = false; modalBtn.disabled = false;
+  if(MEMBER_WORDS.has(raw)){
+    memberUnlocked=true; hint.className='hint-ok';
+    hint.textContent='\u2713 Member word accepted \u2014 you\u2019re in!';
+    badge.classList.add('show'); inp.classList.remove('secret-invalid'); inp.classList.add('secret-valid');
+    sb.disabled=false; mb.disabled=false;
   } else {
-    memberUnlocked = false;
-    hint.className = 'hint-bad';
-    hint.textContent = '\u2717 Not a recognised member word.';
-    badge.classList.remove('show');
-    inp.classList.remove('secret-valid'); inp.classList.add('secret-invalid');
+    memberUnlocked=false; hint.className='hint-bad';
+    hint.textContent='\u2717 Not a recognised member word.';
+    badge.classList.remove('show'); inp.classList.remove('secret-valid'); inp.classList.add('secret-invalid');
     inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
-    startBtn.disabled = true; modalBtn.disabled = true;
+    sb.disabled=true; mb.disabled=true;
   }
 }
 document.getElementById('m-secret').addEventListener('input', checkSecret);
 
-// ── Local score storage ───────────────────────────────────────────────────────
-const STORE_KEY = 'tetris_royal_personas_v1';
+const STORE_KEY='tetris_royal_personas_v1';
 function hashStr(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h)^s.charCodeAt(i);return(h>>>0).toString(16).padStart(8,'0');}
-function personaKey(nick,email,secret){return hashStr([nick.trim().toLowerCase(),email.trim().toLowerCase(),secret.trim()].join('||'));}
+function personaKey(n,e,s){return hashStr([n.trim().toLowerCase(),e.trim().toLowerCase(),s.trim()].join('||'));}
 function loadStore(){try{return JSON.parse(localStorage.getItem(STORE_KEY)||'{}')}catch{return{}}}
 function saveStore(s){try{localStorage.setItem(STORE_KEY,JSON.stringify(s))}catch{}}
 function upsertPersona(key,nick,entry){
@@ -397,40 +366,34 @@ function allScores(){
   for(const k in store){const p=store[k];if(p.scores&&p.scores.length){const best=p.scores.reduce((a,b)=>b.score>a.score?b:a,p.scores[0]);arr.push({name:p.nick,score:best.score,level:best.level,date:best.date,key:k});}}
   return arr.sort((a,b)=>b.score-a.score);
 }
-
-let activePersonaKey = null;
-function getModalPersona() {
-  const nick   = (document.getElementById('m-nickname').value || '').trim();
-  const email  = (document.getElementById('m-email').value    || '').trim();
-  const secret = (document.getElementById('m-secret').value   || '').trim();
-  return { key: personaKey(nick, email, secret), nick: nick || 'Anonymous', email, secret };
+let activePersonaKey=null;
+function getModalPersona(){
+  return {
+    key: personaKey(
+      document.getElementById('m-nickname').value||'',
+      document.getElementById('m-email').value||'',
+      document.getElementById('m-secret').value||''
+    ),
+    nick: (document.getElementById('m-nickname').value||'').trim()||'Anonymous'
+  };
 }
-
-function saveScoreLocal() {
-  const saveBtn  = document.getElementById('go-save-btn');
-  const status   = document.getElementById('go-save-status');
-  const p        = getModalPersona();
-  const emailVal = (document.getElementById('m-email').value || '').trim();
-  if (emailVal && !isValidEmail(emailVal)) {
-    status.textContent = '\u26A0\uFE0F Invalid email address.';
-    return;
-  }
-  saveBtn.disabled = true;
-  const persona = upsertPersona(p.key, p.nick, { score, level, lines });
-  activePersonaKey = p.key;
-  status.textContent = '\u2713 Score saved!';
+function saveScoreLocal(){
+  const saveBtn=document.getElementById('go-save-btn'),status=document.getElementById('go-save-status');
+  const emailVal=(document.getElementById('m-email').value||'').trim();
+  if(emailVal&&!isValidEmail(emailVal)){status.textContent='\u26A0\uFE0F Invalid email.';return;}
+  saveBtn.disabled=true;
+  const p=getModalPersona();
+  upsertPersona(p.key,p.nick,{score,level,lines});
+  activePersonaKey=p.key;
+  status.textContent='\u2713 Score saved!';
   renderLeaderboard();
 }
-
-function renderLeaderboard() {
-  const scores = allScores(), tbody = document.getElementById('lb-body');
-  if (!scores.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:8px 0">No scores yet!</td></tr>';
-    return;
-  }
-  tbody.innerHTML = scores.slice(0,8).map((s,i) => {
-    const medal = i===0?'\uD83E\uDD47':i===1?'\uD83E\uDD48':i===2?'\uD83E\uDD49':(i+1);
-    const isMe  = activePersonaKey && s.key === activePersonaKey;
+function renderLeaderboard(){
+  const scores=allScores(),tbody=document.getElementById('lb-body');
+  if(!scores.length){tbody.innerHTML='<tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:8px 0">No scores yet!</td></tr>';return;}
+  tbody.innerHTML=scores.slice(0,8).map((s,i)=>{
+    const medal=i===0?'\uD83E\uDD47':i===1?'\uD83E\uDD48':i===2?'\uD83E\uDD49':(i+1);
+    const isMe=activePersonaKey&&s.key===activePersonaKey;
     return `<tr${isMe?' style="background:rgba(192,132,252,0.08)"':''}><td class="rank">${medal}</td><td>${s.name||'Anon'}${isMe?' <span style="color:#c084fc;font-size:.6rem">(you)</span>':''}</td><td class="lb-score">${s.score.toLocaleString()}</td><td>${s.level}</td><td style="color:rgba(200,190,230,.4);font-size:.62rem">${(s.date||'').slice(0,10)}</td></tr>`;
   }).join('');
 }
@@ -453,12 +416,19 @@ const nCanvas=document.getElementById('next'),nCtx=nCanvas.getContext('2d');
 let BLOCK=30;
 
 function syncSize(){
-  const uiH=document.getElementById('ui').offsetHeight+12;
-  const vw=window.innerWidth,vh=window.innerHeight,panelW=vw>=480?130:0;
-  const maxBoardW=Math.min(vw-panelW-32,360),maxBoardH=vh-uiH-28;
-  BLOCK=Math.max(14,Math.min(Math.floor(maxBoardW/COLS),Math.floor(maxBoardH/ROWS)));
-  canvas.width=BLOCK*COLS;canvas.height=BLOCK*ROWS;
-  const nb=Math.max(14,Math.min(BLOCK,26));nCanvas.width=nb*5;nCanvas.height=nb*5;
+  // Use #main's actual rendered dimensions so layout is already settled
+  const main  = document.getElementById('main');
+  const panel = document.getElementById('side-panel');
+  const vw = window.innerWidth, vh = window.innerHeight;
+  const uiH = document.getElementById('ui').offsetHeight || 52;
+  const panelW = (vw >= 480 ? (panel.offsetWidth || 130) : 0) + (vw >= 480 ? 8 : 4);
+  const availW = Math.min(vw - panelW - 24, 400);
+  const availH = vh - uiH - 20;
+  BLOCK = Math.max(16, Math.min(Math.floor(availW / COLS), Math.floor(availH / ROWS)));
+  canvas.width  = BLOCK * COLS;
+  canvas.height = BLOCK * ROWS;
+  const nb = Math.max(14, Math.min(BLOCK, 28));
+  nCanvas.width = nb * 5; nCanvas.height = nb * 5;
 }
 
 let board,score,lines,level,dropInterval,animId;
@@ -549,14 +519,17 @@ function loop(time=0){
   }
   animId=requestAnimationFrame(loop);
 }
+
 function startGame(){
-  if(!memberUnlocked)return;
+  if(!memberUnlocked) return;
   const emailVal=(document.getElementById('m-email').value||'').trim();
   if(emailVal&&!isValidEmail(emailVal)){
     document.getElementById('m-secret-hint').className='hint-bad';
-    document.getElementById('m-secret-hint').textContent='\u26A0\uFE0F Please enter a valid email address.';
+    document.getElementById('m-secret-hint').textContent='\u26A0\uFE0F Please enter a valid email.';
     return;
   }
+  // Re-sync canvas size now that UI is fully visible and modal is closing
+  syncSize();
   board=createBoard();score=0;lines=0;level=1;
   dropInterval=1000;dropCounter=0;paused=false;gameOver=false;
   piece=newPiece(randomType());nextPiece=newPiece(randomType());
@@ -565,18 +538,22 @@ function startGame(){
   document.getElementById('gameover-modal').classList.remove('show');
   document.getElementById('btn-pause').disabled=false;
   document.getElementById('btn-pause').textContent='\u23F8 Pause';
-  cancelAnimationFrame(animId);lastTime=0;loop();
+  cancelAnimationFrame(animId);lastTime=0;
+  // Small delay to let modal close before starting loop so layout is settled
+  setTimeout(()=>{ syncSize(); draw(); drawNext(); loop(); }, 80);
 }
+
 function endGame(){
   gameOver=true;
   document.getElementById('btn-pause').disabled=true;
-  const go=document.getElementById('gameover-modal');
   document.getElementById('go-title').textContent='GAME OVER';
   document.getElementById('go-sub').textContent='Score: '+score.toLocaleString()+'  \u2022  Level '+level+'  \u2022  Lines '+lines;
   document.getElementById('go-save-status').textContent='';
-  const saveBtn=document.getElementById('go-save-btn');saveBtn.disabled=false;
-  const againBtn=document.getElementById('go-again-btn');againBtn.disabled=!memberUnlocked;
-  renderLeaderboard();go.classList.add('show');draw();
+  document.getElementById('go-save-btn').disabled=false;
+  document.getElementById('go-again-btn').disabled=!memberUnlocked;
+  renderLeaderboard();
+  document.getElementById('gameover-modal').classList.add('show');
+  draw();
 }
 function togglePause(){
   if(gameOver)return;
@@ -617,24 +594,24 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElement
 window.addEventListener('resize',()=>{syncSize();draw();if(!gameOver)drawNext();});
 window.addEventListener('orientationchange',()=>setTimeout(()=>{syncSize();draw();if(!gameOver)drawNext();},150));
 
-// ── Init ──────────────────────────────────────────────────────────────────────
 (async function init(){
-  const shell  = document.getElementById('loading-shell');
-  const status = document.getElementById('loading-status');
+  const shell=document.getElementById('loading-shell');
+  const status=document.getElementById('loading-status');
   try {
-    syncSize();
-    board = createBoard();
-    draw();
-    renderLeaderboard();
-    status.textContent = 'Loading member list\u2026';
+    board=createBoard();
+    status.textContent='Loading member list\u2026';
     await loadMemberWords();
     document.body.classList.add('app-ready');
+    // syncSize NOW — app is visible, layout is real
+    syncSize();
+    draw();
+    renderLeaderboard();
     shell.classList.add('hidden');
     document.getElementById('msg-modal').classList.add('show');
   } catch(err) {
-    console.error('Init error:', err);
-    status.textContent = '\u26A0\uFE0F ' + err.message + '. Tap to retry.';
-    shell.addEventListener('click', () => location.reload(), {once:true});
+    console.error('Init error:',err);
+    status.textContent='\u26A0\uFE0F '+err.message+'. Tap to retry.';
+    shell.addEventListener('click',()=>location.reload(),{once:true});
   }
 })();
 </script>
