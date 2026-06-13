@@ -4,549 +4,463 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Tetris: Royal 3D Edition</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Raleway:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700;900&family=Raleway:wght@400;600;700&display=swap" rel="stylesheet" />
   <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
+    :root {
+      --gold: #f5e083;
+      --gold2: #c8960a;
+      --neon: #00f5ff;
+      --purple: #bf00ff;
+      --bg: #0d0820;
+    }
+    * { margin:0; padding:0; box-sizing:border-box; }
+    html, body { height:100%; overflow:hidden; }
     body {
       font-family: 'Raleway', sans-serif;
-      text-align: center;
-      min-height: 100dvh;
-      padding: 10px 8px 14px;
-      background:
-        radial-gradient(ellipse at 20% 10%, #1a0a3a 0%, transparent 55%),
-        radial-gradient(ellipse at 80% 90%, #0a1a3a 0%, transparent 55%),
-        radial-gradient(ellipse at 60% 40%, #1a1040 0%, transparent 60%),
+      background: #0d0820;
+      background-image:
         linear-gradient(160deg, #0d0820 0%, #12103a 40%, #0a1828 100%);
-      background-attachment: fixed;
-      color: #e8dfc8;
-      -webkit-font-smoothing: antialiased;
-      overflow-x: hidden;
+      color: #e8e0ff;
+      min-height: 100vh;
     }
-
     body::before {
       content: '';
-      position: fixed; inset: 0;
-      background:
-        repeating-linear-gradient(105deg, transparent 0px, transparent 80px, rgba(180,140,255,0.03) 80px, rgba(180,140,255,0.03) 81px),
-        repeating-linear-gradient(15deg,  transparent 0px, transparent 120px, rgba(100,220,255,0.02) 120px, rgba(100,220,255,0.02) 121px);
-      pointer-events: none; z-index: 0;
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background-image:
+        repeating-linear-gradient(15deg,  transparent 0px, transparent 120px, rgba(100,220,255,0.02) 120px, rgba(100,220,255,0.02) 121px),
+        repeating-linear-gradient(105deg, transparent 0px, transparent 90px,  rgba(180,100,255,0.02)  90px, rgba(180,100,255,0.02)  91px);
     }
 
-    /* ── Loading shell ── */
+    /* ── Loading shell ─────────────────────────────────────── */
     #loading-shell {
-      position: fixed; inset: 0; z-index: 9999;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 16px;
+      position: fixed; inset: 0; z-index: 999;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 14px;
       background: linear-gradient(160deg, #0d0820 0%, #12103a 40%, #0a1828 100%);
+      transition: opacity 0.4s ease;
     }
-    #loading-shell.hidden { display: none; }
-    .loading-dots span {
-      display: inline-block; width: 10px; height: 10px;
-      border-radius: 50%; background: #c084fc; margin: 0 4px;
-      animation: dotBounce 1.2s ease-in-out infinite;
+    #loading-shell.hidden { opacity: 0; pointer-events: none; }
+    .ls-dots { display:flex; gap:8px; }
+    .ls-dot {
+      width:12px; height:12px; border-radius:50%;
+      background: var(--neon);
+      animation: lsdot 1.2s ease-in-out infinite;
     }
-    .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
-    .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
-    @keyframes dotBounce {
+    .ls-dot:nth-child(2){ animation-delay:.2s; background:#bf00ff; }
+    .ls-dot:nth-child(3){ animation-delay:.4s; background:var(--gold); }
+    @keyframes lsdot {
       0%,80%,100% { transform: scale(0.6); opacity: 0.4; }
-      40%          { transform: scale(1.2); opacity: 1; }
+      40%          { transform: scale(1.2); opacity: 1.0; }
+    }
+    #loading-status {
+      font-family: 'Raleway', sans-serif;
+      font-size: 0.85rem; color: rgba(200,190,230,0.6);
+      letter-spacing: 0.05em;
     }
 
-    #ui { position: relative; z-index: 1; margin-bottom: 8px; }
+    /* ── Piece glow gradient ───────────────────────────────── */
+    .piece-i  { background: linear-gradient(135deg, #f5e083 0%, #e8c84a 30%, #fff8d0 55%, #c8960a 80%, #f5e083 100%);
+                box-shadow: 0 0 8px rgba(245,224,131,.7), 0 0 16px rgba(200,150,10,.4); }
 
-    h1 {
-      font-family: 'Cinzel', serif;
-      font-size: clamp(1.2rem, 4vw, 2rem);
-      font-weight: 700; letter-spacing: 0.12em;
-      background: linear-gradient(135deg, #f5e083 0%, #e8c84a 30%, #fff8d0 55%, #c8960a 80%, #f5e083 100%);
-      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-      margin-bottom: 7px;
-      filter: drop-shadow(0 2px 8px rgba(220,180,50,0.35));
+    /* ── App shell (hidden until ready) ───────────────────── */
+    #app {
+      position: relative; z-index: 1;
+      display: flex; flex-direction: column;
+      height: 100dvh; overflow: hidden;
     }
+    body:not(.app-ready) #app { visibility: hidden; }
 
-    #hud {
-      display: inline-flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;
-      background: linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(180,140,255,0.08) 50%, rgba(100,200,255,0.06) 100%);
-      border: 1px solid rgba(200,170,255,0.25); border-radius: 50px;
-      padding: 6px 18px; font-family: 'Cinzel', serif;
-      font-size: clamp(0.72rem, 2vw, 0.92rem); letter-spacing: 0.05em;
-      margin: 5px auto 8px; backdrop-filter: blur(10px);
-      box-shadow: 0 0 20px rgba(160,120,255,0.12), inset 0 1px 0 rgba(255,255,255,0.12);
-    }
-    .divider { color: rgba(200,170,255,0.4); font-size: 1.1em; }
-    .hud-label { color: rgba(200,190,230,0.7); }
-    .hud-val   { color: #f5e083; font-weight: 700; text-shadow: 0 0 8px rgba(245,224,131,0.5); }
-
-    .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-bottom: 8px; }
-
-    button {
-      font-family: 'Cinzel', serif; font-size: clamp(0.65rem, 1.7vw, 0.84rem); font-weight: 600;
-      letter-spacing: 0.08em; padding: 8px 16px; border: none; border-radius: 10px;
-      cursor: pointer; transition: transform 80ms ease, box-shadow 80ms ease;
-      -webkit-tap-highlight-color: transparent; user-select: none;
-    }
-
-    #btn-start {
+    /* ── Top UI bar ────────────────────────────────────────── */
+    #ui {
+      display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+      padding: 6px 10px 4px;
+      background: rgba(10,6,30,0.82);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(140,100,255,0.18);
+      gap: 4px;
+      flex-shrink: 0;
       background: linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%); color:#ecfdf5;
-      box-shadow:0 5px 0 #014d38,0 7px 14px rgba(0,120,80,.45),inset 0 1px 0 rgba(180,255,220,.4);
-    }
-    #btn-start:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
-    #btn-start:disabled {
-      opacity: 0.38; cursor: not-allowed; pointer-events: none;
-      filter: grayscale(0.4) brightness(0.85); box-shadow: none;
     }
 
-    #btn-pause {
+    /* Stats */
+    .stats { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .stat  { display:flex; flex-direction:column; align-items:center; min-width:42px; }
+    .stat-label { font-size:0.58rem; text-transform:uppercase; letter-spacing:.08em; opacity:.65; }
+    .stat-value { font-family:'Cinzel',serif; font-size:1.05rem; font-weight:700;
+                  color:#f5e083; text-shadow:0 0 8px rgba(245,224,131,.5); }
+
+    /* Buttons */
+    .btn-row { display:flex; gap:5px; align-items:center; flex-wrap:wrap; }
+    .btn {
+      font-family:'Raleway',sans-serif; font-size:0.72rem; font-weight:700;
+      padding: 5px 11px; border-radius:8px; border:none; cursor:pointer;
+      transition: transform .12s, box-shadow .12s, opacity .15s;
       background: linear-gradient(175deg,#fde68a 0%,#f59e0b 45%,#78350f 100%); color:#1c0a00;
-      box-shadow:0 5px 0 #92400e,0 7px 14px rgba(180,100,0,.4),inset 0 1px 0 rgba(255,240,180,.5);
+      box-shadow:0 3px 0 #92400e,0 5px 10px rgba(180,100,0,.3),inset 0 1px 0 rgba(255,240,180,.4);
     }
-    #btn-pause:active { transform:translateY(4px); box-shadow:0 1px 0 #92400e; }
-    #btn-pause:disabled { opacity:0.35; cursor:not-allowed; pointer-events:none; }
+    .btn:hover:not(:disabled) { transform:translateY(-1px); box-shadow:0 5px 0 #92400e,0 7px 14px rgba(180,100,0,.4),inset 0 1px 0 rgba(255,240,180,.5); }
+    .btn:active:not(:disabled){ transform:translateY(1px);  box-shadow:0 1px 0 #92400e; }
+    .btn:disabled { opacity:.38; cursor:default; pointer-events:none; }
+
+    .btn-secondary {
+      background: linear-gradient(175deg,#818cf8 0%,#4338ca 45%,#1e1b4b 100%); color:#eef2ff;
+      box-shadow:0 3px 0 #312e81,0 5px 10px rgba(67,56,202,.3),inset 0 1px 0 rgba(180,170,255,.3);
+    }
+    .btn-secondary:hover:not(:disabled) { box-shadow:0 5px 0 #312e81,0 7px 14px rgba(67,56,202,.4),inset 0 1px 0 rgba(180,170,255,.4); }
+
+    .btn-danger {
+      background: linear-gradient(175deg,#fda4af 0%,#e11d48 45%,#4c0519 100%); color:#fff1f2;
+      box-shadow:0 3px 0 #9f1239,0 5px 10px rgba(225,29,72,.3),inset 0 1px 0 rgba(255,180,190,.3);
+    }
+    .btn-danger:hover:not(:disabled) { box-shadow:0 5px 0 #9f1239,0 7px 14px rgba(225,29,72,.4),inset 0 1px 0 rgba(255,180,190,.4); }
 
     #btn-dice-toggle {
-      background: linear-gradient(175deg,#818cf8 0%,#4338ca 45%,#1e1b4b 100%); color:#eef2ff;
-      box-shadow:0 5px 0 #312e81,0 7px 14px rgba(67,56,202,.4),inset 0 1px 0 rgba(200,210,255,.4);
+      background: linear-gradient(175deg,#c084fc 0%,#7c3aed 50%,#2e1065 100%); color:#f5f3ff;
+      box-shadow:0 3px 0 #4c1d95,0 5px 10px rgba(124,58,237,.3),inset 0 1px 0 rgba(210,180,255,.3);
     }
-    #btn-dice-toggle:active { transform:translateY(4px); box-shadow:0 1px 0 #312e81; }
+    #btn-dice-toggle:hover:not(:disabled) { box-shadow:0 5px 0 #4c1d95,0 7px 14px rgba(124,58,237,.4),inset 0 1px 0 rgba(210,180,255,.4); }
     #btn-dice-toggle.disabled,
     #btn-dice-toggle[disabled] {
-      opacity: 0.42; cursor: default; pointer-events: none;
-      filter: grayscale(0.15) brightness(0.92); box-shadow: none;
+      opacity: 0.38;
+      cursor: default;
+      pointer-events: none;
+      filter: grayscale(0.15) brightness(0.92);
+      box-shadow: none;
     }
-
-    #btn-roll {
-      background: linear-gradient(175deg,#f9a8d4 0%,#db2777 45%,#500724 100%); color:#fdf2f8;
-      box-shadow:0 5px 0 #831843,0 7px 14px rgba(219,39,119,.4),inset 0 1px 0 rgba(255,200,230,.4);
-    }
-    #btn-roll:active { transform:translateY(4px); box-shadow:0 1px 0 #831843; }
-    #btn-roll:disabled { opacity:0.35; cursor:not-allowed; pointer-events:none; }
-
-    #btn-rules {
-      background: linear-gradient(175deg,#fda4af 0%,#e11d48 45%,#4c0519 100%); color:#fff1f2;
-      box-shadow:0 5px 0 #3b0a1e,0 7px 14px rgba(200,20,60,.45),inset 0 1px 0 rgba(255,200,210,.4);
-    }
-    #btn-rules:active { transform:translateY(4px); box-shadow:0 1px 0 #3b0a1e; }
 
     #mode-badge {
-      font-family: 'Cinzel', serif;
-      font-size: clamp(0.6rem, 1.5vw, 0.72rem); letter-spacing: 0.1em;
-      padding: 3px 12px; border-radius: 99px;
-      background: rgba(129,140,248,0.18); color: #a5b4fc;
-      border: 1px solid rgba(129,140,248,0.3); margin-left: 2px;
+      font-size:0.62rem; font-weight:700; letter-spacing:.07em; text-transform:uppercase;
+      padding:2px 7px; border-radius:999px;
+      background:rgba(192,132,252,0.18); color:#d8b4fe;
+      border:1px solid rgba(192,132,252,0.3);
     }
-    #mode-badge.classic {
-      background: rgba(200,170,255,0.1); color: rgba(200,190,230,0.6);
-      border-color: rgba(200,170,255,0.15);
-    }
+    #mode-badge.classic { background:rgba(148,163,184,0.15); color:#94a3b8; border-color:rgba(148,163,184,0.25); }
 
     #dice-info {
-      font-family: 'Raleway', sans-serif;
-      font-size: clamp(0.68rem, 1.8vw, 0.8rem);
-      color: #a5b4fc; margin-bottom: 6px; min-height: 1.2em;
+      font-size:0.68rem; color:rgba(200,190,230,.7); min-width:90px;
+      font-style:italic;
     }
 
-    #game-area {
-      position: relative; z-index: 1;
-      display: flex; flex-wrap: wrap;
-      justify-content: center; align-items: flex-start; gap: 12px;
+    /* ── Main layout ────────────────────────────────────────── */
+    #main {
+      display:flex; flex:1; overflow:hidden;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 8px 8px 4px;
+      gap: 8px;
     }
 
-    #canvas-wrap {
-      display: inline-block; border-radius: 14px; padding: 3px;
-      background: linear-gradient(135deg,
-        #c084fc 0%, #60b8ff 20%, #f5e083 40%,
-        #6ee7b7 60%, #f472b6 80%, #c084fc 100%);
+    /* ── Board canvas ───────────────────────────────────────── */
+    #board {
+      display:block;
+      border-radius: 4px;
       box-shadow: 0 0 40px rgba(150,100,255,.3), 0 0 80px rgba(80,160,255,.15), 0 20px 60px rgba(0,0,0,.6);
-      animation: opalShift 8s linear infinite; flex-shrink: 0;
+      border: 1px solid rgba(140,100,255,0.22);
+      animation: hueShift 18s linear infinite;
     }
-    @keyframes opalShift {
-      0%   { filter: hue-rotate(0deg)  brightness(1); }
-      50%  { filter: hue-rotate(30deg) brightness(1.08); }
-      100% { filter: hue-rotate(0deg)  brightness(1); }
-    }
-
-    canvas#board {
-      display: block; border-radius: 11px;
-      background: linear-gradient(145deg,#0f0c29 0%,#1a1560 50%,#0d1b3e 100%);
-      touch-action: none;
+    @keyframes hueShift {
+      0%,100% { filter: hue-rotate(0deg)  brightness(1); }
+      50%      { filter: hue-rotate(15deg) brightness(1.04); }
     }
 
+    /* ── Side panel ─────────────────────────────────────────── */
     #side-panel {
-      display: flex; flex-direction: column; gap: 10px;
-      min-width: 110px; max-width: 140px; flex-shrink: 0;
+      display:flex; flex-direction:column; gap:8px;
+      min-width:110px; max-width:140px;
     }
-
     .panel-box {
-      background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(180,140,255,0.07) 100%);
-      border: 1px solid rgba(200,170,255,0.2); border-radius: 12px;
-      padding: 10px 12px; text-align: center;
-      box-shadow: inset 0 1px 0 rgba(255,255,255,0.08);
-    }
-    .panel-box h3 {
-      font-family: 'Cinzel', serif;
-      font-size: clamp(0.6rem,1.5vw,0.72rem); letter-spacing: 0.12em;
-      text-transform: uppercase; color: #c084fc; margin-bottom: 5px;
-    }
-
-    canvas#next {
-      display: block; margin: 0 auto; border-radius: 6px;
       background: linear-gradient(145deg,#0f0c29 0%,#1a1560 50%,#0d1b3e 100%);
+      border:1px solid rgba(140,100,255,0.2);
+      border-radius:10px; padding:8px 10px;
     }
+    .panel-label {
+      font-size:0.6rem; text-transform:uppercase; letter-spacing:.1em;
+      color:rgba(200,190,230,.5); margin-bottom:4px;
+    }
+    #next-box { text-align:center; }
 
-    #controls-box {
-      font-family: 'Raleway', sans-serif;
-      font-size: clamp(0.6rem,1.4vw,0.72rem); color: rgba(200,190,230,0.7); line-height: 2;
-      text-align: left;
+    .panel-scores { font-size:0.72rem; }
+    .score-row {
+      display:flex; justify-content:space-between; align-items:baseline;
+      padding:2px 0; border-bottom:1px solid rgba(140,100,255,0.08);
     }
-    #controls-box span { color: #f5e083; font-weight: 600; }
+    .score-row:last-child { border-bottom:none; }
+    .score-name { color:rgba(200,190,230,.7); max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .score-pts  { font-family:'Cinzel',serif; color:#f5e083; font-size:0.68rem; }
 
-    @media (max-width: 520px) {
-      #side-panel { flex-direction: row; flex-wrap: wrap; max-width: 100%; min-width: unset; justify-content: center; }
-      .panel-box { min-width: 80px; flex: 1; }
-      #next-box   { order: -1; flex-basis: 100%; }
-      #controls-box { display: none; }
+    /* ── Leaderboard (full) ─────────────────────────────────── */
+    #leaderboard-wrap {
+      background: linear-gradient(145deg,#0f0c29 0%,#1a1560 50%,#0d1b3e 100%);
+      border:1px solid rgba(140,100,255,0.2); border-radius:12px;
+      padding:10px 12px;
     }
+    #leaderboard-wrap h3 {
+      font-family:'Cinzel',serif; font-size:0.8rem; color:#f5e083;
+      margin-bottom:6px; letter-spacing:.05em;
+    }
+    #leaderboard { width:100%; border-collapse:collapse; font-size:0.7rem; }
+    #leaderboard th {
+      text-align:left; color:rgba(200,190,230,.45); font-weight:600;
+      font-size:0.58rem; text-transform:uppercase; letter-spacing:.08em;
+      padding:2px 4px 4px;
+      border-bottom:1px solid rgba(140,100,255,0.15);
+    }
+    #leaderboard td { padding:3px 4px; vertical-align:middle; }
+    #leaderboard .rank  { color:#f5e083; font-family:'Cinzel',serif; font-size:0.75rem; }
+    #leaderboard .lb-score { font-family:'Cinzel',serif; color:#f5e083; }
+    #leaderboard tr:hover td { background:rgba(140,100,255,0.06); }
 
-    /* ── Modal ── */
-    .modal {
-      display: none; position: fixed;
-      top: 50%; left: 50%; transform: translate(-50%,-50%);
-      z-index: 100; padding: 30px 36px; border-radius: 20px; text-align: center;
-      background: linear-gradient(145deg,rgba(20,10,50,.97) 0%,rgba(30,15,70,.97) 100%);
-      border: 1px solid rgba(200,160,255,.3);
-      box-shadow: 0 0 60px rgba(150,80,255,.3),0 30px 80px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.1);
-      backdrop-filter: blur(20px); width: min(92vw,460px);
-      max-height: 90dvh; overflow-y: auto;
+    /* ── Persona / save section ─────────────────────────────── */
+    #persona-wrap {
+      background: linear-gradient(145deg,#0f0c29 0%,#1a1560 50%,#0d1b3e 100%);
+      border:1px solid rgba(140,100,255,0.2); border-radius:12px;
+      padding:10px 12px;
     }
-    .modal.show { display: block; }
-    .modal h2 {
-      font-family: 'Cinzel', serif; font-size: clamp(1.1rem,4vw,1.5rem);
-      letter-spacing: 0.1em; margin-bottom: 8px;
-      background: linear-gradient(135deg,#f5e083 0%,#e8c84a 35%,#fff8d0 55%,#c8960a 80%,#f5e083 100%);
-      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
-      filter: drop-shadow(0 2px 6px rgba(220,180,50,.35));
+    #persona-wrap h3 {
+      font-family:'Cinzel',serif; font-size:0.78rem; color:#f5e083;
+      margin-bottom:6px; letter-spacing:.05em;
     }
-    .modal p { color: rgba(220,210,240,.82); font-size: clamp(.82rem,2.2vw,.93rem); margin-bottom:14px; }
-    .modal-btn {
-      font-family:'Cinzel',serif; font-size:.88rem; font-weight:600; letter-spacing:.08em;
-      padding:10px 24px; border:none; border-radius:10px; cursor:pointer;
-      background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%); color:#ecfdf5;
-      box-shadow:0 5px 0 #014d38,0 7px 14px rgba(0,120,80,.45),inset 0 1px 0 rgba(180,255,220,.4);
-      transition: transform 80ms ease, box-shadow 80ms ease; margin-top: 6px;
-    }
-    .modal-btn:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
-    .modal-btn:disabled {
-      opacity: 0.38; cursor: not-allowed; pointer-events: none;
-      filter: grayscale(0.4) brightness(0.85); box-shadow: none;
-    }
-
-    /* ── Persona form ── */
-    .persona-form {
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(200,170,255,0.18);
-      border-radius: 12px; padding: 14px 16px;
-      margin-bottom: 14px; text-align: left;
-    }
-    .persona-form-title {
-      font-family: 'Cinzel', serif;
-      font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
-      color: #c084fc; margin-bottom: 10px; text-align: center;
-    }
-    .persona-field { margin-bottom: 9px; }
+    .persona-field { margin-bottom:6px; }
     .persona-field label {
-      display: block;
-      font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase;
-      color: rgba(200,190,230,0.55); margin-bottom: 4px;
+      display:block; font-size:0.6rem; text-transform:uppercase;
+      letter-spacing:.08em; color:rgba(200,190,230,.5); margin-bottom:2px;
     }
     .persona-field input {
       width: 100%; font-family: 'Raleway', sans-serif; font-size: 0.88rem;
-      padding: 7px 11px; border-radius: 8px;
-      border: 1px solid rgba(200,170,255,0.3);
-      background: rgba(255,255,255,0.07); color: #e8dfc8; outline: none;
-      transition: border-color 180ms ease;
+      background: rgba(255,255,255,0.04); border:1px solid rgba(140,100,255,0.25);
+      border-radius:6px; padding:5px 8px; color:#e8e0ff;
+      transition: border-color .15s, box-shadow .15s;
     }
-    .persona-field input:focus { border-color: #c084fc; }
-    .persona-field input::placeholder { color: rgba(200,190,230,0.3); }
-    .persona-field input[type="email"]:not(:placeholder-shown):invalid {
-      border-color: rgba(255,80,100,0.6);
+    .persona-field input:focus {
+      outline:none; border-color:rgba(192,132,252,0.6);
+      box-shadow:0 0 0 2px rgba(192,132,252,0.12);
     }
-
-    /* ── Secret field states ── */
-    #p-secret.secret-valid   { border-color: #6ee7b7 !important; box-shadow: 0 0 0 2px rgba(110,231,183,0.2); }
+    #p-secret.secret-valid  { border-color:rgba(110,231,183,0.7) !important; box-shadow:0 0 0 2px rgba(110,231,183,0.12); }
     #p-secret.secret-invalid { border-color: rgba(255,80,100,0.7) !important; box-shadow: 0 0 0 2px rgba(255,80,100,0.15); }
-
     @keyframes shake {
       0%,100% { transform: translateX(0); }
-      20%      { transform: translateX(-6px); }
-      40%      { transform: translateX(6px); }
-      60%      { transform: translateX(-4px); }
-      80%      { transform: translateX(4px); }
+      20%,60%  { transform: translateX(-4px); }
+      40%,80%  { transform: translateX( 4px); }
     }
-    .shake { animation: shake 0.38s ease; }
-
+    .shake { animation: shake .35s ease; }
     #secret-hint {
-      font-size: 0.68rem; margin-top: 5px; min-height: 1em;
-      line-height: 1.4; transition: color 200ms ease;
+      font-size:0.65rem; margin-top:3px; min-height:1.2em;
+      transition: color .2s;
     }
-    #secret-hint.hint-ok      { color: #6ee7b7; }
-    #secret-hint.hint-neutral { color: rgba(200,190,230,0.35); }
-    #secret-hint.hint-bad     { color: rgba(255,120,120,0.8); }
-    #secret-hint.hint-loading { color: rgba(192,132,252,0.7); }
-
+    .hint-neutral { color:rgba(200,190,230,.45); }
+    .hint-ok  { color:#6ee7b7; }
+    .hint-bad { color:#fda4af; }
     #member-badge {
-      display: none;
-      font-family: 'Cinzel', serif; font-size: 0.72rem; letter-spacing: 0.1em;
-      padding: 4px 14px; border-radius: 99px;
-      background: rgba(110,231,183,0.15); color: #6ee7b7;
-      border: 1px solid rgba(110,231,183,0.35);
-      margin: 0 auto 10px; width: fit-content;
+      display:inline-block; font-size:0.58rem; font-weight:700;
+      padding:1px 6px; border-radius:999px;
+      background:rgba(110,231,183,0.15); color:#6ee7b7;
+      border:1px solid rgba(110,231,183,0.35);
+      margin-left:5px; vertical-align:middle;
+      opacity:0; transition:opacity .3s;
     }
-    #member-badge.show { display: block; }
+    #member-badge.show { opacity:1; }
 
-    #persona-hint {
-      font-size: 0.68rem; color: rgba(200,190,230,0.38);
-      margin-top: 6px; line-height: 1.5; text-align: center;
-    }
     #persona-greeting {
-      font-family: 'Cinzel', serif; font-size: 0.82rem; letter-spacing: 0.06em;
-      color: #6ee7b7; margin-bottom: 6px; min-height: 1.2em;
+      font-size:0.68rem; color:rgba(200,190,230,.6);
+      margin-bottom:5px; min-height:1.1em;
     }
-
-    /* ── Save button ── */
-    #btn-save-score {
-      font-family:'Cinzel',serif; font-size:.78rem; font-weight:600; letter-spacing:.06em;
-      padding:7px 14px; border:none; border-radius:8px; cursor:pointer;
-      background:linear-gradient(175deg,#c084fc 0%,#7c3aed 50%,#2e1065 100%); color:#f5f3ff;
-      box-shadow:0 4px 0 #3b1f7a,inset 0 1px 0 rgba(255,255,255,.2);
-      transition: transform 80ms ease, box-shadow 80ms ease; margin-top: 4px;
+    #save-status {
+      font-size:0.68rem; color:#6ee7b7; min-height:1.1em; margin-top:3px;
     }
-    #btn-save-score:active { transform:translateY(3px); box-shadow:0 1px 0 #3b1f7a; }
-    #btn-save-score:disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
-    #save-status { font-size:.75rem; color: rgba(200,190,230,.7); margin-bottom:8px; min-height:1em; }
-
-    /* ── Leaderboard ── */
-    #leaderboard {
-      width: 100%; margin-bottom: 14px; border-collapse: collapse;
-      font-family: 'Raleway', sans-serif; font-size: clamp(.72rem,2vw,.82rem);
-    }
-    #leaderboard thead th {
-      font-family: 'Cinzel', serif; font-size: .66rem; letter-spacing: .1em;
-      color: #c084fc; text-transform: uppercase;
-      padding: 4px 5px; border-bottom: 1px solid rgba(200,170,255,.2);
-    }
-    #leaderboard tbody td {
-      padding: 5px 5px; color: rgba(220,210,240,.85);
-      border-bottom: 1px solid rgba(255,255,255,.05);
-    }
-    #leaderboard tbody tr:first-child td { color: #f5e083; font-weight: 600; }
-    #leaderboard .rank { color: rgba(200,190,230,.5); }
-    #leaderboard .lb-score { color: #6ee7b7; font-weight: 600; font-variant-numeric: tabular-nums; }
-
-    /* ── My scores ── */
-    #my-scores-section { margin-bottom: 12px; }
+    #my-scores-section { margin-top:6px; }
     #my-scores-section h4 {
-      font-family: 'Cinzel', serif; font-size: 0.66rem;
-      letter-spacing: 0.1em; text-transform: uppercase;
-      color: #a5b4fc; margin-bottom: 6px;
-    }
-    #my-scores-list {
-      font-size: 0.75rem; color: rgba(200,190,230,0.7);
-      max-height: 80px; overflow-y: auto;
-      scrollbar-width: thin; scrollbar-color: rgba(180,140,255,.3) transparent;
+      font-size:0.62rem; text-transform:uppercase; letter-spacing:.08em;
+      color:rgba(200,190,230,.45); margin-bottom:4px;
     }
     .my-score-row {
-      display: flex; justify-content: space-between;
-      padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
-      font-variant-numeric: tabular-nums;
+      display:flex; justify-content:space-between; align-items:baseline;
+      font-size:0.65rem; padding:2px 0;
+      border-bottom:1px solid rgba(140,100,255,0.07);
+      color:rgba(200,190,230,.7);
     }
-    .my-score-row .ms-score { color: #6ee7b7; font-weight: 600; }
-    .my-score-row .ms-date  { color: rgba(200,190,230,0.3); font-size: 0.68rem; }
+    .ms-score { font-family:'Cinzel',serif; color:#f5e083; font-size:0.7rem; }
+    .ms-date  { color:rgba(200,190,230,.35); font-size:0.58rem; }
 
-    /* ── Rules overlay ── */
-    #rules-overlay {
-      display: none; position: fixed; inset: 0; z-index: 200;
-      background: rgba(8,4,28,.82); backdrop-filter: blur(6px);
-      align-items: center; justify-content: center; padding: 16px;
+    /* ── Mobile layout ──────────────────────────────────────── */
+    @media (max-width: 479px) {
+      #side-panel { flex-direction: row; flex-wrap: wrap; max-width: 100%; min-width: unset; justify-content: center; }
+      #leaderboard-wrap, #persona-wrap { display:none; }
+      #next-box   { order: -1; flex-basis: 100%; }
     }
-    #rules-overlay.open { display: flex; }
-    #rules-modal {
-      position: relative; max-width: 520px; width: 100%;
-      max-height: 88dvh; overflow-y: auto;
-      border-radius: 20px; padding: 32px 32px 28px;
-      background: linear-gradient(145deg,rgba(18,8,46,.98) 0%,rgba(26,14,64,.98) 100%);
-      border: 1px solid rgba(200,160,255,.28);
-      box-shadow: 0 0 60px rgba(150,80,255,.28),0 30px 80px rgba(0,0,0,.85),inset 0 1px 0 rgba(255,255,255,.09);
-      text-align: left;
-      scrollbar-width: thin; scrollbar-color: rgba(180,140,255,.3) transparent;
+
+    /* ── Modal overlay ──────────────────────────────────────── */
+    #msg-modal {
+      position:fixed; inset:0; z-index:200;
+      display:none; align-items:center; justify-content:center;
+      background:rgba(5,3,20,0.82); backdrop-filter:blur(6px);
     }
-    #rules-modal::-webkit-scrollbar { width:6px; }
-    #rules-modal::-webkit-scrollbar-thumb { background:rgba(180,140,255,.3); border-radius:99px; }
-    #rules-modal h2 {
-      font-family:'Cinzel',serif; font-size:clamp(1.1rem,3.5vw,1.4rem); letter-spacing:.12em;
+    #msg-modal.show { display:flex; }
+    .modal-box {
+      z-index: 100; padding: 30px 36px; border-radius: 20px; text-align: center;
+      background: linear-gradient(145deg,rgba(20,10,50,.97) 0%,rgba(30,15,70,.97) 100%);
+      border:1px solid rgba(140,100,255,0.3);
+      box-shadow:0 0 60px rgba(140,100,255,.25), 0 30px 80px rgba(0,0,0,.6);
+      max-width: 360px; width: 90%;
+    }
+    #msg-title {
+      font-family:'Cinzel',serif; font-size:1.8rem; font-weight:900;
       background: linear-gradient(135deg,#f5e083 0%,#e8c84a 35%,#fff8d0 55%,#c8960a 80%,#f5e083 100%);
-      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
-      filter: drop-shadow(0 2px 6px rgba(220,180,50,.3));
-      margin-bottom:18px; text-align:center;
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+      letter-spacing:.04em; margin-bottom:6px;
     }
-    .rules-section { margin-bottom:16px; }
-    .rules-section h3 {
-      font-family:'Cinzel',serif; font-size:clamp(.75rem,2vw,.88rem);
-      letter-spacing:.1em; color:#c084fc; text-transform:uppercase;
-      margin-bottom:7px; padding-bottom:4px; border-bottom:1px solid rgba(192,132,252,.2);
-    }
-    .rules-section p, .rules-section li {
-      font-family:'Raleway',sans-serif; font-size:clamp(.8rem,2.2vw,.9rem);
-      line-height:1.7; color:rgba(220,210,240,.88);
-    }
-    .rules-section ul { padding-left:18px; }
-    .rules-section li { margin-bottom:5px; }
-    .rh { color:#f5e083; font-weight:600; }
-    #btn-close-rules {
+    #msg-sub { font-size:0.82rem; color:rgba(200,190,230,.7); margin-bottom:16px; }
+    #modal-start-btn {
       display:block; width:100%; margin-top:20px;
-      padding:11px 28px; font-family:'Cinzel',serif; font-size:.88rem;
-      font-weight:600; letter-spacing:.1em; border:none; border-radius:10px; cursor:pointer;
+      font-size:1rem; padding:10px;
       background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%); color:#ecfdf5;
-      box-shadow:0 5px 0 #014d38,0 7px 14px rgba(0,120,80,.4),inset 0 1px 0 rgba(180,255,220,.4);
-      transition: transform 80ms ease, box-shadow 80ms ease;
+      box-shadow:0 4px 0 #065f46,0 6px 14px rgba(5,150,105,.4),inset 0 1px 0 rgba(167,243,208,.3);
     }
-    #btn-close-rules:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
+    #modal-start-btn:hover:not(:disabled) { box-shadow:0 6px 0 #065f46,0 8px 18px rgba(5,150,105,.5),inset 0 1px 0 rgba(167,243,208,.4); }
+
+    /* ── Rules overlay ──────────────────────────────────────── */
+    .rules-overlay {
+      position:fixed; inset:0; z-index:300;
+      display:none; align-items:center; justify-content:center;
+      background:rgba(5,3,20,0.88); backdrop-filter:blur(8px);
+    }
+    .rules-overlay.open { display:flex; }
+    .rules-box {
+      background: linear-gradient(135deg,#f5e083 0%,#e8c84a 35%,#fff8d0 55%,#c8960a 80%,#f5e083 100%);
+      color:#1c0a00;
+      max-height:85vh; overflow-y:auto; border-radius:16px;
+      padding:24px 28px; max-width:440px; width:90%;
+      box-shadow:0 0 60px rgba(245,224,131,.25),0 30px 80px rgba(0,0,0,.7);
+    }
+    .rules-box h2 {
+      font-family:'Cinzel',serif; font-size:1.3rem; font-weight:900;
+      margin-bottom:14px; letter-spacing:.05em;
+    }
+    .rules-section { margin-bottom:12px; }
+    .rules-section h3 { font-size:0.82rem; font-weight:700; margin-bottom:4px; }
+    .rules-section p, .rules-section li {
+      font-size:0.78rem; line-height:1.55; color:rgba(28,10,0,.8);
+    }
+    .rules-section ul { padding-left:16px; }
+    .rh { font-weight:700; color:#1c0a00; }
+    #btn-close-rules {
+      display:block; width:100%; margin-top:20px; font-size:0.88rem; padding:9px;
+      background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%); color:#ecfdf5;
+      border-radius:10px;
+      box-shadow:0 4px 0 #065f46,0 6px 14px rgba(5,150,105,.4);
+    }
+
+    /* ── Responsive tweaks ──────────────────────────────────── */
+    @media (max-width:479px){
+      #main { padding:4px; gap:4px; }
+      .btn  { font-size:0.65rem; padding:4px 8px; }
+    }
   </style>
 </head>
 <body>
 
 <!-- Loading shell -->
 <div id="loading-shell">
-  <div id="loading-text" style="font-family:'Cinzel',serif;font-size:clamp(1rem,3vw,1.3rem);letter-spacing:.14em;
-    background:linear-gradient(135deg,#f5e083 0%,#e8c84a 35%,#fff8d0 55%,#c8960a 80%,#f5e083 100%);
-    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">
-    &#9670; Tetris: Royal 3D &#9670;
+  <div class="ls-dots">
+    <div class="ls-dot"></div>
+    <div class="ls-dot"></div>
+    <div class="ls-dot"></div>
   </div>
-  <div id="loading-status" style="font-family:'Raleway',sans-serif;font-size:.85rem;color:#c084fc;letter-spacing:.06em;">
-    Loading&hellip;
-  </div>
-  <div class="loading-dots"><span></span><span></span><span></span></div>
+  <div id="loading-status">Loading Tetris&hellip;</div>
 </div>
 
-<div id="ui">
-  <h1>&#9670; Tetris: Royal 3D &#9670;</h1>
-  <div id="hud">
-    <span class="hud-label">Score</span>
-    <span class="hud-val" id="score-val">0</span>
-    <span class="divider">&#10022;</span>
-    <span class="hud-label">Level</span>
-    <span class="hud-val" id="level-val" style="color:#6ee7b7;text-shadow:0 0 8px rgba(110,231,183,.5)">1</span>
-    <span class="divider">&#10022;</span>
-    <span class="hud-label">Lines</span>
-    <span class="hud-val" id="lines-val">0</span>
-    <span class="divider">&#10022;</span>
-    <span id="mode-badge" class="classic">&#9670; Classic</span>
+<div id="app">
+  <!-- ── Top bar ─────────────────────────────────────────────── -->
+  <div id="ui">
+    <div class="stats">
+      <div class="stat"><span class="stat-label">Score</span><span class="stat-value" id="score-val">0</span></div>
+      <div class="stat"><span class="stat-label">Level</span><span class="stat-value" id="level-val">1</span></div>
+      <div class="stat"><span class="stat-label">Lines</span><span class="stat-value" id="lines-val">0</span></div>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-start" onclick="startGame()" disabled>&#9654; Start</button>
+      <button class="btn btn-secondary" id="btn-pause" onclick="togglePause()" disabled>&#9208; Pause</button>
+      <button class="btn btn-danger" id="btn-dice-toggle" onclick="toggleDiceMode()" aria-disabled="false">&#127922; Dice: OFF</button>
+      <button class="btn btn-secondary" id="btn-roll" onclick="rollDice()" style="display:none" disabled>&#127922; Roll</button>
+      <span id="mode-badge" class="classic">&#9670; Classic</span>
+      <span id="dice-info"></span>
+      <button class="btn btn-secondary" onclick="openRules()">&#9432; Rules</button>
+    </div>
   </div>
-  <div id="dice-info"></div>
-  <div class="btn-row">
-    <button id="btn-start"  onclick="startGame()" disabled>&#9670; Start</button>
-    <button id="btn-pause"  onclick="togglePause()" disabled>&#9646;&#9646; Pause</button>
-    <button id="btn-dice-toggle" onclick="toggleDiceMode()">&#127922; Dice: OFF</button>
-    <button id="btn-roll" onclick="rollDice()" disabled style="display:none">&#127922; Roll</button>
-    <button id="btn-rules"  onclick="openRules()">&#9432; Rules</button>
-  </div>
-</div>
 
-<div id="game-area">
-  <div id="canvas-wrap">
+  <!-- ── Main play area ─────────────────────────────────────── -->
+  <div id="main">
     <canvas id="board"></canvas>
-  </div>
-  <div id="side-panel">
-    <div class="panel-box" id="next-box">
-      <h3>Next</h3>
-      <canvas id="next"></canvas>
-    </div>
-    <div class="panel-box" id="controls-box">
-      <h3>Controls</h3>
-      <span>&#8592; &#8594;</span> Move<br>
-      <span>&#8593;</span> Rotate<br>
-      <span>&#8595;</span> Soft Drop<br>
-      <span>Space</span> Hard Drop<br>
-      <span>P</span> Pause
+
+    <div id="side-panel">
+      <!-- Next piece -->
+      <div class="panel-box" id="next-box">
+        <div class="panel-label">Next</div>
+        <canvas id="next"></canvas>
+      </div>
+
+      <!-- Leaderboard -->
+      <div id="leaderboard-wrap">
+        <h3>&#127942; Leaderboard</h3>
+        <table id="leaderboard">
+          <thead><tr>
+            <th>#</th><th>Name</th><th>Score</th><th>Lv</th><th>Date</th>
+          </tr></thead>
+          <tbody id="lb-body"></tbody>
+        </table>
+      </div>
+
+      <!-- Persona / Save -->
+      <div id="persona-wrap">
+        <h3>&#128100; Player</h3>
+        <div id="persona-greeting"></div>
+        <div class="persona-field">
+          <label>Nickname</label>
+          <input type="text" id="p-nickname" maxlength="24" placeholder="Your name" autocomplete="off" />
+        </div>
+        <div class="persona-field">
+          <label>Email <span style="opacity:.5;font-size:.85em">(optional)</span></label>
+          <input type="email" id="p-email" maxlength="80" placeholder="you@example.com" autocomplete="off" />
+        </div>
+        <div class="persona-field">
+          <label>Member Word <span id="member-badge">&#10003; Member</span></label>
+          <input type="text" id="p-secret" maxlength="40" placeholder="Enter word&hellip;" autocomplete="off" />
+          <div id="secret-hint" class="hint-neutral">&#128274; Enter a valid member word to start playing.</div>
+        </div>
+        <div id="save-status"></div>
+        <button class="btn" id="btn-save-score" onclick="saveScoreLocal(score,level,lines)" style="display:none">&#127942; Save Score</button>
+        <div id="my-scores-section" style="display:none">
+          <h4>Your recent scores</h4>
+          <div id="my-scores-list"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- Welcome / Game-over modal -->
-<div id="msg-modal" class="modal show">
-  <h2 id="msg-title">TETRIS</h2>
-  <p id="msg-sub">Royal 3D Edition</p>
-
-  <div class="persona-form" id="persona-form">
-    <div class="persona-form-title">&#9670; Your Identity &#9670;</div>
-    <div class="persona-field">
-      <label for="p-nickname">Nickname</label>
-      <input id="p-nickname" type="text" maxlength="20" placeholder="e.g. StarFalcon" autocomplete="off" />
-    </div>
-    <div class="persona-field">
-      <label for="p-email">Email</label>
-      <input id="p-email" type="email" maxlength="60" placeholder="your@email.com" autocomplete="email" />
-    </div>
-    <div class="persona-field">
-      <label for="p-secret">Member secret word</label>
-      <input id="p-secret" type="password" maxlength="40" placeholder="Enter a member word to unlock…" autocomplete="off" />
-      <div id="secret-hint" class="hint-loading">&#8987; Loading member list&hellip;</div>
-    </div>
-    <div id="member-badge">&#10003; Member Access Granted</div>
-    <div id="persona-hint">Same nickname + email + secret = same persona on this browser.</div>
+<!-- ── Game-over / Start modal ───────────────────────────────── -->
+<div id="msg-modal" class="" role="dialog" aria-modal="true" aria-labelledby="msg-title">
+  <div class="modal-box">
+    <div id="msg-title">TETRIS ROYAL</div>
+    <div id="msg-sub">3D Edition &mdash; Enter your member word below to unlock the game.</div>
+    <button class="btn" id="modal-start-btn" onclick="startGame()" disabled>&#9654; Start Game</button>
   </div>
-
-  <div id="persona-greeting"></div>
-  <div id="save-status"></div>
-
-  <div id="my-scores-section" style="display:none">
-    <h4>&#9670; Your Best Runs</h4>
-    <div id="my-scores-list"></div>
-  </div>
-
-  <table id="leaderboard">
-    <thead>
-      <tr><th>#</th><th>Player</th><th>Score</th><th>Lvl</th><th>Date</th></tr>
-    </thead>
-    <tbody id="lb-body">
-      <tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:10px 0">No scores yet.</td></tr>
-    </tbody>
-  </table>
-
-  <button id="btn-save-score" style="display:none" disabled>&#127942; Save Score</button>
-  <button class="modal-btn" id="modal-start-btn" onclick="startGame()" disabled>&#9670; Start Game</button>
 </div>
 
-<div id="rules-overlay" role="dialog" aria-modal="true" aria-labelledby="rules-title">
-  <div id="rules-modal">
-    <h2 id="rules-title">&#9670; How to Play &#9670;</h2>
-    <div class="rules-section">
-      <h3>&#9670; Objective</h3>
-      <p>Stack falling Tetrominoes and clear horizontal lines to score points. The game ends when the stack reaches the top.</p>
-    </div>
-    <div class="rules-section">
-      <h3>&#9670; Membership</h3>
-      <p>You must enter a valid <span class="rh">member secret word</span> to unlock the game. The word list is managed in <code>member-words.json</code> and is case-insensitive.</p>
-    </div>
+<!-- ── Rules overlay ────────────────────────────────────────── -->
+<div id="rules-overlay" class="rules-overlay" role="dialog" aria-modal="true">
+  <div class="rules-box">
+    <h2>&#127922; How to Play</h2>
     <div class="rules-section">
       <h3>&#9670; Controls</h3>
       <ul>
-        <li><span class="rh">&#8592; / &#8594;</span> &mdash; Move piece left or right</li>
-        <li><span class="rh">&#8593;</span> &mdash; Rotate piece (with wall-kick)</li>
-        <li><span class="rh">&#8595;</span> &mdash; Soft drop (+1 pt)</li>
-        <li><span class="rh">Space</span> &mdash; Hard drop (+2 pt per row)</li>
+        <li><span class="rh">&larr; &rarr;</span> &mdash; Move piece left / right</li>
+        <li><span class="rh">&uarr;</span> &mdash; Rotate piece</li>
+        <li><span class="rh">&darr;</span> &mdash; Soft drop (faster fall)</li>
+        <li><span class="rh">Space</span> &mdash; Hard drop (instant lock)</li>
         <li><span class="rh">P</span> &mdash; Pause / Resume</li>
-      </ul>
-    </div>
-    <div class="rules-section">
-      <h3>&#9670; Touch / Mobile</h3>
-      <ul>
-        <li><span class="rh">Swipe left / right</span> &mdash; Move piece</li>
-        <li><span class="rh">Swipe down</span> &mdash; Soft drop</li>
-        <li><span class="rh">Swipe up</span> &mdash; Hard drop</li>
-        <li><span class="rh">Tap</span> &mdash; Rotate piece</li>
+        <li><span class="rh">Swipe</span> &mdash; Touch / mobile gestures</li>
       </ul>
     </div>
     <div class="rules-section">
@@ -556,7 +470,16 @@
         <li><span class="rh">2 lines</span> &mdash; 300 &times; level</li>
         <li><span class="rh">3 lines</span> &mdash; 500 &times; level</li>
         <li><span class="rh">4 lines (Tetris!)</span> &mdash; 800 &times; level</li>
+        <li><span class="rh">Hard drop</span> &mdash; +2 per row</li>
       </ul>
+    </div>
+    <div class="rules-section">
+      <h3>&#9670; Dice Mode</h3>
+      <p>Toggle <span class="rh">Dice Mode</span> before starting. Each turn you roll a die &mdash; the result is the number of left/right moves you can make that turn. Roll again each piece. Only available before a game starts.</p>
+    </div>
+    <div class="rules-section">
+      <h3>&#9670; Member Word</h3>
+      <p>You must enter a valid <span class="rh">member secret word</span> to unlock the game. The word list is managed in <code>member-words.json</code> and is case-insensitive.</p>
     </div>
     <div class="rules-section">
       <h3>&#9670; Levelling</h3>
@@ -574,7 +497,8 @@ let wordsLoaded  = false;
 async function loadMemberWords() {
   const hint = document.getElementById('secret-hint');
   try {
-    const res  = await fetch('./member-words.json');
+    const WORDS_URL = 'https://raw.githubusercontent.com/varunbiswasgit/aiacode/main/tetris-game/member-words.json';
+    const res  = await fetch(WORDS_URL + '?t=' + Date.now());
     if (!res.ok) throw new Error('HTTP ' + res.status);
     const data = await res.json();
     MEMBER_WORDS = new Set((data.words || []).map(w => w.toLowerCase().trim()));

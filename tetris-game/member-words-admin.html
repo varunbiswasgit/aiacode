@@ -1,0 +1,311 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tetris Member Words — Admin</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@700&family=Raleway:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg:      #0d0820;
+      --surface: #13103a;
+      --surface2:#1a1660;
+      --border:  rgba(140,100,255,0.22);
+      --gold:    #f5e083;
+      --green:   #6ee7b7;
+      --red:     #fda4af;
+      --text:    #e8e0ff;
+      --muted:   rgba(200,190,230,0.55);
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { min-height: 100vh; }
+    body {
+      font-family: 'Raleway', sans-serif;
+      background: linear-gradient(160deg, #0d0820 0%, #12103a 40%, #0a1828 100%);
+      color: var(--text);
+      padding: 32px 16px 64px;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+    header h1 {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(1.4rem, 4vw, 2rem);
+      background: linear-gradient(135deg,#f5e083,#e8c84a,#fff8d0,#c8960a,#f5e083);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+      letter-spacing: .05em;
+    }
+    header p { font-size: .82rem; color: var(--muted); margin-top: 6px; }
+
+    .card {
+      background: linear-gradient(145deg,#0f0c29,#1a1560,#0d1b3e);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 20px 22px;
+      margin: 0 auto 20px;
+      max-width: 700px;
+    }
+    .card h2 {
+      font-family: 'Cinzel', serif;
+      font-size: .88rem; color: var(--gold);
+      letter-spacing: .06em; margin-bottom: 14px;
+    }
+
+    /* ── Add word ── */
+    .add-row { display: flex; gap: 8px; }
+    .add-row input {
+      flex: 1; font-family: 'Raleway', sans-serif; font-size: .92rem;
+      background: rgba(255,255,255,0.05); border: 1px solid var(--border);
+      border-radius: 8px; padding: 8px 12px; color: var(--text);
+      transition: border-color .15s, box-shadow .15s;
+    }
+    .add-row input:focus { outline: none; border-color: rgba(192,132,252,.6); box-shadow: 0 0 0 2px rgba(192,132,252,.12); }
+    .btn {
+      font-family: 'Raleway', sans-serif; font-size: .78rem; font-weight: 700;
+      padding: 8px 16px; border-radius: 8px; border: none; cursor: pointer;
+      transition: transform .1s, box-shadow .1s, opacity .15s;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-add {
+      background: linear-gradient(175deg,#6ee7b7,#059669,#022c22); color: #ecfdf5;
+      box-shadow: 0 3px 0 #065f46, 0 5px 10px rgba(5,150,105,.3);
+      white-space: nowrap;
+    }
+    .btn-add:hover { box-shadow: 0 5px 0 #065f46, 0 7px 14px rgba(5,150,105,.4); transform: translateY(-1px); }
+
+    .status-line {
+      font-size: .72rem; min-height: 1.2em; margin-top: 6px;
+      transition: color .2s;
+    }
+    .ok  { color: var(--green); }
+    .bad { color: var(--red); }
+
+    /* ── Word chips ── */
+    #word-count {
+      font-size: .72rem; color: var(--muted); margin-bottom: 10px;
+    }
+    #word-count span { color: var(--gold); font-weight: 700; }
+
+    #chip-container {
+      display: flex; flex-wrap: wrap; gap: 7px;
+      max-height: 320px; overflow-y: auto;
+      padding-right: 4px;
+    }
+    #chip-container::-webkit-scrollbar { width: 4px; }
+    #chip-container::-webkit-scrollbar-track { background: transparent; }
+    #chip-container::-webkit-scrollbar-thumb { background: rgba(140,100,255,.3); border-radius: 4px; }
+
+    .chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: rgba(140,100,255,.14); border: 1px solid rgba(140,100,255,.28);
+      border-radius: 999px; padding: 3px 10px 3px 12px;
+      font-size: .78rem; color: var(--text);
+      transition: background .12s;
+    }
+    .chip:hover { background: rgba(140,100,255,.24); }
+    .chip-del {
+      background: none; border: none; cursor: pointer;
+      color: rgba(253,164,175,.7); font-size: .85rem; line-height: 1;
+      padding: 0 1px;
+      transition: color .12s;
+    }
+    .chip-del:hover { color: var(--red); }
+
+    /* ── JSON output ── */
+    #json-out {
+      width: 100%; min-height: 120px; font-family: 'Courier New', monospace;
+      font-size: .78rem; background: rgba(0,0,0,.3);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; color: #a5f3fc; resize: vertical;
+      line-height: 1.6;
+    }
+    .btn-row-out { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+    .btn-copy {
+      background: linear-gradient(175deg,#818cf8,#4338ca,#1e1b4b); color: #eef2ff;
+      box-shadow: 0 3px 0 #312e81, 0 5px 10px rgba(67,56,202,.3);
+    }
+    .btn-copy:hover { box-shadow: 0 5px 0 #312e81, 0 7px 14px rgba(67,56,202,.4); transform: translateY(-1px); }
+    .btn-dl {
+      background: linear-gradient(175deg,#fde68a,#f59e0b,#78350f); color: #1c0a00;
+      box-shadow: 0 3px 0 #92400e, 0 5px 10px rgba(180,100,0,.3);
+    }
+    .btn-dl:hover { box-shadow: 0 5px 0 #92400e, 0 7px 14px rgba(180,100,0,.4); transform: translateY(-1px); }
+
+    /* ── Import ── */
+    #import-area {
+      width: 100%; min-height: 80px; font-family: 'Courier New', monospace;
+      font-size: .78rem; background: rgba(0,0,0,.3);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 12px; color: #a5f3fc; resize: vertical; line-height: 1.6;
+    }
+    #import-area::placeholder { color: rgba(165,243,252,.35); }
+
+    /* ── Footer note ── */
+    .note {
+      max-width: 700px; margin: 0 auto;
+      font-size: .72rem; color: var(--muted); line-height: 1.6;
+      text-align: center;
+    }
+    .note code { color: #a5f3fc; background: rgba(255,255,255,.06); border-radius: 4px; padding: 1px 5px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>&#127922; Tetris Royal — Member Words Admin</h1>
+  <p>Manage the 100 member words stored in <code style="color:#a5f3fc;background:rgba(255,255,255,.07);padding:1px 6px;border-radius:4px">member-words.json</code></p>
+</header>
+
+<!-- Add word -->
+<div class="card">
+  <h2>&#43; Add a Word</h2>
+  <div class="add-row">
+    <input type="text" id="new-word" placeholder="Enter a new word…" maxlength="40" autocomplete="off" />
+    <button class="btn btn-add" onclick="addWord()">Add Word</button>
+  </div>
+  <div class="status-line" id="add-status"></div>
+</div>
+
+<!-- Word list -->
+<div class="card">
+  <h2>&#128218; Current Word List</h2>
+  <div id="word-count">Loading…</div>
+  <div id="chip-container"></div>
+</div>
+
+<!-- JSON Output -->
+<div class="card">
+  <h2>&#128196; Updated JSON — Copy &amp; Commit</h2>
+  <textarea id="json-out" readonly></textarea>
+  <div class="btn-row-out">
+    <button class="btn btn-copy" onclick="copyJSON()">&#128203; Copy JSON</button>
+    <button class="btn btn-dl"   onclick="downloadJSON()">&#8595; Download member-words.json</button>
+  </div>
+  <div class="status-line" id="copy-status"></div>
+</div>
+
+<!-- Import existing JSON -->
+<div class="card">
+  <h2>&#128229; Import / Replace from JSON</h2>
+  <textarea id="import-area" placeholder='{"words":["aurora","blaze",…]}'></textarea>
+  <div class="btn-row-out">
+    <button class="btn btn-add" onclick="importJSON()" style="margin-top:0">&#8593; Load JSON</button>
+  </div>
+  <div class="status-line" id="import-status"></div>
+</div>
+
+<p class="note">
+  After downloading or copying, commit the file to<br/>
+  <code>tetris-game/member-words.json</code> on the <code>main</code> branch.<br/>
+  The game fetches it live on every load — no rebuild needed.
+</p>
+
+<script>
+// ── Seed data — the current 100 words from member-words.json ─────────────────
+let words = [
+  "aurora","blaze","cipher","drift","ember","falcon","glacier","haven",
+  "indigo","jade","karma","lunar","mosaic","nexus","oracle","prism",
+  "quartz","raven","solstice","titan","umbra","vortex","willow","xenon",
+  "zenith","arcane","beacon","cobalt","delta","eclipse","frost","glyph",
+  "herald","ivory","jasper","knight","lapis","mirage","nova","obsidian",
+  "phantom","quill","radiant","sphinx","topaz","umber","velvet","wraith",
+  "amber","bronze","crystal","dusk","echo","fable","gossamer","haze",
+  "iris","jewel","kestrel","lantern","mist","nimbus","onyx","pearl",
+  "quest","realm","silver","thunder","twilight","ultra","vale","whirl",
+  "apex","basalt","chrome","dagger","ether","flint","granite","halo",
+  "icon","jolt","kelp","lumen","myth","neon","opus","pylon","rogue",
+  "sable","thorn","unity","vapor","wave","xray","yarn","zeal"
+];
+
+function clean(w) { return (w || '').trim().toLowerCase().replace(/[^a-z0-9]/g,''); }
+
+function render() {
+  words = [...new Set(words.map(clean).filter(Boolean))].sort();
+  const container = document.getElementById('chip-container');
+  const count     = document.getElementById('word-count');
+  count.innerHTML = `<span>${words.length}</span> words`;
+  container.innerHTML = words.map(w =>
+    `<span class="chip">${w}<button class="chip-del" title="Remove '${w}'" onclick="removeWord('${w}')">&#10005;</button></span>`
+  ).join('');
+  updateJSON();
+}
+
+function updateJSON() {
+  const obj = JSON.stringify({ words }, null, 2);
+  document.getElementById('json-out').value = obj;
+}
+
+function addWord() {
+  const input  = document.getElementById('new-word');
+  const status = document.getElementById('add-status');
+  const w = clean(input.value);
+  if (!w) { status.className='status-line bad'; status.textContent='⚠ Please enter a word.'; return; }
+  if (words.includes(w)) { status.className='status-line bad'; status.textContent=`"${w}" is already in the list.`; return; }
+  words.push(w);
+  render();
+  input.value = '';
+  status.className='status-line ok'; status.textContent=`✓ "${w}" added.`;
+  setTimeout(()=>status.textContent='', 2500);
+}
+
+function removeWord(w) {
+  words = words.filter(x => x !== w);
+  render();
+  const status = document.getElementById('add-status');
+  status.className='status-line bad'; status.textContent=`"${w}" removed.`;
+  setTimeout(()=>status.textContent='', 2000);
+}
+
+function copyJSON() {
+  const status = document.getElementById('copy-status');
+  const text = document.getElementById('json-out').value;
+  navigator.clipboard.writeText(text).then(() => {
+    status.className='status-line ok'; status.textContent='✓ Copied to clipboard!';
+    setTimeout(()=>status.textContent='', 2500);
+  }).catch(() => {
+    document.getElementById('json-out').select();
+    document.execCommand('copy');
+    status.className='status-line ok'; status.textContent='✓ Copied!';
+    setTimeout(()=>status.textContent='', 2500);
+  });
+}
+
+function downloadJSON() {
+  const blob = new Blob([document.getElementById('json-out').value], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'member-words.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function importJSON() {
+  const status = document.getElementById('import-status');
+  const raw = document.getElementById('import-area').value.trim();
+  if (!raw) { status.className='status-line bad'; status.textContent='⚠ Paste JSON first.'; return; }
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.words)) throw new Error('Missing "words" array');
+    words = parsed.words.map(clean).filter(Boolean);
+    render();
+    document.getElementById('import-area').value = '';
+    status.className='status-line ok'; status.textContent=`✓ Loaded ${words.length} words.`;
+    setTimeout(()=>status.textContent='', 3000);
+  } catch(e) {
+    status.className='status-line bad'; status.textContent='✗ Invalid JSON — ' + e.message;
+  }
+}
+
+// Enter key to add word
+document.getElementById('new-word').addEventListener('keydown', e => {
+  if (e.key === 'Enter') addWord();
+});
+
+// Initial render
+render();
+</script>
+</body>
+</html>
