@@ -231,3 +231,80 @@ All tests are manual. Open `tetris-royal-3d.html` in a modern browser (Chrome, E
 | Action | Open `shell.html` in browser |
 | Expected | Spinner shows briefly then game loads inside full-viewport iframe from GitHub raw URL |
 | Pass | Game fully playable inside iframe; no error message shown |
+
+---
+
+### TC-21 — Dice Mode toggle (before game)
+
+| Field | Detail |
+|-------|--------|
+| Setup | Start screen visible; no game in progress |
+| Action | Click the 🎲 Dice toggle button |
+| Expected | Button text switches between "🎲 Dice: ON" and "🎲 Dice: OFF"; mode badge updates; Roll button shows/hides |
+| Pass | Toggle works freely before game starts |
+
+---
+
+### TC-22 — Dice Mode toggle disabled mid-game
+
+| Field | Detail |
+|-------|--------|
+| Setup | Game in progress (at least one piece placed) |
+| Action | Click the 🎲 Dice toggle button |
+| Expected | Button appears greyed out (reduced opacity, default cursor); clicking has no effect; mode does not change |
+| Pass | Toggle is inert; mode badge and button label unchanged |
+
+---
+
+### TC-23 — Dice Mode toggle re-enabled after game over
+
+| Field | Detail |
+|-------|--------|
+| Setup | Game over modal showing |
+| Action | Click ▶ Play Again; observe toggle button |
+| Expected | Toggle button returns to full opacity and is clickable again |
+| Pass | Button is interactive on new game |
+
+---
+
+### TC-24 — Member words load (shell context)
+
+| Field | Detail |
+|-------|--------|
+| Setup | Open `shell.html` (game served inside blob iframe) |
+| Action | Start a game; wait for a word overlay to appear |
+| Expected | Word overlays display correctly; no console errors about failed fetch |
+| Pass | Words appear in-game; DevTools shows no fetch errors |
+
+---
+
+### TC-25 — Member words admin — add and download
+
+| Field | Detail |
+|-------|--------|
+| Setup | Open `member-words-admin.html` in any browser |
+| Action | Add a new word (e.g. "galaxy"); click Download |
+| Expected | Word chip appears in list; word count increments; downloaded JSON contains "galaxy" |
+| Pass | JSON file valid; word present; no duplicates |
+
+---
+
+### TC-26 — Member words admin — remove word
+
+| Field | Detail |
+|-------|--------|
+| Setup | `member-words-admin.html` open with default word list |
+| Action | Click ✕ on any word chip (e.g. "aurora") |
+| Expected | Chip removed from list; word count decrements; JSON output no longer contains "aurora" |
+| Pass | Word absent from JSON; no page errors |
+
+---
+
+### TC-27 — Member words admin — import JSON
+
+| Field | Detail |
+|-------|--------|
+| Setup | `member-words-admin.html` open |
+| Action | Paste a valid `member-words.json` into the Import textarea; click Load JSON |
+| Expected | Word list replaces current list; count updates; success message shown |
+| Pass | New list rendered correctly; JSON output reflects imported words |
