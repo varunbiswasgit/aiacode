@@ -47,7 +47,7 @@
       0%,80%,100% { transform: scale(0.6); opacity: 0.4; }
       40%          { transform: scale(1.2); opacity: 1.0; }
     }
-    #loading-status { font-family: 'Raleway', sans-serif; font-size: 0.85rem; color: rgba(200,190,230,0.6); letter-spacing: 0.05em; }
+    #loading-status { font-family: 'Raleway', sans-serif; font-size: 0.85rem; color: rgba(200,190,230,0.6); letter-spacing: 0.05em; text-align:center; padding:0 20px; }
     #app { position: relative; z-index: 1; display: flex; flex-direction: column; height: 100dvh; overflow: hidden; }
     body:not(.app-ready) #app { visibility: hidden; }
     #ui {
@@ -621,14 +621,20 @@ window.addEventListener('orientationchange',()=>setTimeout(()=>{syncSize();draw(
 (async function init(){
   const shell=document.getElementById('loading-shell'),status=document.getElementById('loading-status');
   try{
-    syncSize();draw();renderLeaderboard();refreshPersonaUI();
+    syncSize();
+    board=createBoard();
+    draw();
+    renderLeaderboard();
+    refreshPersonaUI();
+    status.textContent='Loading member list\u2026';
     await loadMemberWords();
     document.body.classList.add('app-ready');
-    if(shell)shell.classList.add('hidden');
+    shell.classList.add('hidden');
+    document.getElementById('msg-modal').classList.add('show');
   }catch(err){
     console.error('Tetris init error:',err);
-    if(status)status.textContent='Failed to load. Tap to retry.';
-    setTimeout(()=>{if(shell)shell.classList.add('hidden');},2000);
+    status.textContent='\u26A0\uFE0F Error: '+err.message+'. Tap to retry.';
+    shell.addEventListener('click',()=>location.reload(),{once:true});
   }
 })();
 </script>
