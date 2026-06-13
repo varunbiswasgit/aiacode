@@ -35,6 +35,31 @@
       pointer-events: none; z-index: 0;
     }
 
+    /* ── Loading shell ── */
+    #loading-shell {
+      position: fixed; inset: 0; z-index: 9999;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 16px;
+      background: linear-gradient(160deg, #0d0820 0%, #12103a 40%, #0a1828 100%);
+    }
+    #loading-shell.hidden { display: none; }
+    #loading-text {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(0.9rem, 3vw, 1.2rem);
+      letter-spacing: 0.12em; color: #c084fc;
+    }
+    .loading-dots span {
+      display: inline-block; width: 10px; height: 10px;
+      border-radius: 50%; background: #c084fc; margin: 0 4px;
+      animation: dotBounce 1.2s ease-in-out infinite;
+    }
+    .loading-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .loading-dots span:nth-child(3) { animation-delay: 0.4s; }
+    @keyframes dotBounce {
+      0%,80%,100% { transform: scale(0.6); opacity: 0.4; }
+      40%          { transform: scale(1.2); opacity: 1; }
+    }
+
     #ui { position: relative; z-index: 1; margin-bottom: 8px; }
 
     h1 {
@@ -202,6 +227,7 @@
       #controls-box { display: none; }
     }
 
+    /* ── Persona modal ── */
     .modal {
       display: none; position: fixed;
       top: 50%; left: 50%;
@@ -211,7 +237,8 @@
       background: linear-gradient(145deg,rgba(20,10,50,.97) 0%,rgba(30,15,70,.97) 100%);
       border: 1px solid rgba(200,160,255,.3);
       box-shadow: 0 0 60px rgba(150,80,255,.3),0 30px 80px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.1);
-      backdrop-filter: blur(20px); width: min(92vw,440px);
+      backdrop-filter: blur(20px); width: min(92vw,460px);
+      max-height: 90dvh; overflow-y: auto;
     }
     .modal.show { display: block; }
     .modal h2 {
@@ -232,24 +259,44 @@
     }
     .modal-btn:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
 
-    /* Player identity row */
-    #name-row {
-      display: flex; gap: 8px; align-items: center; justify-content: center;
-      margin-bottom: 6px; flex-wrap: wrap;
+    /* ── Persona form ── */
+    .persona-form {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(200,170,255,0.18);
+      border-radius: 12px; padding: 14px 16px;
+      margin-bottom: 14px; text-align: left;
     }
-    #player-name {
-      font-family: 'Raleway', sans-serif; font-size: .9rem;
-      padding: 7px 12px; border-radius: 8px; border: 1px solid rgba(200,170,255,0.35);
-      background: rgba(255,255,255,0.07); color: #e8dfc8;
-      width: 180px; outline: none;
+    .persona-form-title {
+      font-family: 'Cinzel', serif;
+      font-size: 0.68rem; letter-spacing: 0.12em; text-transform: uppercase;
+      color: #c084fc; margin-bottom: 10px; text-align: center;
     }
-    #player-name:focus { border-color: #c084fc; }
-    #session-tag {
-      font-size: .68rem; color: rgba(200,190,230,.4);
-      letter-spacing: .05em; margin-bottom: 10px;
+    .persona-field { margin-bottom: 9px; }
+    .persona-field label {
+      display: block;
+      font-size: 0.7rem; letter-spacing: 0.06em; text-transform: uppercase;
+      color: rgba(200,190,230,0.55); margin-bottom: 4px;
+    }
+    .persona-field input {
+      width: 100%;
+      font-family: 'Raleway', sans-serif; font-size: 0.88rem;
+      padding: 7px 11px; border-radius: 8px;
+      border: 1px solid rgba(200,170,255,0.3);
+      background: rgba(255,255,255,0.07); color: #e8dfc8; outline: none;
+    }
+    .persona-field input:focus { border-color: #c084fc; }
+    .persona-field input::placeholder { color: rgba(200,190,230,0.3); }
+    #persona-hint {
+      font-size: 0.68rem; color: rgba(200,190,230,0.38);
+      margin-top: 6px; line-height: 1.5; text-align: center;
+    }
+    #persona-greeting {
+      font-family: 'Cinzel', serif;
+      font-size: 0.82rem; letter-spacing: 0.06em;
+      color: #6ee7b7; margin-bottom: 6px; min-height: 1.2em;
     }
 
-    /* Save button */
+    /* ── Save button ── */
     #btn-save-score {
       font-family:'Cinzel',serif; font-size:.78rem; font-weight:600; letter-spacing:.06em;
       padding:7px 14px; border:none; border-radius:8px; cursor:pointer;
@@ -262,7 +309,7 @@
     #btn-save-score:disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
     #save-status { font-size:.75rem; color: rgba(200,190,230,.7); margin-bottom:8px; min-height:1em; }
 
-    /* Leaderboard */
+    /* ── Leaderboard ── */
     #leaderboard {
       width: 100%; margin-bottom: 14px;
       border-collapse: collapse;
@@ -281,7 +328,26 @@
     #leaderboard tbody tr:first-child td { color: #f5e083; font-weight: 600; }
     #leaderboard .rank { color: rgba(200,190,230,.5); }
     #leaderboard .lb-score { color: #6ee7b7; font-weight: 600; font-variant-numeric: tabular-nums; }
-    #leaderboard .lb-session { color: rgba(200,190,230,.3); font-size: .65rem; }
+
+    /* ── My scores panel ── */
+    #my-scores-section { margin-bottom: 12px; }
+    #my-scores-section h4 {
+      font-family: 'Cinzel', serif; font-size: 0.66rem;
+      letter-spacing: 0.1em; text-transform: uppercase;
+      color: #a5b4fc; margin-bottom: 6px;
+    }
+    #my-scores-list {
+      font-size: 0.75rem; color: rgba(200,190,230,0.7);
+      max-height: 80px; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: rgba(180,140,255,.3) transparent;
+    }
+    .my-score-row {
+      display: flex; justify-content: space-between;
+      padding: 3px 0; border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-variant-numeric: tabular-nums;
+    }
+    .my-score-row .ms-score { color: #6ee7b7; font-weight: 600; }
+    .my-score-row .ms-date  { color: rgba(200,190,230,0.3); font-size: 0.68rem; }
 
     #rules-overlay {
       display: none; position: fixed; inset: 0; z-index: 200;
@@ -334,6 +400,19 @@
 </head>
 <body>
 
+<!-- Loading shell — hidden once game initialises -->
+<div id="loading-shell">
+  <div id="loading-text" style="font-family:'Cinzel',serif;font-size:clamp(1rem,3vw,1.3rem);letter-spacing:.14em;
+    background:linear-gradient(135deg,#f5e083 0%,#e8c84a 35%,#fff8d0 55%,#c8960a 80%,#f5e083 100%);
+    -webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">
+    &#9670; Tetris: Royal 3D &#9670;
+  </div>
+  <div id="loading-status" style="font-family:'Raleway',sans-serif;font-size:.85rem;color:#c084fc;letter-spacing:.06em;">
+    Loading&hellip;
+  </div>
+  <div class="loading-dots"><span></span><span></span><span></span></div>
+</div>
+
 <div id="ui">
   <h1>&#9670; Tetris: Royal 3D &#9670;</h1>
   <div id="hud">
@@ -348,7 +427,7 @@
     <span class="divider">&#10022;</span>
     <span id="mode-badge" class="classic">&#9670; Classic</span>
   </div>
-  <div id="dice-info" id="dice-info"></div>
+  <div id="dice-info"></div>
   <div class="btn-row">
     <button id="btn-start"  onclick="startGame()">&#9670; Start</button>
     <button id="btn-pause"  onclick="togglePause()" disabled>&#9646;&#9646; Pause</button>
@@ -383,28 +462,44 @@
   <h2 id="msg-title">TETRIS</h2>
   <p id="msg-sub">Royal 3D Edition</p>
 
-  <!-- Player identity (no login — just a label + session tag) -->
-  <div id="name-row">
-    <input id="player-name" type="text" maxlength="30"
-      placeholder="Your name or email (optional)"
-      autocomplete="off" />
+  <!-- Persona form -->
+  <div class="persona-form" id="persona-form">
+    <div class="persona-form-title">&#9670; Your Identity &#9670;</div>
+    <div class="persona-field">
+      <label for="p-nickname">Nickname</label>
+      <input id="p-nickname" type="text" maxlength="20" placeholder="e.g. StarFalcon" autocomplete="off" />
+    </div>
+    <div class="persona-field">
+      <label for="p-email">Email</label>
+      <input id="p-email" type="text" maxlength="60" placeholder="your@email.com" autocomplete="off" />
+    </div>
+    <div class="persona-field">
+      <label for="p-secret">Secret word</label>
+      <input id="p-secret" type="password" maxlength="40" placeholder="Any word you'll remember" autocomplete="off" />
+    </div>
+    <div id="persona-hint">Same nickname + email + secret = same persona on this browser.<br>Different browser or cleared data = fresh start.</div>
   </div>
-  <div id="session-tag"></div>
 
+  <div id="persona-greeting"></div>
   <div id="save-status"></div>
 
-  <!-- Leaderboard -->
+  <!-- My scores (shown when persona is known) -->
+  <div id="my-scores-section" style="display:none">
+    <h4>&#9670; Your Best Runs</h4>
+    <div id="my-scores-list"></div>
+  </div>
+
+  <!-- Global leaderboard -->
   <table id="leaderboard">
     <thead>
-      <tr>
-        <th>#</th><th>Player</th><th>Score</th><th>Lvl</th><th>Date</th>
-      </tr>
+      <tr><th>#</th><th>Player</th><th>Score</th><th>Lvl</th><th>Date</th></tr>
     </thead>
     <tbody id="lb-body">
-      <tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:10px 0">Loading scores&#8230;</td></tr>
+      <tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:10px 0">No scores yet.</td></tr>
     </tbody>
   </table>
 
+  <button id="btn-save-score" style="display:none" disabled>&#127942; Save Score</button>
   <button class="modal-btn" onclick="startGame()">&#9670; Start Game</button>
 </div>
 
@@ -447,152 +542,170 @@
       <h3>&#9670; Levelling</h3>
       <p>Every 10 lines cleared raises the level by 1, increasing fall speed. Speed caps at level 10.</p>
     </div>
+    <div class="rules-section">
+      <h3>&#9670; Persona</h3>
+      <p>Enter your nickname, email, and a secret word. The same combination on the same browser always loads your saved scores. Clearing browser storage resets everything — no account required.</p>
+    </div>
     <button id="btn-close-rules" onclick="closeRules()">&#10003; Got It &mdash; Close</button>
   </div>
 </div>
 
 <script>
-// ─── Identity: zero-auth session fingerprint ────────────────────────────────
+// ─── Local persona + storage ────────────────────────────────────────────────
 
-// Codename adjectives + nouns for auto-generated player names
-const ADJECTIVES = ['Cosmic','Neon','Phantom','Cyber','Turbo','Shadow','Crystal','Blaze','Storm','Apex','Iron','Ghost'];
-const NOUNS      = ['Falcon','Viper','Wolf','Nova','Titan','Raven','Phoenix','Comet','Hawk','Blade','Knight','Echo'];
+const STORE_KEY = 'tetris_royal_personas_v1';
 
-function randomCodename() {
-  const adj  = ADJECTIVES[Math.floor(Math.random() * ADJECTIVES.length)];
-  const noun = NOUNS[Math.floor(Math.random() * NOUNS.length)];
-  const num  = Math.floor(1000 + Math.random() * 9000);
-  return `${adj}${noun}#${num}`;
-}
-
-// Device fingerprint: hashed combo of immutable browser signals
-function deviceFingerprint() {
-  const raw = [
-    navigator.language || '',
-    navigator.platform || '',
-    screen.width + 'x' + screen.height,
-    Intl.DateTimeFormat().resolvedOptions().timeZone || ''
-  ].join('|');
-  // simple djb2 hash → 6-char hex
+/** djb2 hash → 8-char hex */
+function hashStr(s) {
   let h = 5381;
-  for (let i = 0; i < raw.length; i++) h = ((h << 5) + h) ^ raw.charCodeAt(i);
-  return (h >>> 0).toString(16).slice(0, 6).toUpperCase();
+  for (let i = 0; i < s.length; i++) h = ((h << 5) + h) ^ s.charCodeAt(i);
+  return (h >>> 0).toString(16).padStart(8, '0');
 }
 
-// Session ID: random 8-char string, lives for this browser tab only
-function makeSessionId() {
-  return Math.random().toString(36).slice(2, 6).toUpperCase() +
-         Math.random().toString(36).slice(2, 6).toUpperCase();
+function personaKey(nick, email, secret) {
+  return hashStr([nick.trim().toLowerCase(), email.trim().toLowerCase(), secret.trim()].join('||'));
 }
 
-const SESSION_ID  = makeSessionId();          // unique per tab/reload
-const DEVICE_ID   = deviceFingerprint();      // consistent per device
-const SESSION_TAG = `${DEVICE_ID}-${SESSION_ID}`; // combined persona tag
-
-// Pre-fill name input with a fun codename; user can overwrite
-window.addEventListener('DOMContentLoaded', () => {
-  const nameEl = document.getElementById('player-name');
-  if (nameEl && !nameEl.value) nameEl.value = randomCodename();
-  const tagEl = document.getElementById('session-tag');
-  if (tagEl) tagEl.textContent = `Session: ${SESSION_TAG}`;
-});
-
-// ─── GitHub API config ──────────────────────────────────────────────────────
-const GH_OWNER  = 'varunbiswasgit';
-const GH_REPO   = 'aiacode';
-const GH_BRANCH = 'main';
-const GH_PATH   = 'tetris-game/scores.json';
-const GH_API    = `https://api.github.com/repos/${GH_OWNER}/${GH_REPO}/contents/${GH_PATH}`;
-// A fine-grained PAT scoped only to contents:write on this repo.
-// Replace with your token — this never touches auth or account settings.
-const GH_TOKEN  = '__REPLACE_WITH_PAT__';
-
-async function fetchScores() {
-  try {
-    // Public repo — read works without a token
-    const res  = await fetch(GH_API + '?ref=' + GH_BRANCH + '&t=' + Date.now(),
-      { headers: { 'Accept': 'application/vnd.github.v3+json' } });
-    if (!res.ok) return [];
-    const data = await res.json();
-    const json = JSON.parse(atob(data.content.replace(/\n/g, '')));
-    return json.scores || [];
-  } catch { return []; }
+function loadStore() {
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); }
+  catch { return {}; }
 }
 
-async function saveScore(entry) {
-  const saveBtn = document.getElementById('btn-save-score');
-  const status  = document.getElementById('save-status');
-  if (GH_TOKEN === '__REPLACE_WITH_PAT__') {
-    status.textContent = '\u26A0\uFE0F Add GH_TOKEN in source to enable saving.';
+function saveStore(store) {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch {}
+}
+
+/**
+ * Returns the persona object for the given key, or null.
+ * Persona shape: { key, nick, firstSeen, plays, highScore, bestLevel, scores:[] }
+ */
+function getPersona(key) {
+  const store = loadStore();
+  return store[key] || null;
+}
+
+function upsertPersona(key, nick, entry) {
+  const store = loadStore();
+  const now = new Date().toISOString();
+  if (!store[key]) {
+    store[key] = { key, nick, firstSeen: now, plays: 0, highScore: 0, bestLevel: 1, scores: [] };
+  }
+  const p = store[key];
+  p.nick = nick; // always update display name
+  p.plays = (p.plays || 0) + 1;
+  if (entry.score > (p.highScore || 0)) p.highScore = entry.score;
+  if (entry.level > (p.bestLevel || 1)) p.bestLevel = entry.level;
+  p.scores.unshift({ ...entry, date: now });
+  if (p.scores.length > 50) p.scores = p.scores.slice(0, 50);
+  saveStore(store);
+  return p;
+}
+
+/** Returns all scores from all personas, sorted by score desc */
+function allScores() {
+  const store = loadStore();
+  const arr = [];
+  for (const key in store) {
+    const p = store[key];
+    if (p.scores && p.scores.length) {
+      // best score per persona only for global leaderboard
+      const best = p.scores.reduce((a, b) => (b.score > a.score ? b : a), p.scores[0]);
+      arr.push({ name: p.nick, score: best.score, level: best.level, date: best.date, isMe: false, key });
+    }
+  }
+  arr.sort((a, b) => b.score - a.score);
+  return arr;
+}
+
+// ─── Active persona state ───────────────────────────────────────────────────
+let activePersonaKey = null;
+let activeNick = '';
+
+function resolvePersona() {
+  const nick   = (document.getElementById('p-nickname').value || '').trim();
+  const email  = (document.getElementById('p-email').value || '').trim();
+  const secret = (document.getElementById('p-secret').value || '').trim();
+  if (!nick && !email && !secret) return null;
+  return { key: personaKey(nick, email, secret), nick: nick || 'Anonymous' };
+}
+
+function refreshPersonaUI() {
+  const resolved = resolvePersona();
+  const greeting = document.getElementById('persona-greeting');
+  const mySection = document.getElementById('my-scores-section');
+  const myList = document.getElementById('my-scores-list');
+
+  if (!resolved) {
+    greeting.textContent = '';
+    mySection.style.display = 'none';
     return;
   }
-  if (saveBtn) saveBtn.disabled = true;
-  status.textContent = 'Saving\u2026';
-  try {
-    // Read current file (need SHA)
-    const getRes  = await fetch(GH_API + '?ref=' + GH_BRANCH,
-      { headers: { 'Authorization': 'token ' + GH_TOKEN, 'Accept': 'application/vnd.github.v3+json' } });
-    const getData = await getRes.json();
-    const fileSHA = getData.sha;
-    const current = JSON.parse(atob(getData.content.replace(/\n/g, '')));
-
-    // Prepend new entry, keep latest 100
-    current.scores.unshift(entry);
-    if (current.scores.length > 100) current.scores = current.scores.slice(0, 100);
-
-    // Write back
-    const putRes = await fetch(GH_API, {
-      method: 'PUT',
-      headers: {
-        'Authorization': 'token ' + GH_TOKEN,
-        'Content-Type': 'application/json',
-        'Accept': 'application/vnd.github.v3+json'
-      },
-      body: JSON.stringify({
-        message: `score: ${entry.name} → ${entry.score} (lv${entry.level})`,
-        content: btoa(unescape(encodeURIComponent(JSON.stringify(current, null, 2)))),
-        sha: fileSHA,
-        branch: GH_BRANCH
-      })
-    });
-    if (putRes.ok) {
-      status.textContent = '\u2713 Saved!';
-      renderLeaderboard(current.scores);
+  const persona = getPersona(resolved.key);
+  if (!persona) {
+    greeting.textContent = 'New persona — your scores will be saved locally.';
+    mySection.style.display = 'none';
+  } else {
+    greeting.textContent = `Welcome back, ${persona.nick}! \u2022 ${persona.plays} plays \u2022 Best: ${persona.highScore.toLocaleString()} (Lv${persona.bestLevel})`;
+    // show personal history
+    if (persona.scores.length) {
+      mySection.style.display = 'block';
+      myList.innerHTML = persona.scores.slice(0, 5).map(s =>
+        `<div class="my-score-row">
+          <span class="ms-score">${s.score.toLocaleString()}</span>
+          <span>Lv ${s.level} &bull; ${s.lines || 0} lines</span>
+          <span class="ms-date">${(s.date || '').slice(0,10)}</span>
+        </div>`).join('');
     } else {
-      const err = await putRes.json();
-      status.textContent = '\u274C ' + (err.message || 'Save failed.');
-      if (saveBtn) saveBtn.disabled = false;
+      mySection.style.display = 'none';
     }
-  } catch (e) {
-    status.textContent = '\u274C ' + e.message;
-    if (saveBtn) saveBtn.disabled = false;
   }
 }
 
-function renderLeaderboard(scores) {
+['p-nickname','p-email','p-secret'].forEach(id => {
+  document.getElementById(id).addEventListener('input', refreshPersonaUI);
+});
+
+function renderLeaderboard() {
+  const scores = allScores();
   const tbody = document.getElementById('lb-body');
-  if (!scores || scores.length === 0) {
+  if (!scores.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:10px 0">No scores yet. Be the first!</td></tr>';
     return;
   }
-  const top = scores.slice().sort((a, b) => b.score - a.score).slice(0, 8);
+  const top = scores.slice(0, 8);
+  const meKey = activePersonaKey;
   tbody.innerHTML = top.map((s, i) => {
     const medal = i === 0 ? '\uD83E\uDD47' : i === 1 ? '\uD83E\uDD48' : i === 2 ? '\uD83E\uDD49' : (i + 1);
-    const dateStr = s.date ? s.date.slice(0, 10) : '';
-    const isMe = s.sessionTag && s.sessionTag === SESSION_TAG;
+    const isMe = meKey && s.key === meKey;
     const rowStyle = isMe ? ' style="background:rgba(192,132,252,0.08)"' : '';
     return `<tr${rowStyle}>
       <td class="rank">${medal}</td>
       <td>${s.name || 'Anonymous'}${isMe ? ' <span style="color:#c084fc;font-size:.65rem">(you)</span>' : ''}</td>
       <td class="lb-score">${s.score.toLocaleString()}</td>
       <td>${s.level}</td>
-      <td style="color:rgba(200,190,230,.4);font-size:.68rem">${dateStr}</td>
+      <td style="color:rgba(200,190,230,.4);font-size:.68rem">${(s.date || '').slice(0,10)}</td>
     </tr>`;
   }).join('');
 }
 
-// Load leaderboard on startup
-fetchScores().then(renderLeaderboard);
+// ─── Save score (local) ─────────────────────────────────────────────────────
+function saveScoreLocal(scoreVal, levelVal, linesVal) {
+  const saveBtn = document.getElementById('btn-save-score');
+  const status  = document.getElementById('save-status');
+  const resolved = resolvePersona();
+  if (!resolved || !resolved.nick) {
+    status.textContent = '\u26A0\uFE0F Enter at least a nickname to save.';
+    return;
+  }
+  saveBtn.disabled = true;
+  const entry = { score: scoreVal, level: levelVal, lines: linesVal };
+  const persona = upsertPersona(resolved.key, resolved.nick, entry);
+  activePersonaKey = resolved.key;
+  activeNick = persona.nick;
+  status.textContent = '\u2713 Saved locally!';
+  renderLeaderboard();
+  refreshPersonaUI();
+}
 
 // ─── Dice mode ──────────────────────────────────────────────────────────────
 let diceMode = false;
@@ -612,22 +725,22 @@ function setDiceToggleEnabled(enabled) {
 }
 
 function toggleDiceMode() {
-  if (!gameOver && lines > 0) return; // block mid-game
+  if (!gameOver) return; // block mid-game
   diceMode = !diceMode;
   const btn   = document.getElementById('btn-dice-toggle');
   const roll  = document.getElementById('btn-roll');
   const badge = document.getElementById('mode-badge');
   const info  = document.getElementById('dice-info');
   if (diceMode) {
-    btn.textContent  = '\uD83C\uDFB2 Dice: ON';
+    btn.textContent   = '\uD83C\uDFB2 Dice: ON';
     badge.textContent = '\u25C6 Dice Mode';
     badge.classList.remove('classic');
     roll.style.display = 'inline-block';
-    roll.disabled = gameOver;
+    roll.disabled = true;
     movesRemaining = 0;
     info.textContent = 'Roll the dice to get your moves!';
   } else {
-    btn.textContent  = '\uD83C\uDFB2 Dice: OFF';
+    btn.textContent   = '\uD83C\uDFB2 Dice: OFF';
     badge.textContent = '\u25C6 Classic';
     badge.classList.add('classic');
     roll.style.display = 'none';
@@ -635,7 +748,6 @@ function toggleDiceMode() {
     movesRemaining = 1;
     info.textContent = '';
   }
-  draw();
 }
 
 function rollDice() {
@@ -899,7 +1011,7 @@ function startGame() {
   document.getElementById('msg-modal').classList.remove('show');
   document.getElementById('btn-pause').disabled = false;
   document.getElementById('btn-pause').textContent = '\u23F8 Pause';
-  // Disable dice toggle while game is live
+  // Lock dice toggle while game is live
   setDiceToggleEnabled(false);
   if (diceMode) {
     movesRemaining = 0;
@@ -907,11 +1019,13 @@ function startGame() {
     document.getElementById('dice-info').textContent = 'Roll the dice to get your moves!';
   } else {
     movesRemaining = 1;
+    document.getElementById('dice-info').textContent = '';
   }
   // Reset save UI
-  const saveBtn = document.getElementById('btn-save-score');
-  if (saveBtn) saveBtn.disabled = false;
   document.getElementById('save-status').textContent = '';
+  const saveBtn = document.getElementById('btn-save-score');
+  saveBtn.style.display = 'none';
+  saveBtn.disabled = false;
   cancelAnimationFrame(animId);
   lastTime = 0; loop();
 }
@@ -920,41 +1034,29 @@ function endGame() {
   gameOver = true;
   document.getElementById('btn-pause').disabled = true;
   document.getElementById('btn-roll').disabled  = true;
-  // Re-enable dice toggle so player can switch mode before next game
+  // Re-enable dice toggle now that game is over
   setDiceToggleEnabled(true);
 
   const m      = document.getElementById('msg-modal');
   const title  = document.getElementById('msg-title');
   const sub    = document.getElementById('msg-sub');
   const status = document.getElementById('save-status');
+  const saveBtn = document.getElementById('btn-save-score');
 
   title.textContent = 'GAME OVER';
   sub.textContent   = 'Score: ' + score.toLocaleString() + '  \u2022  Level ' + level + '  \u2022  Lines ' + lines;
   status.textContent = '';
 
-  // Inject save button if not present
-  let saveBtn = document.getElementById('btn-save-score');
-  if (!saveBtn) {
-    saveBtn = document.createElement('button');
-    saveBtn.id = 'btn-save-score';
-    saveBtn.textContent = '\uD83C\uDFC6 Save Score';
-    m.querySelector('.modal-btn').insertAdjacentElement('beforebegin', saveBtn);
-  }
+  saveBtn.style.display = 'inline-block';
   saveBtn.disabled = false;
+  saveBtn.textContent = '\uD83C\uDFC6 Save Score';
   saveBtn.onclick = function() {
-    const name = (document.getElementById('player-name').value.trim() || randomCodename()).slice(0, 30);
-    saveScore({
-      name,
-      score,
-      level,
-      lines,
-      sessionTag: SESSION_TAG,   // device+session fingerprint (not PII)
-      date: new Date().toISOString()
-    });
+    saveScoreLocal(score, level, lines);
   };
 
   m.querySelector('.modal-btn').textContent = '\u25B6 Play Again';
-  fetchScores().then(renderLeaderboard);
+  renderLeaderboard();
+  refreshPersonaUI();
   m.classList.add('show');
   draw();
 }
@@ -1022,7 +1124,7 @@ canvas.addEventListener('touchend', e => {
   draw();
 }, { passive: false });
 
-function openRules() { document.getElementById('rules-overlay').classList.add('open'); }
+function openRules()  { document.getElementById('rules-overlay').classList.add('open'); }
 function closeRules() { document.getElementById('rules-overlay').classList.remove('open'); }
 document.getElementById('rules-overlay').addEventListener('click', function(e) {
   if (e.target === this) closeRules();
@@ -1032,10 +1134,27 @@ document.addEventListener('keydown', e => {
 });
 
 window.addEventListener('resize', () => { syncSize(); draw(); if (!gameOver) drawNext(); });
-window.addEventListener('orientationchange', () => setTimeout(() => { syncSize(); draw(); if (!gameOver) drawNext(); }, 150));
+window.addEventListener('orientationchange', () =>
+  setTimeout(() => { syncSize(); draw(); if (!gameOver) drawNext(); }, 150));
 
-syncSize();
-draw();
+// ─── Init — hide loading shell once everything is ready ───────────────────
+(function init() {
+  const shell = document.getElementById('loading-shell');
+  const status = document.getElementById('loading-status');
+  try {
+    syncSize();
+    draw();
+    renderLeaderboard();
+    refreshPersonaUI();
+    document.body.classList.add('app-ready');
+    if (shell) shell.classList.add('hidden');
+  } catch (err) {
+    console.error('Tetris init error:', err);
+    if (status) status.textContent = 'Failed to load. Tap to retry.';
+    // still dismiss after 2s so the page is not permanently blocked
+    setTimeout(() => { if (shell) shell.classList.add('hidden'); }, 2000);
+  }
+})();
 </script>
 </body>
 </html>
