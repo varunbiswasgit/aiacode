@@ -23,7 +23,6 @@
         repeating-linear-gradient(15deg,transparent 0px,transparent 120px,rgba(100,220,255,0.02) 120px,rgba(100,220,255,0.02) 121px),
         repeating-linear-gradient(105deg,transparent 0px,transparent 90px,rgba(180,100,255,0.02) 90px,rgba(180,100,255,0.02) 91px);
     }
-    /* Loading shell */
     #loading-shell{
       position:fixed;inset:0;z-index:999;
       display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;
@@ -37,10 +36,8 @@
     .ls-dot:nth-child(3){animation-delay:.4s;background:var(--gold);}
     @keyframes lsdot{0%,80%,100%{transform:scale(0.6);opacity:0.4;}40%{transform:scale(1.2);opacity:1.0;}}
     #loading-status{font-size:0.85rem;color:rgba(200,190,230,0.6);letter-spacing:0.05em;text-align:center;padding:0 20px;}
-    /* App */
     #app{position:relative;z-index:1;display:flex;flex-direction:column;height:100dvh;overflow:hidden;}
     body:not(.app-ready) #app{visibility:hidden;}
-    /* Top bar */
     #ui{
       display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;
       padding:6px 10px 4px;backdrop-filter:blur(12px);
@@ -68,16 +65,34 @@
       box-shadow:0 3px 0 #312e81,0 5px 10px rgba(67,56,202,.3),inset 0 1px 0 rgba(180,170,255,.3);
     }
     .btn-secondary:hover:not(:disabled){box-shadow:0 5px 0 #312e81,0 7px 14px rgba(67,56,202,.4),inset 0 1px 0 rgba(180,170,255,.4);}
-    /* Main layout */
-    #main{display:flex;flex:1;overflow:hidden;align-items:flex-start;justify-content:center;padding:8px 8px 4px;gap:8px;}
+    /* #main holds board + side panel — no overflow, no scroll */
+    #main{
+      display:flex;
+      flex:1;
+      overflow:hidden;
+      align-items:flex-start;
+      padding:6px;
+      gap:6px;
+      /* Let children size themselves; main just clips */
+      min-height:0;
+    }
+    /* Board fills whatever space is left after side panel */
     #board{
-      display:block;border-radius:4px;
+      display:block;
+      flex-shrink:0;
+      border-radius:4px;
       box-shadow:0 0 40px rgba(150,100,255,.3),0 0 80px rgba(80,160,255,.15),0 20px 60px rgba(0,0,0,.6);
       border:1px solid rgba(140,100,255,0.22);
       animation:hueShift 18s linear infinite;
     }
     @keyframes hueShift{0%,100%{filter:hue-rotate(0deg) brightness(1);}50%{filter:hue-rotate(15deg) brightness(1.04);}}
-    #side-panel{display:flex;flex-direction:column;gap:8px;min-width:110px;max-width:140px;}
+    #side-panel{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      flex-shrink:0;
+      width:120px;
+    }
     .panel-box{
       background:linear-gradient(145deg,#0f0c29 0%,#1a1560 50%,#0d1b3e 100%);
       border:1px solid rgba(140,100,255,0.2);border-radius:10px;padding:8px 10px;
@@ -86,22 +101,22 @@
     #next-box{text-align:center;}
     #leaderboard-wrap{
       background:linear-gradient(145deg,#0f0c29 0%,#1a1560 50%,#0d1b3e 100%);
-      border:1px solid rgba(140,100,255,0.2);border-radius:12px;padding:10px 12px;
+      border:1px solid rgba(140,100,255,0.2);border-radius:12px;padding:8px 10px;
+      overflow:hidden;
     }
-    #leaderboard-wrap h3{font-family:'Cinzel',serif;font-size:0.8rem;color:#f5e083;margin-bottom:6px;letter-spacing:.05em;}
-    #leaderboard{width:100%;border-collapse:collapse;font-size:0.7rem;}
-    #leaderboard th{text-align:left;color:rgba(200,190,230,.45);font-weight:600;font-size:0.58rem;text-transform:uppercase;letter-spacing:.08em;padding:2px 4px 4px;border-bottom:1px solid rgba(140,100,255,0.15);}
-    #leaderboard td{padding:3px 4px;vertical-align:middle;}
-    #leaderboard .rank{color:#f5e083;font-family:'Cinzel',serif;font-size:0.75rem;}
+    #leaderboard-wrap h3{font-family:'Cinzel',serif;font-size:0.75rem;color:#f5e083;margin-bottom:5px;letter-spacing:.05em;}
+    #leaderboard{width:100%;border-collapse:collapse;font-size:0.65rem;}
+    #leaderboard th{text-align:left;color:rgba(200,190,230,.45);font-weight:600;font-size:0.55rem;text-transform:uppercase;letter-spacing:.08em;padding:2px 3px 4px;border-bottom:1px solid rgba(140,100,255,0.15);}
+    #leaderboard td{padding:2px 3px;vertical-align:middle;}
+    #leaderboard .rank{color:#f5e083;font-family:'Cinzel',serif;font-size:0.7rem;}
     #leaderboard .lb-score{font-family:'Cinzel',serif;color:#f5e083;}
-    #leaderboard tr:hover td{background:rgba(140,100,255,0.06);}
-    #save-status{font-size:0.68rem;color:#6ee7b7;min-height:1.1em;margin-top:3px;}
+    /* On narrow screens: hide leaderboard, stack next-piece full width below board */
     @media(max-width:479px){
-      #side-panel{flex-direction:row;flex-wrap:wrap;max-width:100%;min-width:unset;justify-content:center;}
+      #side-panel{width:auto;flex-direction:row;flex-wrap:wrap;flex-shrink:0;justify-content:center;}
       #leaderboard-wrap{display:none;}
-      #next-box{order:-1;flex-basis:100%;}
+      #next-box{flex-basis:100%;order:-1;}
     }
-    /* Startup modal */
+    /* Modals */
     #msg-modal{
       position:fixed;inset:0;z-index:200;display:none;
       align-items:center;justify-content:center;
@@ -124,10 +139,7 @@
     }
     #msg-sub{font-size:0.78rem;color:rgba(200,190,230,.6);margin-bottom:18px;}
     .modal-field{margin-bottom:10px;text-align:left;}
-    .modal-field label{
-      display:block;font-size:0.6rem;text-transform:uppercase;letter-spacing:.08em;
-      color:rgba(200,190,230,.5);margin-bottom:3px;
-    }
+    .modal-field label{display:block;font-size:0.6rem;text-transform:uppercase;letter-spacing:.08em;color:rgba(200,190,230,.5);margin-bottom:3px;}
     .modal-field input{
       width:100%;font-family:'Raleway',sans-serif;font-size:0.9rem;
       background:rgba(255,255,255,0.05);border:1px solid rgba(140,100,255,0.3);
@@ -135,21 +147,18 @@
       transition:border-color .15s,box-shadow .15s;
     }
     .modal-field input:focus{outline:none;border-color:rgba(192,132,252,0.7);box-shadow:0 0 0 2px rgba(192,132,252,0.14);}
-    #m-secret.secret-valid  {border-color:rgba(110,231,183,0.7)!important;box-shadow:0 0 0 2px rgba(110,231,183,0.12);}
+    #m-secret.secret-valid{border-color:rgba(110,231,183,0.7)!important;box-shadow:0 0 0 2px rgba(110,231,183,0.12);}
     #m-secret.secret-invalid{border-color:rgba(255,80,100,0.7)!important;box-shadow:0 0 0 2px rgba(255,80,100,0.15);}
     @keyframes shake{0%,100%{transform:translateX(0)}20%,60%{transform:translateX(-4px)}40%,80%{transform:translateX(4px)}}
     .shake{animation:shake .35s ease;}
-    #m-secret-hint{font-size:0.65rem;margin-top:3px;min-height:1.1em;text-align:left;transition:color .2s;}
+    #m-secret-hint{font-size:0.65rem;margin-top:3px;min-height:1.1em;text-align:left;}
     .hint-neutral{color:rgba(200,190,230,.45);}
     .hint-ok{color:#6ee7b7;}
     .hint-bad{color:#fda4af;}
     #m-member-badge{
-      display:inline-block;font-size:0.58rem;font-weight:700;
-      padding:1px 6px;border-radius:999px;
-      background:rgba(110,231,183,0.15);color:#6ee7b7;
-      border:1px solid rgba(110,231,183,0.35);
-      margin-left:5px;vertical-align:middle;
-      opacity:0;transition:opacity .3s;
+      display:inline-block;font-size:0.58rem;font-weight:700;padding:1px 6px;border-radius:999px;
+      background:rgba(110,231,183,0.15);color:#6ee7b7;border:1px solid rgba(110,231,183,0.35);
+      margin-left:5px;vertical-align:middle;opacity:0;transition:opacity .3s;
     }
     #m-member-badge.show{opacity:1;}
     #modal-start-btn{
@@ -157,7 +166,6 @@
       background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%);color:#ecfdf5;
       box-shadow:0 4px 0 #065f46,0 6px 14px rgba(5,150,105,.4),inset 0 1px 0 rgba(167,243,208,.3);
     }
-    #modal-start-btn:hover:not(:disabled){box-shadow:0 6px 0 #065f46,0 8px 18px rgba(5,150,105,.5),inset 0 1px 0 rgba(167,243,208,.4);}
     #gameover-modal{
       position:fixed;inset:0;z-index:200;display:none;
       align-items:center;justify-content:center;
@@ -172,11 +180,9 @@
     }
     #go-sub{font-size:0.82rem;color:rgba(200,190,230,.7);margin-bottom:16px;}
     #go-save-status{font-size:0.68rem;color:#6ee7b7;min-height:1.1em;margin-top:3px;}
-    #go-again-btn{
-      display:block;width:100%;margin-top:12px;font-size:1rem;padding:10px;
+    #go-again-btn{display:block;width:100%;margin-top:12px;font-size:1rem;padding:10px;
       background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%);color:#ecfdf5;
-      box-shadow:0 4px 0 #065f46,0 6px 14px rgba(5,150,105,.4),inset 0 1px 0 rgba(167,243,208,.3);
-    }
+      box-shadow:0 4px 0 #065f46,0 6px 14px rgba(5,150,105,.4),inset 0 1px 0 rgba(167,243,208,.3);}
     .rules-overlay{position:fixed;inset:0;z-index:300;display:none;align-items:center;justify-content:center;background:rgba(5,3,20,0.88);backdrop-filter:blur(8px);}
     .rules-overlay.open{display:flex;}
     .rules-box{
@@ -191,11 +197,9 @@
     .rules-section p,.rules-section li{font-size:0.78rem;line-height:1.55;color:rgba(28,10,0,.8);}
     .rules-section ul{padding-left:16px;}
     .rh{font-weight:700;color:#1c0a00;}
-    #btn-close-rules{
-      display:block;width:100%;margin-top:20px;font-size:0.88rem;padding:9px;
+    #btn-close-rules{display:block;width:100%;margin-top:20px;font-size:0.88rem;padding:9px;
       background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%);color:#ecfdf5;
-      border-radius:10px;box-shadow:0 4px 0 #065f46,0 6px 14px rgba(5,150,105,.4);
-    }
+      border-radius:10px;box-shadow:0 4px 0 #065f46,0 6px 14px rgba(5,150,105,.4);}
     @media(max-width:479px){#main{padding:4px;gap:4px;}.btn{font-size:0.65rem;padding:4px 8px;}}
   </style>
 </head>
@@ -227,9 +231,9 @@
         <canvas id="next"></canvas>
       </div>
       <div id="leaderboard-wrap">
-        <h3>&#127942; Leaderboard</h3>
+        <h3>&#127942; Top Scores</h3>
         <table id="leaderboard">
-          <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Lv</th><th>Date</th></tr></thead>
+          <thead><tr><th>#</th><th>Name</th><th>Score</th><th>Lv</th></tr></thead>
           <tbody id="lb-body"></tbody>
         </table>
       </div>
@@ -237,10 +241,10 @@
   </div>
 </div>
 
-<div id="msg-modal" role="dialog" aria-modal="true" aria-labelledby="msg-title">
+<div id="msg-modal" role="dialog" aria-modal="true">
   <div class="modal-box">
     <div id="msg-title">TETRIS ROYAL</div>
-    <div id="msg-sub">3D Edition &mdash; Enter your details to unlock the game.</div>
+    <div id="msg-sub">3D Edition &mdash; Enter your details to unlock.</div>
     <div class="modal-field">
       <label>Nickname</label>
       <input type="text" id="m-nickname" maxlength="24" placeholder="Your name" autocomplete="off" />
@@ -271,82 +275,55 @@
 <div id="rules-overlay" class="rules-overlay" role="dialog" aria-modal="true">
   <div class="rules-box">
     <h2>&#9670; How to Play</h2>
-    <div class="rules-section"><h3>&#9670; Controls</h3><ul>
-      <li><span class="rh">&larr; &rarr;</span> &mdash; Move left / right</li>
+    <div class="rules-section"><h3>Controls</h3><ul>
+      <li><span class="rh">&larr; &rarr;</span> &mdash; Move</li>
       <li><span class="rh">&uarr;</span> &mdash; Rotate</li>
       <li><span class="rh">&darr;</span> &mdash; Soft drop</li>
       <li><span class="rh">Space</span> &mdash; Hard drop</li>
-      <li><span class="rh">P</span> &mdash; Pause / Resume</li>
-      <li><span class="rh">Swipe</span> &mdash; Touch gestures</li>
+      <li><span class="rh">P</span> &mdash; Pause</li>
+      <li><span class="rh">Swipe</span> &mdash; Touch</li>
     </ul></div>
-    <div class="rules-section"><h3>&#9670; Scoring</h3><ul>
-      <li><span class="rh">1 line</span> &mdash; 100 &times; level</li>
-      <li><span class="rh">2 lines</span> &mdash; 300 &times; level</li>
-      <li><span class="rh">3 lines</span> &mdash; 500 &times; level</li>
-      <li><span class="rh">4 lines (Tetris!)</span> &mdash; 800 &times; level</li>
-      <li><span class="rh">Hard drop</span> &mdash; +2 per row</li>
+    <div class="rules-section"><h3>Scoring</h3><ul>
+      <li>1 line &mdash; 100&times;level</li>
+      <li>2 lines &mdash; 300&times;level</li>
+      <li>3 lines &mdash; 500&times;level</li>
+      <li>Tetris! &mdash; 800&times;level</li>
     </ul></div>
-    <div class="rules-section"><h3>&#9670; Member Word</h3>
-      <p>Enter a valid <span class="rh">member word</span> to unlock the game.</p>
+    <div class="rules-section"><h3>Member Word</h3>
+      <p>Enter a valid member word to unlock the game.</p>
     </div>
-    <div class="rules-section"><h3>&#9670; Levelling</h3>
-      <p>Every 10 lines cleared raises the level. Speed caps at level 10.</p>
-    </div>
-    <button id="btn-close-rules" onclick="closeRules()">&#10003; Got It &mdash; Close</button>
+    <button id="btn-close-rules" onclick="closeRules()">&#10003; Close</button>
   </div>
 </div>
 
 <script>
-let MEMBER_WORDS = new Set();
-let wordsLoaded  = false;
-
-async function loadMemberWords() {
-  try {
-    const res = await fetch('https://raw.githubusercontent.com/varunbiswasgit/aiacode/main/tetris-game/member-words.json?t=' + Date.now());
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    MEMBER_WORDS = new Set((data.words || []).map(w => w.toLowerCase().trim()));
-    wordsLoaded = true;
-  } catch(err) {
-    console.warn('member-words load failed:', err);
-    wordsLoaded = true;
-  }
+let MEMBER_WORDS=new Set(), wordsLoaded=false;
+async function loadMemberWords(){
+  try{
+    const res=await fetch('https://raw.githubusercontent.com/varunbiswasgit/aiacode/main/tetris-game/member-words.json?t='+Date.now());
+    if(!res.ok)throw new Error('HTTP '+res.status);
+    const data=await res.json();
+    MEMBER_WORDS=new Set((data.words||[]).map(w=>w.toLowerCase().trim()));
+    wordsLoaded=true;
+  }catch(err){console.warn('member-words:',err);wordsLoaded=true;}
   checkSecret();
 }
-
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-function isValidEmail(v){ v=(v||'').trim(); return v===''||EMAIL_RE.test(v); }
-
-let memberUnlocked = false;
+const EMAIL_RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(v){v=(v||'').trim();return v===''||EMAIL_RE.test(v);}
+let memberUnlocked=false;
 function checkSecret(){
-  const raw  = (document.getElementById('m-secret').value||'').trim().toLowerCase();
-  const hint = document.getElementById('m-secret-hint');
-  const badge= document.getElementById('m-member-badge');
-  const inp  = document.getElementById('m-secret');
-  const sb   = document.getElementById('btn-start');
-  const mb   = document.getElementById('modal-start-btn');
-  if(!wordsLoaded) return;
-  if(raw===''){
-    memberUnlocked=false; hint.className='hint-neutral';
-    hint.textContent='\uD83D\uDD12 Enter a valid member word to unlock.';
-    badge.classList.remove('show'); inp.classList.remove('secret-valid','secret-invalid');
-    sb.disabled=true; mb.disabled=true; return;
-  }
-  if(MEMBER_WORDS.has(raw)){
-    memberUnlocked=true; hint.className='hint-ok';
-    hint.textContent='\u2713 Member word accepted \u2014 you\u2019re in!';
-    badge.classList.add('show'); inp.classList.remove('secret-invalid'); inp.classList.add('secret-valid');
-    sb.disabled=false; mb.disabled=false;
-  } else {
-    memberUnlocked=false; hint.className='hint-bad';
-    hint.textContent='\u2717 Not a recognised member word.';
-    badge.classList.remove('show'); inp.classList.remove('secret-valid'); inp.classList.add('secret-invalid');
-    inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake');
-    sb.disabled=true; mb.disabled=true;
-  }
+  const raw=(document.getElementById('m-secret').value||'').trim().toLowerCase();
+  const hint=document.getElementById('m-secret-hint');
+  const badge=document.getElementById('m-member-badge');
+  const inp=document.getElementById('m-secret');
+  const sb=document.getElementById('btn-start');
+  const mb=document.getElementById('modal-start-btn');
+  if(!wordsLoaded)return;
+  if(raw===''){memberUnlocked=false;hint.className='hint-neutral';hint.textContent='\uD83D\uDD12 Enter a valid member word to unlock.';badge.classList.remove('show');inp.classList.remove('secret-valid','secret-invalid');sb.disabled=true;mb.disabled=true;return;}
+  if(MEMBER_WORDS.has(raw)){memberUnlocked=true;hint.className='hint-ok';hint.textContent='\u2713 Member word accepted!';badge.classList.add('show');inp.classList.remove('secret-invalid');inp.classList.add('secret-valid');sb.disabled=false;mb.disabled=false;}
+  else{memberUnlocked=false;hint.className='hint-bad';hint.textContent='\u2717 Not a recognised member word.';badge.classList.remove('show');inp.classList.remove('secret-valid');inp.classList.add('secret-invalid');inp.classList.remove('shake');void inp.offsetWidth;inp.classList.add('shake');sb.disabled=true;mb.disabled=true;}
 }
-document.getElementById('m-secret').addEventListener('input', checkSecret);
-
+document.getElementById('m-secret').addEventListener('input',checkSecret);
 const STORE_KEY='tetris_royal_personas_v1';
 function hashStr(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h)^s.charCodeAt(i);return(h>>>0).toString(16).padStart(8,'0');}
 function personaKey(n,e,s){return hashStr([n.trim().toLowerCase(),e.trim().toLowerCase(),s.trim()].join('||'));}
@@ -367,16 +344,7 @@ function allScores(){
   return arr.sort((a,b)=>b.score-a.score);
 }
 let activePersonaKey=null;
-function getModalPersona(){
-  return {
-    key: personaKey(
-      document.getElementById('m-nickname').value||'',
-      document.getElementById('m-email').value||'',
-      document.getElementById('m-secret').value||''
-    ),
-    nick: (document.getElementById('m-nickname').value||'').trim()||'Anonymous'
-  };
-}
+function getModalPersona(){return{key:personaKey(document.getElementById('m-nickname').value||'',document.getElementById('m-email').value||'',document.getElementById('m-secret').value||''),nick:(document.getElementById('m-nickname').value||'').trim()||'Anonymous'};}
 function saveScoreLocal(){
   const saveBtn=document.getElementById('go-save-btn'),status=document.getElementById('go-save-status');
   const emailVal=(document.getElementById('m-email').value||'').trim();
@@ -390,18 +358,18 @@ function saveScoreLocal(){
 }
 function renderLeaderboard(){
   const scores=allScores(),tbody=document.getElementById('lb-body');
-  if(!scores.length){tbody.innerHTML='<tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:8px 0">No scores yet!</td></tr>';return;}
+  if(!scores.length){tbody.innerHTML='<tr><td colspan="4" style="color:rgba(200,190,230,.4);padding:6px 0;font-size:.65rem">No scores yet!</td></tr>';return;}
   tbody.innerHTML=scores.slice(0,8).map((s,i)=>{
     const medal=i===0?'\uD83E\uDD47':i===1?'\uD83E\uDD48':i===2?'\uD83E\uDD49':(i+1);
     const isMe=activePersonaKey&&s.key===activePersonaKey;
-    return `<tr${isMe?' style="background:rgba(192,132,252,0.08)"':''}><td class="rank">${medal}</td><td>${s.name||'Anon'}${isMe?' <span style="color:#c084fc;font-size:.6rem">(you)</span>':''}</td><td class="lb-score">${s.score.toLocaleString()}</td><td>${s.level}</td><td style="color:rgba(200,190,230,.4);font-size:.62rem">${(s.date||'').slice(0,10)}</td></tr>`;
+    return `<tr${isMe?' style="background:rgba(192,132,252,0.08)"':''}><td class="rank">${medal}</td><td>${s.name||'Anon'}${isMe?' <span style="color:#c084fc;font-size:.58rem">(you)</span>':''}</td><td class="lb-score">${s.score.toLocaleString()}</td><td>${s.level}</td></tr>`;
   }).join('');
 }
 
-// ── Game engine ───────────────────────────────────────────────────────────────
+// ── Canvas & sizing ──────────────────────────────────────────────────────────
 const COLS=10,ROWS=20;
 const COLORS=[null,'#00f5ff','#ffd700','#bf00ff','#00e676','#ff1744','#0040ff','#ff6d00'];
-const GLOW  =[null,'rgba(0,245,255,0.55)','rgba(255,215,0,0.55)','rgba(191,0,255,0.55)','rgba(0,230,118,0.55)','rgba(255,23,68,0.55)','rgba(0,64,255,0.55)','rgba(255,109,0,0.55)'];
+const GLOW=[null,'rgba(0,245,255,0.55)','rgba(255,215,0,0.55)','rgba(191,0,255,0.55)','rgba(0,230,118,0.55)','rgba(255,23,68,0.55)','rgba(0,64,255,0.55)','rgba(255,109,0,0.55)'];
 const SHAPES=[null,
   [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
   [[2,2],[2,2]],
@@ -416,19 +384,26 @@ const nCanvas=document.getElementById('next'),nCtx=nCanvas.getContext('2d');
 let BLOCK=30;
 
 function syncSize(){
-  // Use #main's actual rendered dimensions so layout is already settled
-  const main  = document.getElementById('main');
-  const panel = document.getElementById('side-panel');
-  const vw = window.innerWidth, vh = window.innerHeight;
-  const uiH = document.getElementById('ui').offsetHeight || 52;
-  const panelW = (vw >= 480 ? (panel.offsetWidth || 130) : 0) + (vw >= 480 ? 8 : 4);
-  const availW = Math.min(vw - panelW - 24, 400);
-  const availH = vh - uiH - 20;
-  BLOCK = Math.max(16, Math.min(Math.floor(availW / COLS), Math.floor(availH / ROWS)));
-  canvas.width  = BLOCK * COLS;
-  canvas.height = BLOCK * ROWS;
-  const nb = Math.max(14, Math.min(BLOCK, 28));
-  nCanvas.width = nb * 5; nCanvas.height = nb * 5;
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const uiEl=document.getElementById('ui');
+  const sideEl=document.getElementById('side-panel');
+  // Measure real heights/widths — both must be visible for accurate values
+  const uiH=uiEl.getBoundingClientRect().height||52;
+  // Side panel: on wide screens fixed 120px + 6px gap + 6px padding each side
+  const isWide=vw>=480;
+  const sideW=isWide?(sideEl.getBoundingClientRect().width||120):0;
+  const GAP=isWide?6:4;
+  const PAD=isWide?6:4;
+  // Available space for board
+  const availW=vw - (isWide ? sideW+GAP : 0) - PAD*2;
+  const availH=vh - uiH - PAD*2;
+  BLOCK=Math.max(16,Math.min(Math.floor(availW/COLS),Math.floor(availH/ROWS)));
+  canvas.width=BLOCK*COLS;
+  canvas.height=BLOCK*ROWS;
+  // Next-piece canvas
+  const nb=Math.max(14,Math.min(BLOCK,28));
+  nCanvas.width=nb*5;
+  nCanvas.height=nb*5;
 }
 
 let board,score,lines,level,dropInterval,animId;
@@ -471,10 +446,10 @@ function ghostY(){let gy=piece.y;while(!collides({...piece,y:gy+1}))gy++;return 
 function drawBlock3D(context,x,y,colorIdx,size){
   const col=COLORS[colorIdx],glow=GLOW[colorIdx];
   const px=x*size,py=y*size,s=size-1;
-  context.fillStyle=glow; context.fillRect(px,py,size,size);
-  context.fillStyle=col;  context.fillRect(px+1,py+1,s-1,s-1);
+  context.fillStyle=glow;context.fillRect(px,py,size,size);
+  context.fillStyle=col;context.fillRect(px+1,py+1,s-1,s-1);
   context.fillStyle='rgba(255,255,255,0.30)';context.fillRect(px+1,py+1,s-1,3);context.fillRect(px+1,py+1,3,s-1);
-  context.fillStyle='rgba(0,0,0,0.35)';     context.fillRect(px+1,py+s-3,s-1,3);context.fillRect(px+s-3,py+1,3,s-1);
+  context.fillStyle='rgba(0,0,0,0.35)';context.fillRect(px+1,py+s-3,s-1,3);context.fillRect(px+s-3,py+1,3,s-1);
   context.fillStyle='rgba(255,255,255,0.18)';context.fillRect(px+4,py+4,Math.floor(size*.3),Math.floor(size*.3));
 }
 function draw(){
@@ -519,17 +494,10 @@ function loop(time=0){
   }
   animId=requestAnimationFrame(loop);
 }
-
 function startGame(){
-  if(!memberUnlocked) return;
+  if(!memberUnlocked)return;
   const emailVal=(document.getElementById('m-email').value||'').trim();
-  if(emailVal&&!isValidEmail(emailVal)){
-    document.getElementById('m-secret-hint').className='hint-bad';
-    document.getElementById('m-secret-hint').textContent='\u26A0\uFE0F Please enter a valid email.';
-    return;
-  }
-  // Re-sync canvas size now that UI is fully visible and modal is closing
-  syncSize();
+  if(emailVal&&!isValidEmail(emailVal)){document.getElementById('m-secret-hint').className='hint-bad';document.getElementById('m-secret-hint').textContent='\u26A0\uFE0F Please enter a valid email.';return;}
   board=createBoard();score=0;lines=0;level=1;
   dropInterval=1000;dropCounter=0;paused=false;gameOver=false;
   piece=newPiece(randomType());nextPiece=newPiece(randomType());
@@ -539,10 +507,14 @@ function startGame(){
   document.getElementById('btn-pause').disabled=false;
   document.getElementById('btn-pause').textContent='\u23F8 Pause';
   cancelAnimationFrame(animId);lastTime=0;
-  // Small delay to let modal close before starting loop so layout is settled
-  setTimeout(()=>{ syncSize(); draw(); drawNext(); loop(); }, 80);
+  // Wait for modal to close and layout to repaint, then sync and start
+  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+    syncSize();
+    draw();
+    drawNext();
+    loop();
+  }));
 }
-
 function endGame(){
   gameOver=true;
   document.getElementById('btn-pause').disabled=true;
@@ -565,12 +537,12 @@ function togglePause(){
 document.addEventListener('keydown',e=>{
   if(gameOver)return;
   switch(e.code){
-    case 'ArrowLeft':  if(!paused)tryMove(-1);break;
-    case 'ArrowRight': if(!paused)tryMove(1);break;
-    case 'ArrowDown':  if(!paused){if(!collides(piece,0,1)){piece.y++;score++;updateHUD();}else lockPiece();dropCounter=0;}break;
-    case 'ArrowUp':    if(!paused)tryRotate();break;
-    case 'Space': e.preventDefault();if(!paused)hardDrop();break;
-    case 'KeyP': togglePause();break;
+    case 'ArrowLeft':if(!paused)tryMove(-1);break;
+    case 'ArrowRight':if(!paused)tryMove(1);break;
+    case 'ArrowDown':if(!paused){if(!collides(piece,0,1)){piece.y++;score++;updateHUD();}else lockPiece();dropCounter=0;}break;
+    case 'ArrowUp':if(!paused)tryRotate();break;
+    case 'Space':e.preventDefault();if(!paused)hardDrop();break;
+    case 'KeyP':togglePause();break;
   }
   if(!paused&&!gameOver)draw();
 });
@@ -581,7 +553,7 @@ canvas.addEventListener('touchend',e=>{
   if(gameOver||paused)return;
   const t=e.changedTouches[0],dx=t.clientX-touchStartX,dy=t.clientY-touchStartY;
   const absDx=Math.abs(dx),absDy=Math.abs(dy),SWIPE=BLOCK*.8;
-  if(absDx<SWIPE&&absDy<SWIPE){tryRotate();}
+  if(absDx<SWIPE&&absDy<SWIPE)tryRotate();
   else if(absDx>=absDy){const steps=Math.round(dx/BLOCK),dir=steps>0?1:-1;for(let i=0;i<Math.abs(steps);i++)tryMove(dir);}
   else if(dy>0){while(!collides(piece,0,1)){piece.y++;score++;}lockPiece();updateHUD();}
   else hardDrop();
@@ -592,24 +564,26 @@ function closeRules(){document.getElementById('rules-overlay').classList.remove(
 document.getElementById('rules-overlay').addEventListener('click',function(e){if(e.target===this)closeRules();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&document.getElementById('rules-overlay').classList.contains('open'))closeRules();});
 window.addEventListener('resize',()=>{syncSize();draw();if(!gameOver)drawNext();});
-window.addEventListener('orientationchange',()=>setTimeout(()=>{syncSize();draw();if(!gameOver)drawNext();},150));
+window.addEventListener('orientationchange',()=>setTimeout(()=>{syncSize();draw();if(!gameOver)drawNext();},200));
 
 (async function init(){
   const shell=document.getElementById('loading-shell');
   const status=document.getElementById('loading-status');
-  try {
+  try{
     board=createBoard();
     status.textContent='Loading member list\u2026';
     await loadMemberWords();
     document.body.classList.add('app-ready');
-    // syncSize NOW — app is visible, layout is real
-    syncSize();
-    draw();
-    renderLeaderboard();
     shell.classList.add('hidden');
-    document.getElementById('msg-modal').classList.add('show');
-  } catch(err) {
-    console.error('Init error:',err);
+    // Two rAF ticks ensure the browser has painted and laid out #app before we measure
+    requestAnimationFrame(()=>requestAnimationFrame(()=>{
+      syncSize();
+      draw();
+      renderLeaderboard();
+      document.getElementById('msg-modal').classList.add('show');
+    }));
+  }catch(err){
+    console.error('Init:',err);
     status.textContent='\u26A0\uFE0F '+err.message+'. Tap to retry.';
     shell.addEventListener('click',()=>location.reload(),{once:true});
   }
