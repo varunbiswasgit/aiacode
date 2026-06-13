@@ -286,6 +286,10 @@
     }
     .persona-field input:focus { border-color: #c084fc; }
     .persona-field input::placeholder { color: rgba(200,190,230,0.3); }
+    /* invalid email highlight */
+    .persona-field input[type="email"]:not(:placeholder-shown):invalid {
+      border-color: rgba(255, 80, 100, 0.6);
+    }
     #persona-hint {
       font-size: 0.68rem; color: rgba(200,190,230,0.38);
       margin-top: 6px; line-height: 1.5; text-align: center;
@@ -471,7 +475,7 @@
     </div>
     <div class="persona-field">
       <label for="p-email">Email</label>
-      <input id="p-email" type="text" maxlength="60" placeholder="your@email.com" autocomplete="off" />
+      <input id="p-email" type="email" maxlength="60" placeholder="your@email.com" autocomplete="email" />
     </div>
     <div class="persona-field">
       <label for="p-secret">Secret word</label>
@@ -551,6 +555,14 @@
 </div>
 
 <script>
+// ─── Email validation helper ─────────────────────────────────────────────────
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidEmail(val) {
+  const v = (val || '').trim();
+  return v === '' || EMAIL_RE.test(v); // empty is allowed (optional field)
+}
+
 // ─── Local persona + storage ────────────────────────────────────────────────
 
 const STORE_KEY = 'tetris_royal_personas_v1';
@@ -693,10 +705,20 @@ function saveScoreLocal(scoreVal, levelVal, linesVal) {
   const saveBtn = document.getElementById('btn-save-score');
   const status  = document.getElementById('save-status');
   const resolved = resolvePersona();
+
   if (!resolved || !resolved.nick) {
     status.textContent = '\u26A0\uFE0F Enter at least a nickname to save.';
     return;
   }
+
+  // ── Email validation ──────────────────────────────────────────────────────
+  const emailVal = (document.getElementById('p-email').value || '').trim();
+  if (emailVal && !isValidEmail(emailVal)) {
+    status.textContent = '\u26A0\uFE0F Please enter a valid email address.';
+    document.getElementById('p-email').focus();
+    return;
+  }
+
   saveBtn.disabled = true;
   const entry = { score: scoreVal, level: levelVal, lines: linesVal };
   const persona = upsertPersona(resolved.key, resolved.nick, entry);
