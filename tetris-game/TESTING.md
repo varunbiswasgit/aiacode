@@ -15,296 +15,201 @@ All tests are manual. Open `tetris-royal-3d.html` in a modern browser (Chrome, E
 ## Test Cases
 
 ### TC-01 — Start screen
-
 | Field | Detail |
 |-------|--------|
 | Setup | Open `tetris-royal-3d.html` fresh |
 | Action | Observe the overlay |
-| Expected | Royal modal shows title "TETRIS", subtitle "Royal 3D Edition", and a ◆ Start Game button |
+| Expected | Royal modal shows title, subtitle, and ◆ Start Game button (disabled until member word entered) |
 | Pass | Modal visible; board empty; no pieces moving |
 
----
-
-### TC-02 — Game starts on button click
-
+### TC-02 — Member word unlock
 | Field | Detail |
 |-------|--------|
 | Setup | Start screen visible |
+| Action | Type a valid member word in the Member Word field |
+| Expected | Green hint appears; Start button enables; Member badge shows |
+| Pass | Button unlocked; invalid word keeps button disabled |
+
+### TC-03 — Game starts
+| Field | Detail |
+|-------|--------|
+| Setup | Member word accepted |
 | Action | Click ◆ Start Game |
-| Expected | Modal hides; a piece begins falling; Score/Level/Lines show 0/1/0; Pause button enables |
-| Pass | Piece animates; HUD updates; Pause button no longer greyed out |
+| Expected | Modal hides; piece begins falling; Score/Level/Lines show 0/1/0 |
+| Pass | Piece animates; HUD updates |
 
----
-
-### TC-03 — Left / right movement
-
+### TC-04 — Left / right movement
 | Field | Detail |
 |-------|--------|
 | Setup | Game running |
 | Action | Press ← and → |
-| Expected | Active piece moves one column per keypress; stops at left/right wall |
+| Expected | Active piece moves one column per keypress; stops at walls |
 | Pass | No movement beyond column 0 or column 9 |
 
----
-
-### TC-04 — Rotation with wall kick
-
+### TC-05 — Rotation with wall kick
 | Field | Detail |
 |-------|--------|
 | Setup | Move an I-piece to the far right wall |
 | Action | Press ↑ |
-| Expected | Piece rotates; if blocked at wall, it kicks left to fit |
-| Pass | Rotation completes without clipping through wall |
+| Expected | Piece rotates; kicks left if blocked |
+| Pass | Rotation completes without clipping |
 
----
-
-### TC-05 — Soft drop scoring
-
+### TC-06 — Soft drop scoring
 | Field | Detail |
 |-------|--------|
-| Setup | Game running; note current score |
+| Setup | Game running |
 | Action | Hold ↓ for several cells |
-| Expected | Score increases by 1 per cell dropped |
-| Pass | Score delta equals number of cells soft-dropped |
+| Expected | Score increases by 1 per cell |
+| Pass | Score delta equals cells dropped |
 
----
-
-### TC-06 — Hard drop scoring
-
+### TC-07 — Hard drop scoring
 | Field | Detail |
 |-------|--------|
-| Setup | Game running; note current score |
+| Setup | Game running |
 | Action | Press Space |
-| Expected | Piece drops instantly; score increases by 2 × distance dropped |
-| Pass | Score delta = 2 × cells dropped; piece locks immediately |
+| Expected | Piece drops instantly; score +2 × distance |
+| Pass | Piece locks; score delta correct |
 
----
-
-### TC-07 — Line clear and score
-
+### TC-08 — Line clear and score
 | Field | Detail |
 |-------|--------|
-| Setup | Manually fill one complete row (use hard drops) |
+| Setup | Fill one complete row |
 | Action | Complete the row |
-| Expected | Row disappears; rows above shift down; score increases by 100 × level |
-| Pass | Board collapses correctly; score updates |
+| Expected | Row disappears; score +100 × level |
+| Pass | Board collapses; score updates |
 
----
-
-### TC-08 — Tetris (4-line clear)
-
+### TC-09 — Tetris (4-line clear)
 | Field | Detail |
 |-------|--------|
-| Setup | Stack pieces leaving a single-column gap on the right |
-| Action | Drop an I-piece vertically into the gap |
-| Expected | 4 rows clear simultaneously; score increases by 800 × level |
-| Pass | All 4 rows removed; score delta = 800 × level |
+| Setup | Stack pieces leaving a single-column gap |
+| Action | Drop an I-piece into the gap |
+| Expected | 4 rows clear; score +800 × level |
+| Pass | All 4 rows removed; score correct |
 
----
-
-### TC-09 — Level progression
-
+### TC-10 — Level progression
 | Field | Detail |
 |-------|--------|
 | Setup | Game running at level 1 |
 | Action | Clear 10 lines |
-| Expected | Level counter increments to 2; piece drop speed noticeably increases |
-| Pass | Level = 2 shown in HUD; visual speed increase confirmed |
+| Expected | Level increments to 2; speed increases |
+| Pass | Level = 2 in HUD; faster drop confirmed |
 
----
-
-### TC-10 — Pause and resume
-
+### TC-11 — Pause and resume
 | Field | Detail |
 |-------|--------|
 | Setup | Game running |
-| Action | Press P; wait 3 seconds; press P again |
-| Expected | Piece freezes on P; "PAUSED" text overlaid on canvas in gold; resumes on second P; no position drift |
-| Pass | Game state identical before and after pause; PAUSED overlay visible |
+| Action | Press P; wait; press P again |
+| Expected | PAUSED overlay in gold; resumes correctly |
+| Pass | State identical before/after pause |
 
----
-
-### TC-11 — Ghost piece
-
+### TC-12 — Ghost piece
 | Field | Detail |
 |-------|--------|
-| Setup | Game running; board partially filled |
+| Setup | Game running |
 | Action | Move piece left and right |
-| Expected | Transparent ghost shows projected landing position and updates with each move |
-| Pass | Ghost aligns with where piece locks when dropped |
+| Expected | Ghost updates to projected landing position |
+| Pass | Ghost aligns with lock position |
 
----
-
-### TC-12 — Game over
-
+### TC-13 — Game over
 | Field | Detail |
 |-------|--------|
 | Setup | Game running |
-| Action | Stack pieces until they reach the top |
-| Expected | Royal Game Over modal appears showing final score; ▶ Play Again button resets the game |
-| Pass | Modal shown; clicking Play Again resets score/level/lines and clears board |
+| Action | Stack to top |
+| Expected | Game Over modal with score; Play Again resets |
+| Pass | Modal shown; board resets on Play Again |
 
----
-
-### TC-13 — Responsive layout (desktop resize)
-
+### TC-14 — Responsive layout (desktop)
 | Field | Detail |
 |-------|--------|
-| Setup | Game open in desktop browser |
-| Action | Resize browser window from wide to narrow and back |
-| Expected | Canvas resizes fluidly; block size recalculates; no overflow or scrollbar; side panel repositions below board on narrow widths |
-| Pass | Board always fits within viewport; no horizontal scrollbar |
+| Setup | Desktop browser |
+| Action | Resize window wide to narrow |
+| Expected | Canvas resizes; no overflow |
+| Pass | Board fits viewport; no scrollbar |
 
----
-
-### TC-14 — Responsive layout (mobile / DevTools emulation)
-
+### TC-15 — Responsive layout (mobile)
 | Field | Detail |
 |-------|--------|
-| Setup | Open in DevTools device emulation (e.g. iPhone 14, 390×844) |
-| Action | Load page; observe layout |
-| Expected | Canvas fills available height; side panel appears below board; Controls box hidden; all buttons visible |
-| Pass | No clipping; board uses maximum available space |
+| Setup | DevTools emulation (e.g. iPhone 14) |
+| Action | Load page |
+| Expected | Canvas fills height; side panel below board |
+| Pass | No clipping |
 
----
-
-### TC-15 — Touch rotate (tap)
-
-| Field | Detail |
-|-------|--------|
-| Setup | Game running on mobile or DevTools touch emulation |
-| Action | Tap the canvas (short press, no swipe) |
-| Expected | Active piece rotates; wall-kick applies if needed |
-| Pass | Piece rotates on each tap |
-
----
-
-### TC-16 — Touch move (swipe left / right)
-
+### TC-16 — Touch rotate
 | Field | Detail |
 |-------|--------|
 | Setup | Game running on touch device |
-| Action | Swipe left and right across the canvas |
-| Expected | Piece moves in the swipe direction; number of columns moved proportional to swipe distance |
-| Pass | Piece moves without rotation; stops at walls |
+| Action | Tap canvas |
+| Expected | Piece rotates |
+| Pass | Rotates on each tap |
 
----
-
-### TC-17 — Touch hard drop (swipe up)
-
+### TC-17 — Touch move
 | Field | Detail |
 |-------|--------|
 | Setup | Game running on touch device |
-| Action | Swipe upward on the canvas |
-| Expected | Piece hard-drops instantly to the lowest valid position and locks |
-| Pass | Score increases by 2 × rows dropped; piece locks immediately |
+| Action | Swipe left / right |
+| Expected | Piece moves; stops at walls |
+| Pass | No rotation triggered |
 
----
-
-### TC-18 — Touch soft drop (swipe down)
-
+### TC-18 — Touch hard drop
 | Field | Detail |
 |-------|--------|
 | Setup | Game running on touch device |
-| Action | Swipe downward on the canvas |
-| Expected | Piece soft-drops to the bottom and locks; score increases by 1 per cell |
-| Pass | Piece reaches bottom; score increments correctly |
+| Action | Swipe up |
+| Expected | Piece hard-drops; score +2 × rows |
+| Pass | Piece locks immediately |
 
----
-
-### TC-19 — Rules modal
-
+### TC-19 — Touch soft drop
 | Field | Detail |
 |-------|--------|
-| Setup | Any state (game running or not) |
-| Action | Click ◆ Rules button |
-| Expected | Royal glassmorphism rules overlay opens covering the page; shows Controls, Touch, Scoring, Levelling sections |
-| Pass | Overlay opens; ✓ Got It — Close button dismisses it; Esc key also closes it |
+| Setup | Game running on touch device |
+| Action | Swipe down |
+| Expected | Soft drop; score +1 per cell |
+| Pass | Score correct |
 
----
+### TC-20 — Rules modal
+| Field | Detail |
+|-------|--------|
+| Setup | Any state |
+| Action | Click ◆ Rules |
+| Expected | Rules overlay opens; Close button and Esc dismiss it |
+| Pass | Overlay opens and closes correctly |
 
-### TC-20 — Shell loader
-
+### TC-21 — Shell loader
 | Field | Detail |
 |-------|--------|
 | Setup | Internet connection available |
-| Action | Open `shell.html` in browser |
-| Expected | Spinner shows briefly then game loads inside full-viewport iframe from GitHub raw URL |
-| Pass | Game fully playable inside iframe; no error message shown |
+| Action | Open `shell.html` |
+| Expected | Spinner then game loads in iframe |
+| Pass | Game playable inside iframe |
 
----
-
-### TC-21 — Dice Mode toggle (before game)
-
+### TC-22 — Member words load (shell context)
 | Field | Detail |
 |-------|--------|
-| Setup | Start screen visible; no game in progress |
-| Action | Click the 🎲 Dice toggle button |
-| Expected | Button text switches between "🎲 Dice: ON" and "🎲 Dice: OFF"; mode badge updates; Roll button shows/hides |
-| Pass | Toggle works freely before game starts |
+| Setup | Open `shell.html` |
+| Action | Enter valid member word; start |
+| Expected | Word accepted; game starts; no fetch errors |
+| Pass | DevTools shows no errors |
 
----
-
-### TC-22 — Dice Mode toggle disabled mid-game
-
+### TC-23 — Member words admin — add and download
 | Field | Detail |
 |-------|--------|
-| Setup | Game in progress (at least one piece placed) |
-| Action | Click the 🎲 Dice toggle button |
-| Expected | Button appears greyed out (reduced opacity, default cursor); clicking has no effect; mode does not change |
-| Pass | Toggle is inert; mode badge and button label unchanged |
+| Setup | Open `member-words-admin.html` |
+| Action | Add word e.g. "galaxy"; click Download |
+| Expected | Chip appears; JSON contains "galaxy" |
+| Pass | JSON valid; no duplicates |
 
----
-
-### TC-23 — Dice Mode toggle re-enabled after game over
-
-| Field | Detail |
-|-------|--------|
-| Setup | Game over modal showing |
-| Action | Click ▶ Play Again; observe toggle button |
-| Expected | Toggle button returns to full opacity and is clickable again |
-| Pass | Button is interactive on new game |
-
----
-
-### TC-24 — Member words load (shell context)
-
-| Field | Detail |
-|-------|--------|
-| Setup | Open `shell.html` (game served inside blob iframe) |
-| Action | Start a game; wait for a word overlay to appear |
-| Expected | Word overlays display correctly; no console errors about failed fetch |
-| Pass | Words appear in-game; DevTools shows no fetch errors |
-
----
-
-### TC-25 — Member words admin — add and download
-
-| Field | Detail |
-|-------|--------|
-| Setup | Open `member-words-admin.html` in any browser |
-| Action | Add a new word (e.g. "galaxy"); click Download |
-| Expected | Word chip appears in list; word count increments; downloaded JSON contains "galaxy" |
-| Pass | JSON file valid; word present; no duplicates |
-
----
-
-### TC-26 — Member words admin — remove word
-
-| Field | Detail |
-|-------|--------|
-| Setup | `member-words-admin.html` open with default word list |
-| Action | Click ✕ on any word chip (e.g. "aurora") |
-| Expected | Chip removed from list; word count decrements; JSON output no longer contains "aurora" |
-| Pass | Word absent from JSON; no page errors |
-
----
-
-### TC-27 — Member words admin — import JSON
-
+### TC-24 — Member words admin — remove word
 | Field | Detail |
 |-------|--------|
 | Setup | `member-words-admin.html` open |
-| Action | Paste a valid `member-words.json` into the Import textarea; click Load JSON |
-| Expected | Word list replaces current list; count updates; success message shown |
-| Pass | New list rendered correctly; JSON output reflects imported words |
+| Action | Click ✕ on a word chip |
+| Expected | Chip removed; JSON updated |
+| Pass | Word absent from JSON |
+
+### TC-25 — Member words admin — import JSON
+| Field | Detail |
+|-------|--------|
+| Setup | `member-words-admin.html` open |
+| Action | Paste valid JSON; click Load JSON |
+| Expected | Word list replaced; count updates |
+| Pass | New list rendered correctly |
