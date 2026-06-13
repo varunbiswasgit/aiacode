@@ -43,11 +43,6 @@
       background: linear-gradient(160deg, #0d0820 0%, #12103a 40%, #0a1828 100%);
     }
     #loading-shell.hidden { display: none; }
-    #loading-text {
-      font-family: 'Cinzel', serif;
-      font-size: clamp(0.9rem, 3vw, 1.2rem);
-      letter-spacing: 0.12em; color: #c084fc;
-    }
     .loading-dots span {
       display: inline-block; width: 10px; height: 10px;
       border-radius: 50%; background: #c084fc; margin: 0 4px;
@@ -99,6 +94,10 @@
       box-shadow:0 5px 0 #014d38,0 7px 14px rgba(0,120,80,.45),inset 0 1px 0 rgba(180,255,220,.4);
     }
     #btn-start:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
+    #btn-start:disabled {
+      opacity: 0.38; cursor: not-allowed; pointer-events: none;
+      filter: grayscale(0.4) brightness(0.85); box-shadow: none;
+    }
 
     #btn-pause {
       background: linear-gradient(175deg,#fde68a 0%,#f59e0b 45%,#78350f 100%); color:#1c0a00;
@@ -114,11 +113,8 @@
     #btn-dice-toggle:active { transform:translateY(4px); box-shadow:0 1px 0 #312e81; }
     #btn-dice-toggle.disabled,
     #btn-dice-toggle[disabled] {
-      opacity: 0.42;
-      cursor: default;
-      pointer-events: none;
-      filter: grayscale(0.15) brightness(0.92);
-      box-shadow: none;
+      opacity: 0.42; cursor: default; pointer-events: none;
+      filter: grayscale(0.15) brightness(0.92); box-shadow: none;
     }
 
     #btn-roll {
@@ -139,8 +135,7 @@
       font-size: clamp(0.6rem, 1.5vw, 0.72rem); letter-spacing: 0.1em;
       padding: 3px 12px; border-radius: 99px;
       background: rgba(129,140,248,0.18); color: #a5b4fc;
-      border: 1px solid rgba(129,140,248,0.3);
-      margin-left: 2px;
+      border: 1px solid rgba(129,140,248,0.3); margin-left: 2px;
     }
     #mode-badge.classic {
       background: rgba(200,170,255,0.1); color: rgba(200,190,230,0.6);
@@ -150,28 +145,22 @@
     #dice-info {
       font-family: 'Raleway', sans-serif;
       font-size: clamp(0.68rem, 1.8vw, 0.8rem);
-      color: #a5b4fc; margin-bottom: 6px;
-      min-height: 1.2em;
+      color: #a5b4fc; margin-bottom: 6px; min-height: 1.2em;
     }
 
     #game-area {
       position: relative; z-index: 1;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: center;
-      align-items: flex-start;
-      gap: 12px;
+      display: flex; flex-wrap: wrap;
+      justify-content: center; align-items: flex-start; gap: 12px;
     }
 
     #canvas-wrap {
-      display: inline-block;
-      border-radius: 14px; padding: 3px;
+      display: inline-block; border-radius: 14px; padding: 3px;
       background: linear-gradient(135deg,
         #c084fc 0%, #60b8ff 20%, #f5e083 40%,
         #6ee7b7 60%, #f472b6 80%, #c084fc 100%);
       box-shadow: 0 0 40px rgba(150,100,255,.3), 0 0 80px rgba(80,160,255,.15), 0 20px 60px rgba(0,0,0,.6);
-      animation: opalShift 8s linear infinite;
-      flex-shrink: 0;
+      animation: opalShift 8s linear infinite; flex-shrink: 0;
     }
     @keyframes opalShift {
       0%   { filter: hue-rotate(0deg)  brightness(1); }
@@ -187,8 +176,7 @@
 
     #side-panel {
       display: flex; flex-direction: column; gap: 10px;
-      min-width: 110px; max-width: 140px;
-      flex-shrink: 0;
+      min-width: 110px; max-width: 140px; flex-shrink: 0;
     }
 
     .panel-box {
@@ -204,8 +192,7 @@
     }
 
     canvas#next {
-      display: block; margin: 0 auto;
-      border-radius: 6px;
+      display: block; margin: 0 auto; border-radius: 6px;
       background: linear-gradient(145deg,#0f0c29 0%,#1a1560 50%,#0d1b3e 100%);
     }
 
@@ -217,23 +204,17 @@
     #controls-box span { color: #f5e083; font-weight: 600; }
 
     @media (max-width: 520px) {
-      #side-panel {
-        flex-direction: row; flex-wrap: wrap;
-        max-width: 100%; min-width: unset;
-        justify-content: center;
-      }
+      #side-panel { flex-direction: row; flex-wrap: wrap; max-width: 100%; min-width: unset; justify-content: center; }
       .panel-box { min-width: 80px; flex: 1; }
       #next-box   { order: -1; flex-basis: 100%; }
       #controls-box { display: none; }
     }
 
-    /* ── Persona modal ── */
+    /* ── Modal ── */
     .modal {
       display: none; position: fixed;
-      top: 50%; left: 50%;
-      transform: translate(-50%,-50%);
-      z-index: 100; padding: 30px 36px;
-      border-radius: 20px; text-align: center;
+      top: 50%; left: 50%; transform: translate(-50%,-50%);
+      z-index: 100; padding: 30px 36px; border-radius: 20px; text-align: center;
       background: linear-gradient(145deg,rgba(20,10,50,.97) 0%,rgba(30,15,70,.97) 100%);
       border: 1px solid rgba(200,160,255,.3);
       box-shadow: 0 0 60px rgba(150,80,255,.3),0 30px 80px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.1);
@@ -254,10 +235,13 @@
       padding:10px 24px; border:none; border-radius:10px; cursor:pointer;
       background:linear-gradient(175deg,#6ee7b7 0%,#059669 45%,#022c22 100%); color:#ecfdf5;
       box-shadow:0 5px 0 #014d38,0 7px 14px rgba(0,120,80,.45),inset 0 1px 0 rgba(180,255,220,.4);
-      transition: transform 80ms ease, box-shadow 80ms ease;
-      margin-top: 6px;
+      transition: transform 80ms ease, box-shadow 80ms ease; margin-top: 6px;
     }
     .modal-btn:active { transform:translateY(4px); box-shadow:0 1px 0 #014d38; }
+    .modal-btn:disabled {
+      opacity: 0.38; cursor: not-allowed; pointer-events: none;
+      filter: grayscale(0.4) brightness(0.85); box-shadow: none;
+    }
 
     /* ── Persona form ── */
     .persona-form {
@@ -278,25 +262,56 @@
       color: rgba(200,190,230,0.55); margin-bottom: 4px;
     }
     .persona-field input {
-      width: 100%;
-      font-family: 'Raleway', sans-serif; font-size: 0.88rem;
+      width: 100%; font-family: 'Raleway', sans-serif; font-size: 0.88rem;
       padding: 7px 11px; border-radius: 8px;
       border: 1px solid rgba(200,170,255,0.3);
       background: rgba(255,255,255,0.07); color: #e8dfc8; outline: none;
+      transition: border-color 180ms ease;
     }
     .persona-field input:focus { border-color: #c084fc; }
     .persona-field input::placeholder { color: rgba(200,190,230,0.3); }
-    /* invalid email highlight */
     .persona-field input[type="email"]:not(:placeholder-shown):invalid {
-      border-color: rgba(255, 80, 100, 0.6);
+      border-color: rgba(255,80,100,0.6);
     }
+
+    /* ── Secret field states ── */
+    #p-secret.secret-valid   { border-color: #6ee7b7 !important; box-shadow: 0 0 0 2px rgba(110,231,183,0.2); }
+    #p-secret.secret-invalid { border-color: rgba(255,80,100,0.7) !important; box-shadow: 0 0 0 2px rgba(255,80,100,0.15); }
+
+    @keyframes shake {
+      0%,100% { transform: translateX(0); }
+      20%      { transform: translateX(-6px); }
+      40%      { transform: translateX(6px); }
+      60%      { transform: translateX(-4px); }
+      80%      { transform: translateX(4px); }
+    }
+    .shake { animation: shake 0.38s ease; }
+
+    #secret-hint {
+      font-size: 0.68rem; margin-top: 5px; min-height: 1em;
+      line-height: 1.4; transition: color 200ms ease;
+    }
+    #secret-hint.hint-ok      { color: #6ee7b7; }
+    #secret-hint.hint-neutral { color: rgba(200,190,230,0.35); }
+    #secret-hint.hint-bad     { color: rgba(255,120,120,0.8); }
+    #secret-hint.hint-loading { color: rgba(192,132,252,0.7); }
+
+    #member-badge {
+      display: none;
+      font-family: 'Cinzel', serif; font-size: 0.72rem; letter-spacing: 0.1em;
+      padding: 4px 14px; border-radius: 99px;
+      background: rgba(110,231,183,0.15); color: #6ee7b7;
+      border: 1px solid rgba(110,231,183,0.35);
+      margin: 0 auto 10px; width: fit-content;
+    }
+    #member-badge.show { display: block; }
+
     #persona-hint {
       font-size: 0.68rem; color: rgba(200,190,230,0.38);
       margin-top: 6px; line-height: 1.5; text-align: center;
     }
     #persona-greeting {
-      font-family: 'Cinzel', serif;
-      font-size: 0.82rem; letter-spacing: 0.06em;
+      font-family: 'Cinzel', serif; font-size: 0.82rem; letter-spacing: 0.06em;
       color: #6ee7b7; margin-bottom: 6px; min-height: 1.2em;
     }
 
@@ -306,8 +321,7 @@
       padding:7px 14px; border:none; border-radius:8px; cursor:pointer;
       background:linear-gradient(175deg,#c084fc 0%,#7c3aed 50%,#2e1065 100%); color:#f5f3ff;
       box-shadow:0 4px 0 #3b1f7a,inset 0 1px 0 rgba(255,255,255,.2);
-      transition: transform 80ms ease, box-shadow 80ms ease;
-      margin-top: 4px;
+      transition: transform 80ms ease, box-shadow 80ms ease; margin-top: 4px;
     }
     #btn-save-score:active { transform:translateY(3px); box-shadow:0 1px 0 #3b1f7a; }
     #btn-save-score:disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
@@ -315,10 +329,8 @@
 
     /* ── Leaderboard ── */
     #leaderboard {
-      width: 100%; margin-bottom: 14px;
-      border-collapse: collapse;
-      font-family: 'Raleway', sans-serif;
-      font-size: clamp(.72rem, 2vw, .82rem);
+      width: 100%; margin-bottom: 14px; border-collapse: collapse;
+      font-family: 'Raleway', sans-serif; font-size: clamp(.72rem,2vw,.82rem);
     }
     #leaderboard thead th {
       font-family: 'Cinzel', serif; font-size: .66rem; letter-spacing: .1em;
@@ -333,7 +345,7 @@
     #leaderboard .rank { color: rgba(200,190,230,.5); }
     #leaderboard .lb-score { color: #6ee7b7; font-weight: 600; font-variant-numeric: tabular-nums; }
 
-    /* ── My scores panel ── */
+    /* ── My scores ── */
     #my-scores-section { margin-bottom: 12px; }
     #my-scores-section h4 {
       font-family: 'Cinzel', serif; font-size: 0.66rem;
@@ -353,6 +365,7 @@
     .my-score-row .ms-score { color: #6ee7b7; font-weight: 600; }
     .my-score-row .ms-date  { color: rgba(200,190,230,0.3); font-size: 0.68rem; }
 
+    /* ── Rules overlay ── */
     #rules-overlay {
       display: none; position: fixed; inset: 0; z-index: 200;
       background: rgba(8,4,28,.82); backdrop-filter: blur(6px);
@@ -404,7 +417,7 @@
 </head>
 <body>
 
-<!-- Loading shell — hidden once game initialises -->
+<!-- Loading shell -->
 <div id="loading-shell">
   <div id="loading-text" style="font-family:'Cinzel',serif;font-size:clamp(1rem,3vw,1.3rem);letter-spacing:.14em;
     background:linear-gradient(135deg,#f5e083 0%,#e8c84a 35%,#fff8d0 55%,#c8960a 80%,#f5e083 100%);
@@ -433,7 +446,7 @@
   </div>
   <div id="dice-info"></div>
   <div class="btn-row">
-    <button id="btn-start"  onclick="startGame()">&#9670; Start</button>
+    <button id="btn-start"  onclick="startGame()" disabled>&#9670; Start</button>
     <button id="btn-pause"  onclick="togglePause()" disabled>&#9646;&#9646; Pause</button>
     <button id="btn-dice-toggle" onclick="toggleDiceMode()">&#127922; Dice: OFF</button>
     <button id="btn-roll" onclick="rollDice()" disabled style="display:none">&#127922; Roll</button>
@@ -466,7 +479,6 @@
   <h2 id="msg-title">TETRIS</h2>
   <p id="msg-sub">Royal 3D Edition</p>
 
-  <!-- Persona form -->
   <div class="persona-form" id="persona-form">
     <div class="persona-form-title">&#9670; Your Identity &#9670;</div>
     <div class="persona-field">
@@ -478,22 +490,22 @@
       <input id="p-email" type="email" maxlength="60" placeholder="your@email.com" autocomplete="email" />
     </div>
     <div class="persona-field">
-      <label for="p-secret">Secret word</label>
-      <input id="p-secret" type="password" maxlength="40" placeholder="Any word you'll remember" autocomplete="off" />
+      <label for="p-secret">Member secret word</label>
+      <input id="p-secret" type="password" maxlength="40" placeholder="Enter a member word to unlock…" autocomplete="off" />
+      <div id="secret-hint" class="hint-loading">&#8987; Loading member list&hellip;</div>
     </div>
-    <div id="persona-hint">Same nickname + email + secret = same persona on this browser.<br>Different browser or cleared data = fresh start.</div>
+    <div id="member-badge">&#10003; Member Access Granted</div>
+    <div id="persona-hint">Same nickname + email + secret = same persona on this browser.</div>
   </div>
 
   <div id="persona-greeting"></div>
   <div id="save-status"></div>
 
-  <!-- My scores (shown when persona is known) -->
   <div id="my-scores-section" style="display:none">
     <h4>&#9670; Your Best Runs</h4>
     <div id="my-scores-list"></div>
   </div>
 
-  <!-- Global leaderboard -->
   <table id="leaderboard">
     <thead>
       <tr><th>#</th><th>Player</th><th>Score</th><th>Lvl</th><th>Date</th></tr>
@@ -504,7 +516,7 @@
   </table>
 
   <button id="btn-save-score" style="display:none" disabled>&#127942; Save Score</button>
-  <button class="modal-btn" onclick="startGame()">&#9670; Start Game</button>
+  <button class="modal-btn" id="modal-start-btn" onclick="startGame()" disabled>&#9670; Start Game</button>
 </div>
 
 <div id="rules-overlay" role="dialog" aria-modal="true" aria-labelledby="rules-title">
@@ -515,12 +527,16 @@
       <p>Stack falling Tetrominoes and clear horizontal lines to score points. The game ends when the stack reaches the top.</p>
     </div>
     <div class="rules-section">
+      <h3>&#9670; Membership</h3>
+      <p>You must enter a valid <span class="rh">member secret word</span> to unlock the game. The word list is managed in <code>member-words.json</code> and is case-insensitive.</p>
+    </div>
+    <div class="rules-section">
       <h3>&#9670; Controls</h3>
       <ul>
         <li><span class="rh">&#8592; / &#8594;</span> &mdash; Move piece left or right</li>
         <li><span class="rh">&#8593;</span> &mdash; Rotate piece (with wall-kick)</li>
-        <li><span class="rh">&#8595;</span> &mdash; Soft drop (faster fall, +1 pt)</li>
-        <li><span class="rh">Space</span> &mdash; Hard drop (instant, +2 pt per row)</li>
+        <li><span class="rh">&#8595;</span> &mdash; Soft drop (+1 pt)</li>
+        <li><span class="rh">Space</span> &mdash; Hard drop (+2 pt per row)</li>
         <li><span class="rh">P</span> &mdash; Pause / Resume</li>
       </ul>
     </div>
@@ -544,30 +560,97 @@
     </div>
     <div class="rules-section">
       <h3>&#9670; Levelling</h3>
-      <p>Every 10 lines cleared raises the level by 1, increasing fall speed. Speed caps at level 10.</p>
-    </div>
-    <div class="rules-section">
-      <h3>&#9670; Persona</h3>
-      <p>Enter your nickname, email, and a secret word. The same combination on the same browser always loads your saved scores. Clearing browser storage resets everything — no account required.</p>
+      <p>Every 10 lines cleared raises the level by 1. Speed caps at level 10.</p>
     </div>
     <button id="btn-close-rules" onclick="closeRules()">&#10003; Got It &mdash; Close</button>
   </div>
 </div>
 
 <script>
-// ─── Email validation helper ─────────────────────────────────────────────────
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// ─── Member word set — populated by fetching member-words.json ──────────────
+let MEMBER_WORDS = new Set();
+let wordsLoaded  = false;
 
-function isValidEmail(val) {
-  const v = (val || '').trim();
-  return v === '' || EMAIL_RE.test(v); // empty is allowed (optional field)
+async function loadMemberWords() {
+  const hint = document.getElementById('secret-hint');
+  try {
+    const res  = await fetch('./member-words.json');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    MEMBER_WORDS = new Set((data.words || []).map(w => w.toLowerCase().trim()));
+    wordsLoaded  = true;
+    hint.className   = 'hint-neutral';
+    hint.textContent = '\uD83D\uDD12 Enter a valid member word to start playing.';
+  } catch (err) {
+    console.warn('Could not load member-words.json:', err);
+    wordsLoaded  = true; // unblock UI even on failure
+    hint.className   = 'hint-bad';
+    hint.textContent = '\u26A0\uFE0F Could not load member list. Contact admin.';
+  }
+  // Re-evaluate whatever is already typed
+  checkSecret();
 }
 
-// ─── Local persona + storage ────────────────────────────────────────────────
+// ─── Email validation ────────────────────────────────────────────────────────
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function isValidEmail(val) {
+  const v = (val || '').trim();
+  return v === '' || EMAIL_RE.test(v);
+}
 
+// ─── Secret / membership check ───────────────────────────────────────────────
+let memberUnlocked = false;
+
+function checkSecret() {
+  const raw   = (document.getElementById('p-secret').value || '').trim().toLowerCase();
+  const hint  = document.getElementById('secret-hint');
+  const badge = document.getElementById('member-badge');
+  const inp   = document.getElementById('p-secret');
+  const startBtn  = document.getElementById('btn-start');
+  const modalBtn  = document.getElementById('modal-start-btn');
+
+  if (!wordsLoaded) return; // still fetching
+
+  if (raw === '') {
+    memberUnlocked = false;
+    hint.className   = 'hint-neutral';
+    hint.textContent = '\uD83D\uDD12 Enter a valid member word to start playing.';
+    badge.classList.remove('show');
+    inp.classList.remove('secret-valid','secret-invalid');
+    startBtn.disabled = true;
+    modalBtn.disabled = true;
+    return;
+  }
+
+  if (MEMBER_WORDS.has(raw)) {
+    memberUnlocked = true;
+    hint.className   = 'hint-ok';
+    hint.textContent = '\u2713 Member word accepted \u2014 you\u2019re in!';
+    badge.classList.add('show');
+    inp.classList.remove('secret-invalid');
+    inp.classList.add('secret-valid');
+    startBtn.disabled = false;
+    modalBtn.disabled = false;
+  } else {
+    memberUnlocked = false;
+    hint.className   = 'hint-bad';
+    hint.textContent = '\u2717 Not a recognised member word. Try another.';
+    badge.classList.remove('show');
+    inp.classList.remove('secret-valid');
+    inp.classList.add('secret-invalid');
+    inp.classList.remove('shake');
+    void inp.offsetWidth;
+    inp.classList.add('shake');
+    startBtn.disabled = true;
+    modalBtn.disabled = true;
+  }
+}
+
+document.getElementById('p-secret').addEventListener('input', checkSecret);
+
+// ─── Local persona + storage ─────────────────────────────────────────────────
 const STORE_KEY = 'tetris_royal_personas_v1';
 
-/** djb2 hash → 8-char hex */
 function hashStr(s) {
   let h = 5381;
   for (let i = 0; i < s.length; i++) h = ((h << 5) + h) ^ s.charCodeAt(i);
@@ -579,31 +662,19 @@ function personaKey(nick, email, secret) {
 }
 
 function loadStore() {
-  try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); }
-  catch { return {}; }
+  try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch { return {}; }
 }
-
 function saveStore(store) {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(store)); } catch {}
 }
-
-/**
- * Returns the persona object for the given key, or null.
- * Persona shape: { key, nick, firstSeen, plays, highScore, bestLevel, scores:[] }
- */
-function getPersona(key) {
-  const store = loadStore();
-  return store[key] || null;
-}
+function getPersona(key) { return loadStore()[key] || null; }
 
 function upsertPersona(key, nick, entry) {
   const store = loadStore();
-  const now = new Date().toISOString();
-  if (!store[key]) {
-    store[key] = { key, nick, firstSeen: now, plays: 0, highScore: 0, bestLevel: 1, scores: [] };
-  }
+  const now   = new Date().toISOString();
+  if (!store[key]) store[key] = { key, nick, firstSeen: now, plays: 0, highScore: 0, bestLevel: 1, scores: [] };
   const p = store[key];
-  p.nick = nick; // always update display name
+  p.nick = nick;
   p.plays = (p.plays || 0) + 1;
   if (entry.score > (p.highScore || 0)) p.highScore = entry.score;
   if (entry.level > (p.bestLevel || 1)) p.bestLevel = entry.level;
@@ -613,193 +684,136 @@ function upsertPersona(key, nick, entry) {
   return p;
 }
 
-/** Returns all scores from all personas, sorted by score desc */
 function allScores() {
-  const store = loadStore();
-  const arr = [];
+  const store = loadStore(), arr = [];
   for (const key in store) {
     const p = store[key];
     if (p.scores && p.scores.length) {
-      // best score per persona only for global leaderboard
       const best = p.scores.reduce((a, b) => (b.score > a.score ? b : a), p.scores[0]);
-      arr.push({ name: p.nick, score: best.score, level: best.level, date: best.date, isMe: false, key });
+      arr.push({ name: p.nick, score: best.score, level: best.level, date: best.date, key });
     }
   }
-  arr.sort((a, b) => b.score - a.score);
-  return arr;
+  return arr.sort((a, b) => b.score - a.score);
 }
 
-// ─── Active persona state ───────────────────────────────────────────────────
-let activePersonaKey = null;
-let activeNick = '';
+// ─── Persona state ────────────────────────────────────────────────────────────
+let activePersonaKey = null, activeNick = '';
 
 function resolvePersona() {
   const nick   = (document.getElementById('p-nickname').value || '').trim();
-  const email  = (document.getElementById('p-email').value || '').trim();
-  const secret = (document.getElementById('p-secret').value || '').trim();
+  const email  = (document.getElementById('p-email').value   || '').trim();
+  const secret = (document.getElementById('p-secret').value  || '').trim();
   if (!nick && !email && !secret) return null;
   return { key: personaKey(nick, email, secret), nick: nick || 'Anonymous' };
 }
 
 function refreshPersonaUI() {
-  const resolved = resolvePersona();
-  const greeting = document.getElementById('persona-greeting');
+  const resolved  = resolvePersona();
+  const greeting  = document.getElementById('persona-greeting');
   const mySection = document.getElementById('my-scores-section');
-  const myList = document.getElementById('my-scores-list');
-
-  if (!resolved) {
-    greeting.textContent = '';
-    mySection.style.display = 'none';
-    return;
-  }
+  const myList    = document.getElementById('my-scores-list');
+  if (!resolved) { greeting.textContent = ''; mySection.style.display = 'none'; return; }
   const persona = getPersona(resolved.key);
   if (!persona) {
-    greeting.textContent = 'New persona — your scores will be saved locally.';
+    greeting.textContent = 'New persona \u2014 your scores will be saved locally.';
     mySection.style.display = 'none';
   } else {
     greeting.textContent = `Welcome back, ${persona.nick}! \u2022 ${persona.plays} plays \u2022 Best: ${persona.highScore.toLocaleString()} (Lv${persona.bestLevel})`;
-    // show personal history
     if (persona.scores.length) {
       mySection.style.display = 'block';
       myList.innerHTML = persona.scores.slice(0, 5).map(s =>
         `<div class="my-score-row">
           <span class="ms-score">${s.score.toLocaleString()}</span>
           <span>Lv ${s.level} &bull; ${s.lines || 0} lines</span>
-          <span class="ms-date">${(s.date || '').slice(0,10)}</span>
+          <span class="ms-date">${(s.date||'').slice(0,10)}</span>
         </div>`).join('');
-    } else {
-      mySection.style.display = 'none';
-    }
+    } else { mySection.style.display = 'none'; }
   }
 }
 
-['p-nickname','p-email','p-secret'].forEach(id => {
-  document.getElementById(id).addEventListener('input', refreshPersonaUI);
-});
+['p-nickname','p-email'].forEach(id =>
+  document.getElementById(id).addEventListener('input', refreshPersonaUI));
 
 function renderLeaderboard() {
   const scores = allScores();
-  const tbody = document.getElementById('lb-body');
+  const tbody  = document.getElementById('lb-body');
   if (!scores.length) {
     tbody.innerHTML = '<tr><td colspan="5" style="color:rgba(200,190,230,.4);padding:10px 0">No scores yet. Be the first!</td></tr>';
     return;
   }
-  const top = scores.slice(0, 8);
   const meKey = activePersonaKey;
-  tbody.innerHTML = top.map((s, i) => {
-    const medal = i === 0 ? '\uD83E\uDD47' : i === 1 ? '\uD83E\uDD48' : i === 2 ? '\uD83E\uDD49' : (i + 1);
-    const isMe = meKey && s.key === meKey;
-    const rowStyle = isMe ? ' style="background:rgba(192,132,252,0.08)"' : '';
+  tbody.innerHTML = scores.slice(0,8).map((s,i) => {
+    const medal   = i===0?'\uD83E\uDD47':i===1?'\uD83E\uDD48':i===2?'\uD83E\uDD49':(i+1);
+    const isMe    = meKey && s.key === meKey;
+    const rowStyle= isMe?' style="background:rgba(192,132,252,0.08)"':'';
     return `<tr${rowStyle}>
       <td class="rank">${medal}</td>
-      <td>${s.name || 'Anonymous'}${isMe ? ' <span style="color:#c084fc;font-size:.65rem">(you)</span>' : ''}</td>
+      <td>${s.name||'Anonymous'}${isMe?' <span style="color:#c084fc;font-size:.65rem">(you)</span>':''}</td>
       <td class="lb-score">${s.score.toLocaleString()}</td>
       <td>${s.level}</td>
-      <td style="color:rgba(200,190,230,.4);font-size:.68rem">${(s.date || '').slice(0,10)}</td>
+      <td style="color:rgba(200,190,230,.4);font-size:.68rem">${(s.date||'').slice(0,10)}</td>
     </tr>`;
   }).join('');
 }
 
-// ─── Save score (local) ─────────────────────────────────────────────────────
+// ─── Save score ───────────────────────────────────────────────────────────────
 function saveScoreLocal(scoreVal, levelVal, linesVal) {
-  const saveBtn = document.getElementById('btn-save-score');
-  const status  = document.getElementById('save-status');
+  const saveBtn  = document.getElementById('btn-save-score');
+  const status   = document.getElementById('save-status');
   const resolved = resolvePersona();
-
-  if (!resolved || !resolved.nick) {
-    status.textContent = '\u26A0\uFE0F Enter at least a nickname to save.';
-    return;
-  }
-
-  // ── Email validation ──────────────────────────────────────────────────────
+  if (!resolved || !resolved.nick) { status.textContent = '\u26A0\uFE0F Enter at least a nickname to save.'; return; }
   const emailVal = (document.getElementById('p-email').value || '').trim();
   if (emailVal && !isValidEmail(emailVal)) {
     status.textContent = '\u26A0\uFE0F Please enter a valid email address.';
-    document.getElementById('p-email').focus();
-    return;
+    document.getElementById('p-email').focus(); return;
   }
-
   saveBtn.disabled = true;
-  const entry = { score: scoreVal, level: levelVal, lines: linesVal };
-  const persona = upsertPersona(resolved.key, resolved.nick, entry);
-  activePersonaKey = resolved.key;
-  activeNick = persona.nick;
+  const persona = upsertPersona(resolved.key, resolved.nick, { score: scoreVal, level: levelVal, lines: linesVal });
+  activePersonaKey = resolved.key; activeNick = persona.nick;
   status.textContent = '\u2713 Saved locally!';
-  renderLeaderboard();
-  refreshPersonaUI();
+  renderLeaderboard(); refreshPersonaUI();
 }
 
-// ─── Dice mode ──────────────────────────────────────────────────────────────
-let diceMode = false;
-let movesRemaining = 0;
+// ─── Dice mode ────────────────────────────────────────────────────────────────
+let diceMode = false, movesRemaining = 0;
 
 function setDiceToggleEnabled(enabled) {
   const btn = document.getElementById('btn-dice-toggle');
-  if (enabled) {
-    btn.removeAttribute('disabled');
-    btn.setAttribute('aria-disabled', 'false');
-    btn.classList.remove('disabled');
-  } else {
-    btn.setAttribute('disabled', 'true');
-    btn.setAttribute('aria-disabled', 'true');
-    btn.classList.add('disabled');
-  }
+  if (enabled) { btn.removeAttribute('disabled'); btn.setAttribute('aria-disabled','false'); btn.classList.remove('disabled'); }
+  else         { btn.setAttribute('disabled','true'); btn.setAttribute('aria-disabled','true'); btn.classList.add('disabled'); }
 }
 
 function toggleDiceMode() {
-  if (!gameOver) return; // block mid-game
+  if (!gameOver) return;
   diceMode = !diceMode;
-  const btn   = document.getElementById('btn-dice-toggle');
-  const roll  = document.getElementById('btn-roll');
-  const badge = document.getElementById('mode-badge');
-  const info  = document.getElementById('dice-info');
+  const btn=document.getElementById('btn-dice-toggle'), roll=document.getElementById('btn-roll'),
+        badge=document.getElementById('mode-badge'), info=document.getElementById('dice-info');
   if (diceMode) {
-    btn.textContent   = '\uD83C\uDFB2 Dice: ON';
-    badge.textContent = '\u25C6 Dice Mode';
-    badge.classList.remove('classic');
-    roll.style.display = 'inline-block';
-    roll.disabled = true;
-    movesRemaining = 0;
-    info.textContent = 'Roll the dice to get your moves!';
+    btn.textContent='\uD83C\uDFB2 Dice: ON'; badge.textContent='\u25C6 Dice Mode'; badge.classList.remove('classic');
+    roll.style.display='inline-block'; roll.disabled=true; movesRemaining=0;
+    info.textContent='Roll the dice to get your moves!';
   } else {
-    btn.textContent   = '\uD83C\uDFB2 Dice: OFF';
-    badge.textContent = '\u25C6 Classic';
-    badge.classList.add('classic');
-    roll.style.display = 'none';
-    roll.disabled = true;
-    movesRemaining = 1;
-    info.textContent = '';
+    btn.textContent='\uD83C\uDFB2 Dice: OFF'; badge.textContent='\u25C6 Classic'; badge.classList.add('classic');
+    roll.style.display='none'; roll.disabled=true; movesRemaining=1; info.textContent='';
   }
 }
 
 function rollDice() {
   if (gameOver || paused) return;
-  const roll = Math.floor(Math.random() * 6) + 1;
+  const roll = Math.floor(Math.random()*6)+1;
   movesRemaining += roll;
-  const info = document.getElementById('dice-info');
-  info.textContent = `\uD83C\uDFB2 Rolled ${roll}! Moves left: ${movesRemaining}`;
-  document.getElementById('btn-roll').disabled = true;
-  setTimeout(() => { document.getElementById('btn-roll').disabled = false; }, 400);
+  document.getElementById('dice-info').textContent = `\uD83C\uDFB2 Rolled ${roll}! Moves left: ${movesRemaining}`;
+  const btn = document.getElementById('btn-roll');
+  btn.disabled = true;
+  setTimeout(() => { btn.disabled = false; }, 400);
 }
 
-// ─── Game engine ─────────────────────────────────────────────────────────────
-const COLS = 10, ROWS = 20;
-
-const COLORS = [
-  null,
-  '#00f5ff','#ffd700','#bf00ff','#00e676',
-  '#ff1744','#0040ff','#ff6d00',
-];
-
-const GLOW = [
-  null,
-  'rgba(0,245,255,0.55)','rgba(255,215,0,0.55)','rgba(191,0,255,0.55)',
-  'rgba(0,230,118,0.55)','rgba(255,23,68,0.55)','rgba(0,64,255,0.55)',
-  'rgba(255,109,0,0.55)',
-];
-
-const SHAPES = [
-  null,
+// ─── Game engine ──────────────────────────────────────────────────────────────
+const COLS=10, ROWS=20;
+const COLORS=[null,'#00f5ff','#ffd700','#bf00ff','#00e676','#ff1744','#0040ff','#ff6d00'];
+const GLOW=[null,'rgba(0,245,255,0.55)','rgba(255,215,0,0.55)','rgba(191,0,255,0.55)',
+  'rgba(0,230,118,0.55)','rgba(255,23,68,0.55)','rgba(0,64,255,0.55)','rgba(255,109,0,0.55)'];
+const SHAPES=[null,
   [[0,0,0,0],[1,1,1,1],[0,0,0,0],[0,0,0,0]],
   [[2,2],[2,2]],
   [[0,3,0],[3,3,3],[0,0,0]],
@@ -809,372 +823,241 @@ const SHAPES = [
   [[0,0,7],[7,7,7],[0,0,0]],
 ];
 
-const canvas  = document.getElementById('board');
-const ctx     = canvas.getContext('2d');
-const nCanvas = document.getElementById('next');
-const nCtx    = nCanvas.getContext('2d');
+const canvas=document.getElementById('board'), ctx=canvas.getContext('2d');
+const nCanvas=document.getElementById('next'),  nCtx=nCanvas.getContext('2d');
+let BLOCK=30;
 
-let BLOCK = 30;
-
-function syncSize() {
-  const uiH      = document.getElementById('ui').offsetHeight + 12;
-  const vw       = window.innerWidth;
-  const vh       = window.innerHeight;
-  const panelW   = vw >= 480 ? 130 : 0;
-  const maxBoardW = Math.min(vw - panelW - 32, 360);
-  const maxBoardH = vh - uiH - 28;
-  const bFromW = Math.floor(maxBoardW / COLS);
-  const bFromH = Math.floor(maxBoardH / ROWS);
-  BLOCK = Math.max(14, Math.min(bFromW, bFromH));
-  canvas.width  = BLOCK * COLS;
-  canvas.height = BLOCK * ROWS;
-  const nb = Math.max(14, Math.min(BLOCK, 26));
-  nCanvas.width  = nb * 5;
-  nCanvas.height = nb * 5;
+function syncSize(){
+  const uiH=document.getElementById('ui').offsetHeight+12;
+  const vw=window.innerWidth, vh=window.innerHeight;
+  const panelW=vw>=480?130:0;
+  const maxBoardW=Math.min(vw-panelW-32,360), maxBoardH=vh-uiH-28;
+  BLOCK=Math.max(14,Math.min(Math.floor(maxBoardW/COLS),Math.floor(maxBoardH/ROWS)));
+  canvas.width=BLOCK*COLS; canvas.height=BLOCK*ROWS;
+  const nb=Math.max(14,Math.min(BLOCK,26));
+  nCanvas.width=nb*5; nCanvas.height=nb*5;
 }
 
-let board, score, lines, level, dropInterval, animId;
-let piece, nextPiece;
-let paused = false, gameOver = true;
-let lastTime = 0, dropCounter = 0;
+let board,score,lines,level,dropInterval,animId;
+let piece,nextPiece;
+let paused=false, gameOver=true;
+let lastTime=0, dropCounter=0;
 
-function createBoard() {
-  return Array.from({ length: ROWS }, () => new Array(COLS).fill(0));
-}
+function createBoard(){ return Array.from({length:ROWS},()=>new Array(COLS).fill(0)); }
+function newPiece(type){ const shape=SHAPES[type].map(r=>[...r]); return{type,shape,x:Math.floor(COLS/2)-Math.floor(shape[0].length/2),y:0}; }
+function randomType(){ return Math.floor(Math.random()*7)+1; }
 
-function newPiece(type) {
-  const shape = SHAPES[type].map(r => [...r]);
-  return { type, shape,
-    x: Math.floor(COLS / 2) - Math.floor(shape[0].length / 2), y: 0 };
-}
-
-function randomType() { return Math.floor(Math.random() * 7) + 1; }
-
-function collides(p, dx = 0, dy = 0, shape = p.shape) {
-  for (let r = 0; r < shape.length; r++)
-    for (let c = 0; c < shape[r].length; c++) {
-      if (!shape[r][c]) continue;
-      const nx = p.x + c + dx, ny = p.y + r + dy;
-      if (nx < 0 || nx >= COLS || ny >= ROWS) return true;
-      if (ny >= 0 && board[ny][nx]) return true;
-    }
+function collides(p,dx=0,dy=0,shape=p.shape){
+  for(let r=0;r<shape.length;r++) for(let c=0;c<shape[r].length;c++){
+    if(!shape[r][c]) continue;
+    const nx=p.x+c+dx, ny=p.y+r+dy;
+    if(nx<0||nx>=COLS||ny>=ROWS) return true;
+    if(ny>=0&&board[ny][nx]) return true;
+  }
   return false;
 }
 
-function rotate(shape) {
-  const N = shape.length;
-  return shape[0].map((_, c) => shape.map((_, r) => shape[N - 1 - r][c]));
-}
+function rotate(shape){ const N=shape.length; return shape[0].map((_,c)=>shape.map((_,r)=>shape[N-1-r][c])); }
 
-function tryRotate() {
-  const rotated = rotate(piece.shape);
-  for (const kick of [0, -1, 1, -2, 2]) {
-    if (!collides(piece, kick, 0, rotated)) {
-      piece.x += kick; piece.shape = rotated; return;
-    }
+function tryRotate(){
+  const rotated=rotate(piece.shape);
+  for(const kick of[0,-1,1,-2,2]){
+    if(!collides(piece,kick,0,rotated)){ piece.x+=kick; piece.shape=rotated; return; }
   }
 }
 
-function tryMove(dx) {
-  if (diceMode) {
-    if (movesRemaining <= 0) {
-      document.getElementById('dice-info').textContent = 'No moves left! Roll the dice.';
-      return;
+function tryMove(dx){
+  if(diceMode){
+    if(movesRemaining<=0){ document.getElementById('dice-info').textContent='No moves left! Roll the dice.'; return; }
+    if(!collides(piece,dx)){
+      piece.x+=dx; movesRemaining--;
+      document.getElementById('dice-info').textContent=movesRemaining>0?`Moves left: ${movesRemaining}`:'No moves left! Roll again.';
     }
-    if (!collides(piece, dx)) {
-      piece.x += dx;
-      movesRemaining--;
-      document.getElementById('dice-info').textContent =
-        movesRemaining > 0 ? `Moves left: ${movesRemaining}` : 'No moves left! Roll again.';
-    }
-  } else {
-    if (!collides(piece, dx)) piece.x += dx;
-  }
+  } else { if(!collides(piece,dx)) piece.x+=dx; }
 }
 
-function lockPiece() {
-  piece.shape.forEach((row, r) =>
-    row.forEach((cell, c) => { if (cell) board[piece.y + r][piece.x + c] = cell; }));
+function lockPiece(){
+  piece.shape.forEach((row,r)=>row.forEach((cell,c)=>{ if(cell) board[piece.y+r][piece.x+c]=cell; }));
   clearLines();
-  piece = nextPiece;
-  nextPiece = newPiece(randomType());
-  drawNext();
-  if (collides(piece)) endGame();
+  piece=nextPiece; nextPiece=newPiece(randomType()); drawNext();
+  if(collides(piece)) endGame();
 }
 
-function clearLines() {
-  let cleared = 0;
-  for (let r = ROWS - 1; r >= 0; r--) {
-    if (board[r].every(c => c !== 0)) {
-      board.splice(r, 1);
-      board.unshift(new Array(COLS).fill(0));
-      cleared++; r++;
-    }
+function clearLines(){
+  let cleared=0;
+  for(let r=ROWS-1;r>=0;r--){
+    if(board[r].every(c=>c!==0)){ board.splice(r,1); board.unshift(new Array(COLS).fill(0)); cleared++; r++; }
   }
-  if (!cleared) return;
-  const pts = [0, 100, 300, 500, 800];
-  score += (pts[cleared] || 800) * level;
-  lines += cleared;
-  level = Math.floor(lines / 10) + 1;
-  dropInterval = Math.max(80, 1000 - (level - 1) * 92);
+  if(!cleared) return;
+  const pts=[0,100,300,500,800];
+  score+=(pts[cleared]||800)*level; lines+=cleared;
+  level=Math.floor(lines/10)+1; dropInterval=Math.max(80,1000-(level-1)*92);
   updateHUD();
 }
 
-function hardDrop() {
-  while (!collides(piece, 0, 1)) { piece.y++; score += 2; }
-  lockPiece(); updateHUD();
+function hardDrop(){ while(!collides(piece,0,1)){ piece.y++; score+=2; } lockPiece(); updateHUD(); }
+function ghostY(){ let gy=piece.y; while(!collides({...piece,y:gy+1})) gy++; return gy; }
+
+function drawBlock3D(context,x,y,colorIdx,size){
+  const col=COLORS[colorIdx], glow=GLOW[colorIdx];
+  const px=x*size, py=y*size, s=size-1;
+  context.fillStyle=glow; context.fillRect(px,py,size,size);
+  context.fillStyle=col;  context.fillRect(px+1,py+1,s-1,s-1);
+  context.fillStyle='rgba(255,255,255,0.30)'; context.fillRect(px+1,py+1,s-1,3); context.fillRect(px+1,py+1,3,s-1);
+  context.fillStyle='rgba(0,0,0,0.35)';       context.fillRect(px+1,py+s-3,s-1,3); context.fillRect(px+s-3,py+1,3,s-1);
+  context.fillStyle='rgba(255,255,255,0.18)'; context.fillRect(px+4,py+4,Math.floor(size*.3),Math.floor(size*.3));
 }
 
-function ghostY() {
-  let gy = piece.y;
-  while (!collides({ ...piece, y: gy + 1 })) gy++;
-  return gy;
-}
-
-function drawBlock3D(context, x, y, colorIdx, size) {
-  const col  = COLORS[colorIdx];
-  const glow = GLOW[colorIdx];
-  const px = x * size, py = y * size;
-  const s  = size - 1;
-  context.fillStyle = glow;
-  context.fillRect(px, py, size, size);
-  context.fillStyle = col;
-  context.fillRect(px + 1, py + 1, s - 1, s - 1);
-  context.fillStyle = 'rgba(255,255,255,0.30)';
-  context.fillRect(px + 1, py + 1, s - 1, 3);
-  context.fillRect(px + 1, py + 1, 3, s - 1);
-  context.fillStyle = 'rgba(0,0,0,0.35)';
-  context.fillRect(px + 1, py + s - 3, s - 1, 3);
-  context.fillRect(px + s - 3, py + 1, 3, s - 1);
-  context.fillStyle = 'rgba(255,255,255,0.18)';
-  context.fillRect(px + 4, py + 4, Math.floor(size * 0.3), Math.floor(size * 0.3));
-}
-
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  ctx.strokeStyle = 'rgba(120,100,200,0.07)';
-  ctx.lineWidth = 0.5;
-  for (let r = 0; r <= ROWS; r++) {
-    ctx.beginPath(); ctx.moveTo(0, r * BLOCK); ctx.lineTo(canvas.width, r * BLOCK); ctx.stroke();
-  }
-  for (let c = 0; c <= COLS; c++) {
-    ctx.beginPath(); ctx.moveTo(c * BLOCK, 0); ctx.lineTo(c * BLOCK, canvas.height); ctx.stroke();
-  }
-  board.forEach((row, r) =>
-    row.forEach((cell, c) => { if (cell) drawBlock3D(ctx, c, r, cell, BLOCK); }));
-  if (!gameOver) {
-    const gy = ghostY();
-    piece.shape.forEach((row, r) =>
-      row.forEach((cell, c) => {
-        if (!cell) return;
-        ctx.fillStyle = 'rgba(255,255,255,0.10)';
-        ctx.fillRect((piece.x + c) * BLOCK + 1, (gy + r) * BLOCK + 1, BLOCK - 2, BLOCK - 2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.20)';
-        ctx.lineWidth = 1;
-        ctx.strokeRect((piece.x + c) * BLOCK + 1, (gy + r) * BLOCK + 1, BLOCK - 2, BLOCK - 2);
-      }));
-    piece.shape.forEach((row, r) =>
-      row.forEach((cell, c) => {
-        if (cell) drawBlock3D(ctx, piece.x + c, piece.y + r, cell, BLOCK);
-      }));
-  }
-  if (paused) {
-    ctx.fillStyle = 'rgba(10,6,30,0.72)';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.font = `700 ${Math.floor(BLOCK * 0.9)}px 'Cinzel', serif`;
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#f5e083';
-    ctx.shadowColor = 'rgba(245,224,131,0.6)'; ctx.shadowBlur = 16;
-    ctx.fillText('PAUSED', canvas.width / 2, canvas.height / 2);
-    ctx.shadowBlur = 0;
-  }
-}
-
-function drawNext() {
-  nCtx.clearRect(0, 0, nCanvas.width, nCanvas.height);
-  const s  = nextPiece.shape;
-  const nb = Math.floor(nCanvas.width / 5);
-  const ox = Math.floor((5 - s[0].length) / 2);
-  const oy = Math.floor((5 - s.length) / 2);
-  s.forEach((row, r) =>
-    row.forEach((cell, c) => {
-      if (cell) drawBlock3D(nCtx, ox + c, oy + r, cell, nb);
+function draw(){
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.strokeStyle='rgba(120,100,200,0.07)'; ctx.lineWidth=0.5;
+  for(let r=0;r<=ROWS;r++){ ctx.beginPath(); ctx.moveTo(0,r*BLOCK); ctx.lineTo(canvas.width,r*BLOCK); ctx.stroke(); }
+  for(let c=0;c<=COLS;c++){ ctx.beginPath(); ctx.moveTo(c*BLOCK,0); ctx.lineTo(c*BLOCK,canvas.height); ctx.stroke(); }
+  board.forEach((row,r)=>row.forEach((cell,c)=>{ if(cell) drawBlock3D(ctx,c,r,cell,BLOCK); }));
+  if(!gameOver){
+    const gy=ghostY();
+    piece.shape.forEach((row,r)=>row.forEach((cell,c)=>{
+      if(!cell) return;
+      ctx.fillStyle='rgba(255,255,255,0.10)'; ctx.fillRect((piece.x+c)*BLOCK+1,(gy+r)*BLOCK+1,BLOCK-2,BLOCK-2);
+      ctx.strokeStyle='rgba(255,255,255,0.20)'; ctx.lineWidth=1; ctx.strokeRect((piece.x+c)*BLOCK+1,(gy+r)*BLOCK+1,BLOCK-2,BLOCK-2);
     }));
+    piece.shape.forEach((row,r)=>row.forEach((cell,c)=>{ if(cell) drawBlock3D(ctx,piece.x+c,piece.y+r,cell,BLOCK); }));
+  }
+  if(paused){
+    ctx.fillStyle='rgba(10,6,30,0.72)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.font=`700 ${Math.floor(BLOCK*.9)}px 'Cinzel',serif`;
+    ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='#f5e083';
+    ctx.shadowColor='rgba(245,224,131,0.6)'; ctx.shadowBlur=16;
+    ctx.fillText('PAUSED',canvas.width/2,canvas.height/2); ctx.shadowBlur=0;
+  }
 }
 
-function updateHUD() {
-  document.getElementById('score-val').textContent = score;
-  document.getElementById('level-val').textContent = level;
-  document.getElementById('lines-val').textContent = lines;
+function drawNext(){
+  nCtx.clearRect(0,0,nCanvas.width,nCanvas.height);
+  const s=nextPiece.shape, nb=Math.floor(nCanvas.width/5);
+  const ox=Math.floor((5-s[0].length)/2), oy=Math.floor((5-s.length)/2);
+  s.forEach((row,r)=>row.forEach((cell,c)=>{ if(cell) drawBlock3D(nCtx,ox+c,oy+r,cell,nb); }));
 }
 
-function loop(time = 0) {
-  if (!paused && !gameOver) {
-    const delta = time - lastTime;
-    lastTime = time;
-    dropCounter += delta;
-    if (dropCounter >= dropInterval) {
-      if (!collides(piece, 0, 1)) piece.y++;
-      else lockPiece();
-      dropCounter = 0;
+function updateHUD(){
+  document.getElementById('score-val').textContent=score;
+  document.getElementById('level-val').textContent=level;
+  document.getElementById('lines-val').textContent=lines;
+}
+
+function loop(time=0){
+  if(!paused&&!gameOver){
+    const delta=time-lastTime; lastTime=time; dropCounter+=delta;
+    if(dropCounter>=dropInterval){
+      if(!collides(piece,0,1)) piece.y++; else lockPiece();
+      dropCounter=0;
     }
     draw();
   }
-  animId = requestAnimationFrame(loop);
+  animId=requestAnimationFrame(loop);
 }
 
-function startGame() {
-  board = createBoard(); score = 0; lines = 0; level = 1;
-  dropInterval = 1000; dropCounter = 0;
-  paused = false; gameOver = false;
-  piece     = newPiece(randomType());
-  nextPiece = newPiece(randomType());
+function startGame(){
+  if(!memberUnlocked) return;
+  board=createBoard(); score=0; lines=0; level=1;
+  dropInterval=1000; dropCounter=0; paused=false; gameOver=false;
+  piece=newPiece(randomType()); nextPiece=newPiece(randomType());
   drawNext(); updateHUD();
   document.getElementById('msg-modal').classList.remove('show');
-  document.getElementById('btn-pause').disabled = false;
-  document.getElementById('btn-pause').textContent = '\u23F8 Pause';
-  // Lock dice toggle while game is live
+  document.getElementById('btn-pause').disabled=false;
+  document.getElementById('btn-pause').textContent='\u23F8 Pause';
   setDiceToggleEnabled(false);
-  if (diceMode) {
-    movesRemaining = 0;
-    document.getElementById('btn-roll').disabled = false;
-    document.getElementById('dice-info').textContent = 'Roll the dice to get your moves!';
-  } else {
-    movesRemaining = 1;
-    document.getElementById('dice-info').textContent = '';
-  }
-  // Reset save UI
-  document.getElementById('save-status').textContent = '';
-  const saveBtn = document.getElementById('btn-save-score');
-  saveBtn.style.display = 'none';
-  saveBtn.disabled = false;
-  cancelAnimationFrame(animId);
-  lastTime = 0; loop();
+  if(diceMode){ movesRemaining=0; document.getElementById('btn-roll').disabled=false; document.getElementById('dice-info').textContent='Roll the dice to get your moves!'; }
+  else        { movesRemaining=1; document.getElementById('dice-info').textContent=''; }
+  document.getElementById('save-status').textContent='';
+  const saveBtn=document.getElementById('btn-save-score');
+  saveBtn.style.display='none'; saveBtn.disabled=false;
+  cancelAnimationFrame(animId); lastTime=0; loop();
 }
 
-function endGame() {
-  gameOver = true;
-  document.getElementById('btn-pause').disabled = true;
-  document.getElementById('btn-roll').disabled  = true;
-  // Re-enable dice toggle now that game is over
+function endGame(){
+  gameOver=true;
+  document.getElementById('btn-pause').disabled=true;
+  document.getElementById('btn-roll').disabled=true;
   setDiceToggleEnabled(true);
+  const m=document.getElementById('msg-modal');
+  const title=document.getElementById('msg-title'), sub=document.getElementById('msg-sub');
+  const status=document.getElementById('save-status'), saveBtn=document.getElementById('btn-save-score');
+  const modalBtn=document.getElementById('modal-start-btn');
+  title.textContent='GAME OVER';
+  sub.textContent='Score: '+score.toLocaleString()+'  \u2022  Level '+level+'  \u2022  Lines '+lines;
+  status.textContent='';
+  saveBtn.style.display='inline-block'; saveBtn.disabled=false;
+  saveBtn.textContent='\uD83C\uDFC6 Save Score';
+  saveBtn.onclick=function(){ saveScoreLocal(score,level,lines); };
+  modalBtn.textContent='\u25B6 Play Again';
+  modalBtn.disabled=!memberUnlocked;
+  renderLeaderboard(); refreshPersonaUI();
+  m.classList.add('show'); draw();
+}
 
-  const m      = document.getElementById('msg-modal');
-  const title  = document.getElementById('msg-title');
-  const sub    = document.getElementById('msg-sub');
-  const status = document.getElementById('save-status');
-  const saveBtn = document.getElementById('btn-save-score');
-
-  title.textContent = 'GAME OVER';
-  sub.textContent   = 'Score: ' + score.toLocaleString() + '  \u2022  Level ' + level + '  \u2022  Lines ' + lines;
-  status.textContent = '';
-
-  saveBtn.style.display = 'inline-block';
-  saveBtn.disabled = false;
-  saveBtn.textContent = '\uD83C\uDFC6 Save Score';
-  saveBtn.onclick = function() {
-    saveScoreLocal(score, level, lines);
-  };
-
-  m.querySelector('.modal-btn').textContent = '\u25B6 Play Again';
-  renderLeaderboard();
-  refreshPersonaUI();
-  m.classList.add('show');
+function togglePause(){
+  if(gameOver) return;
+  paused=!paused;
+  document.getElementById('btn-pause').textContent=paused?'\u25B6 Resume':'\u23F8 Pause';
+  if(!paused) lastTime=performance.now();
   draw();
 }
 
-function togglePause() {
-  if (gameOver) return;
-  paused = !paused;
-  document.getElementById('btn-pause').textContent = paused ? '\u25B6 Resume' : '\u23F8 Pause';
-  if (!paused) { lastTime = performance.now(); }
-  draw();
-}
-
-document.addEventListener('keydown', e => {
-  if (gameOver) return;
-  switch (e.code) {
-    case 'ArrowLeft':  if (!paused) tryMove(-1); break;
-    case 'ArrowRight': if (!paused) tryMove(1);  break;
+document.addEventListener('keydown',e=>{
+  if(gameOver) return;
+  switch(e.code){
+    case 'ArrowLeft':  if(!paused) tryMove(-1); break;
+    case 'ArrowRight': if(!paused) tryMove(1);  break;
     case 'ArrowDown':
-      if (!paused) {
-        if (!collides(piece,0,1)) { piece.y++; score++; updateHUD(); }
-        else lockPiece();
-        dropCounter = 0;
-      }
-      break;
-    case 'ArrowUp': if (!paused) tryRotate(); break;
-    case 'Space':
-      e.preventDefault();
-      if (!paused) hardDrop();
-      break;
+      if(!paused){ if(!collides(piece,0,1)){ piece.y++; score++; updateHUD(); } else lockPiece(); dropCounter=0; } break;
+    case 'ArrowUp': if(!paused) tryRotate(); break;
+    case 'Space': e.preventDefault(); if(!paused) hardDrop(); break;
     case 'KeyP': togglePause(); break;
   }
-  if (!paused && !gameOver) draw();
+  if(!paused&&!gameOver) draw();
 });
 
-let touchStartX = 0, touchStartY = 0;
-
-canvas.addEventListener('touchstart', e => {
+let touchStartX=0, touchStartY=0;
+canvas.addEventListener('touchstart',e=>{
   e.preventDefault();
-  const t = e.changedTouches[0];
-  touchStartX = t.clientX; touchStartY = t.clientY;
-}, { passive: false });
-
-canvas.addEventListener('touchend', e => {
+  touchStartX=e.changedTouches[0].clientX; touchStartY=e.changedTouches[0].clientY;
+},{passive:false});
+canvas.addEventListener('touchend',e=>{
   e.preventDefault();
-  if (gameOver || paused) return;
-  const t = e.changedTouches[0];
-  const dx = t.clientX - touchStartX;
-  const dy = t.clientY - touchStartY;
-  const absDx = Math.abs(dx), absDy = Math.abs(dy);
-  const SWIPE = BLOCK * 0.8;
-  if (absDx < SWIPE && absDy < SWIPE) {
-    tryRotate();
-  } else if (absDx >= absDy) {
-    const steps = Math.round(dx / BLOCK);
-    const dir = steps > 0 ? 1 : -1;
-    for (let i = 0; i < Math.abs(steps); i++) tryMove(dir);
-  } else {
-    if (dy > 0) {
-      while (!collides(piece, 0, 1)) { piece.y++; score++; }
-      lockPiece(); updateHUD();
-    } else {
-      hardDrop();
-    }
-  }
+  if(gameOver||paused) return;
+  const t=e.changedTouches[0], dx=t.clientX-touchStartX, dy=t.clientY-touchStartY;
+  const absDx=Math.abs(dx), absDy=Math.abs(dy), SWIPE=BLOCK*.8;
+  if(absDx<SWIPE&&absDy<SWIPE){ tryRotate(); }
+  else if(absDx>=absDy){ const steps=Math.round(dx/BLOCK), dir=steps>0?1:-1; for(let i=0;i<Math.abs(steps);i++) tryMove(dir); }
+  else if(dy>0){ while(!collides(piece,0,1)){ piece.y++; score++; } lockPiece(); updateHUD(); }
+  else hardDrop();
   draw();
-}, { passive: false });
+},{passive:false});
 
 function openRules()  { document.getElementById('rules-overlay').classList.add('open'); }
 function closeRules() { document.getElementById('rules-overlay').classList.remove('open'); }
-document.getElementById('rules-overlay').addEventListener('click', function(e) {
-  if (e.target === this) closeRules();
-});
-document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && document.getElementById('rules-overlay').classList.contains('open')) closeRules();
-});
+document.getElementById('rules-overlay').addEventListener('click',function(e){ if(e.target===this) closeRules(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&document.getElementById('rules-overlay').classList.contains('open')) closeRules(); });
+window.addEventListener('resize',()=>{ syncSize(); draw(); if(!gameOver) drawNext(); });
+window.addEventListener('orientationchange',()=>setTimeout(()=>{ syncSize(); draw(); if(!gameOver) drawNext(); },150));
 
-window.addEventListener('resize', () => { syncSize(); draw(); if (!gameOver) drawNext(); });
-window.addEventListener('orientationchange', () =>
-  setTimeout(() => { syncSize(); draw(); if (!gameOver) drawNext(); }, 150));
-
-// ─── Init — hide loading shell once everything is ready ───────────────────
-(function init() {
-  const shell = document.getElementById('loading-shell');
+// ─── Init ─────────────────────────────────────────────────────────────────────
+(async function init(){
+  const shell  = document.getElementById('loading-shell');
   const status = document.getElementById('loading-status');
   try {
     syncSize();
     draw();
     renderLeaderboard();
     refreshPersonaUI();
+    await loadMemberWords();   // fetch member-words.json
     document.body.classList.add('app-ready');
-    if (shell) shell.classList.add('hidden');
-  } catch (err) {
-    console.error('Tetris init error:', err);
-    if (status) status.textContent = 'Failed to load. Tap to retry.';
-    // still dismiss after 2s so the page is not permanently blocked
-    setTimeout(() => { if (shell) shell.classList.add('hidden'); }, 2000);
+    if(shell) shell.classList.add('hidden');
+  } catch(err){
+    console.error('Tetris init error:',err);
+    if(status) status.textContent='Failed to load. Tap to retry.';
+    setTimeout(()=>{ if(shell) shell.classList.add('hidden'); },2000);
   }
 })();
 </script>
