@@ -8,15 +8,18 @@ Sub SplitExcelByManager_UserInputs()
 
     Set ws = ActiveSheet
 
-    managerHeader = InputBox("Enter manager column header:", "Manager Column", "Manager")
-    If managerHeader = "" Then Exit Sub
+    Dim headerCell As Range
 
+    Set headerCell = Application.InputBox( _
+    Prompt:="Select the manager column header cell:", Title:="Manager Column", Type:=8)
+
+    If headerCell Is Nothing Then Exit Sub
     Set fd = Application.FileDialog(msoFileDialogFolderPicker)
     fd.Title = "Select folder to save manager files"
     If fd.Show <> -1 Then Exit Sub
     outputDir = fd.SelectedItems(1)
 
-    managerCol = Application.Match(managerHeader, ws.Rows(1), 0)
+    managerCol = headerCell.Column
     lastRow = ws.Cells(ws.Rows.Count, managerCol).End(xlUp).Row
     lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
 
@@ -50,7 +53,9 @@ Sub SplitExcelByManager_UserInputs()
             .Columns.AutoFit
             .Rows.AutoFit
         End With
+        Application.DisplayAlerts = False
         newWb.SaveAs Filename:=outPath, FileFormat:=xlOpenXMLWorkbook
+        Application.DisplayAlerts = True
         newWb.Close False
     Next manager
 
