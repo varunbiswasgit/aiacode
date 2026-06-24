@@ -1,154 +1,78 @@
-' =============================================================================
-' SplitExcelByManager  v3.0
-' Splits the active sheet into one workbook per unique manager.
-' Synchronized feature parity with split_excel_by_manager.py v3.0
-' =============================================================================
-Sub SplitExcelByManager()
+Sub SplitExcelByManager_UserInputs()
 
-    ' --- Configuration (edit these two constants to match your data) ----------
-    Const MANAGER_COL_NAME  As String = "Manager"   ' Header of the manager column
-    Const OUTPUT_SUBFOLDER  As String = "manager_reports"  ' Subfolder under workbook path
-    ' --------------------------------------------------------------------------
-
-    Dim ws          As Worksheet
-    Dim managerCol  As Long
-    Dim lastRow     As Long
-    Dim managers    As Collection
-    Dim cell        As Range
-    Dim newWb       As Workbook
-    Dim manager     As Variant
-    Dim safeName    As String
-    Dim outputDir   As String
-    Dim successCount As Long
-    Dim totalCount  As Long
-    Dim hdr         As Range
-
-    If ThisWorkbook.Path = "" Then
-        MsgBox "Please save the workbook first before running this macro.", vbExclamation
-        Exit Sub
-    End If
+    Dim ws As Worksheet, managerHeader As String, outputDir As String
+    Dim managerCol As Long, lastRow As Long, lastCol As Long
+    Dim managers As Object, cell As Range, manager As Variant
+    Dim newWb As Workbook, safeName As String, outPath As String
+    Dim fd As FileDialog
 
     Set ws = ActiveSheet
 
-    managerCol = 0
-    For Each hdr In ws.Rows(1).Cells
-        If Trim(hdr.Value) = MANAGER_COL_NAME Then
-            managerCol = hdr.Column
-            Exit For
-        End If
-    Next hdr
+    managerHeader = InputBox("Enter manager column header:", "Manager Column", "Manager")
+    If managerHeader = "" Then Exit Sub
 
-    If managerCol = 0 Then
-        MsgBox "Error: Column '" & MANAGER_COL_NAME & "' not found in row 1." & vbCrLf & _
-               "Please update the MANAGER_COL_NAME constant at the top of the macro.", vbCritical
-        Exit Sub
-    End If
+    Set fd = Application.FileDialog(msoFileDialogFolderPicker)
+    fd.Title = "Select folder to save manager files"
+    If fd.Show <> -1 Then Exit Sub
+    outputDir = fd.SelectedItems(1)
 
+    managerCol = Application.Match(managerHeader, ws.Rows(1), 0)
     lastRow = ws.Cells(ws.Rows.Count, managerCol).End(xlUp).Row
+    lastCol = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
 
-    If lastRow < 2 Then
-        MsgBox "Error: No data rows found (sheet appears empty below the header).", vbCritical
-        Exit Sub
-    End If
+    Set managers = CreateObject("Scripting.Dictionary")
 
-    outputDir = ThisWorkbook.Path & Application.PathSeparator & OUTPUT_SUBFOLDER
-    On Error Resume Next
-    MkDir outputDir
-    On Error GoTo 0
+    For Each cell In ws.Range(ws.Cells(2, managerCol), ws.Cells(lastRow, managerCol))
+        If Trim(cell.Value) <> "" Then managers(Trim(cell.Value)) = 1
+    Next cell
 
     If ws.AutoFilterMode Then ws.AutoFilterMode = False
 
-    Set managers = New Collection
-    On Error Resume Next
-    For Each cell In ws.Range(ws.Cells(2, managerCol), ws.Cells(lastRow, managerCol))
-        If Not IsEmpty(cell.Value) And Trim(CStr(cell.Value)) <> "" Then
-            managers.Add cell.Value, CStr(cell.Value)
-        End If
-    Next cell
-    On Error GoTo 0
-
-    If managers.Count = 0 Then
-        MsgBox "Error: Column '" & MANAGER_COL_NAME & "' contains no valid (non-blank) data.", vbCritical
-        ws.AutoFilterMode = False
-        Exit Sub
-    End If
-
-    successCount = 0
-    totalCount = managers.Count
-
-    For Each manager In managers
-
-        safeName = CStr(manager)
-        safeName = Application.WorksheetFunction.Substitute(safeName, "/",  "_")
-        safeName = Application.WorksheetFunction.Substitute(safeName, "\", "_")
-        safeName = Application.WorksheetFunction.Substitute(safeName, ":",  "_")
-        safeName = Application.WorksheetFunction.Substitute(safeName, "*",  "_")
-        safeName = Application.WorksheetFunction.Substitute(safeName, "?",  "_")
-        safeName = Application.WorksheetFunction.Substitute(safeName, "<",  "_")
-        safeName = Application.WorksheetFunction.Substitute(safeName, ">",  "_")
-        safeName = Application.WorksheetFunction.Substitute(safeName, "|",  "_")
-        safeName = Trim(safeName)
-
-        Select Case LCase(safeName)
-            Case "con", "prn", "aux", "nul", _
-                 "com1", "com2", "com3", "com4", "com5", _
-                 "com6", "com7", "com8", "com9", _
-                 "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", _
-                 "lpt6", "lpt7", "lpt8", "lpt9"
-                safeName = "Unknown_Manager"
-        End Select
-
-        If Len(safeName) > 200 Then safeName = Left(safeName, 200)
-
-        Dim outPath As String
+    For Each manager In managers.Keys
+        safeName = CleanFileName(CStr(manager))
         outPath = outputDir & Application.PathSeparator & safeName & "_report.xlsx"
 
-        On Error GoTo ManagerError
+        ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol)).AutoFilter _
+            Field:=managerCol, Criteria1:=manager
 
-        ws.Rows(1).AutoFilter Field:=managerCol, Criteria1:=manager
         Set newWb = Workbooks.Add
-        ws.UsedRange.SpecialCells(xlCellTypeVisible).Copy newWb.Sheets(1).Range("A1")
 
-        Dim col As Range
-        Dim maxLen As Long
-        Dim colWidth As Double
-        Dim colIdx As Long
-        colIdx = 0
-        For Each col In newWb.Sheets(1).UsedRange.Columns
-            colIdx = colIdx + 1
-            maxLen = 0
-            Dim c As Range
-            For Each c In col.Cells
-                If Len(CStr(c.Value)) > maxLen Then maxLen = Len(CStr(c.Value))
-            Next c
-            colWidth = maxLen + 2
-            If colWidth < 8  Then colWidth = 8
-            If colWidth > 50 Then colWidth = 50
-            newWb.Sheets(1).Columns(colIdx).ColumnWidth = colWidth
-        Next col
+        ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol)) _
+            .SpecialCells(xlCellTypeVisible).Copy
 
-        newWb.SaveAs outPath, FileFormat:=xlOpenXMLWorkbook
+        With newWb.Sheets(1).Range("A1")
+            .PasteSpecial xlPasteValues
+            .PasteSpecial xlPasteFormats
+        End With
+
+       With newWb.Sheets(1).UsedRange
+            .WrapText = False
+            .Columns.AutoFit
+            .Rows.AutoFit
+        End With
+        newWb.SaveAs Filename:=outPath, FileFormat:=xlOpenXMLWorkbook
         newWb.Close False
-
-        successCount = successCount + 1
-        GoTo NextManager
-
-ManagerError:
-        Dim errMsg As String
-        errMsg = Err.Description
-        On Error GoTo 0
-        If Not newWb Is Nothing Then
-            On Error Resume Next
-            newWb.Close False
-            On Error GoTo 0
-        End If
-        GoTo NextManager
-
-NextManager:
-        On Error GoTo 0
     Next manager
 
     ws.AutoFilterMode = False
-    MsgBox "Done! " & successCount & "/" & totalCount & " report(s) saved to:" & _
-           vbCrLf & outputDir, vbInformation
+    Application.CutCopyMode = False
+
+    MsgBox "Done. Created " & managers.Count & " files in:" & vbCrLf & outputDir
+
 End Sub
+
+Function CleanFileName(s As String) As String
+    Dim badChars, ch
+    badChars = Array("/", "\", ":", "*", "?", """", "<", ">", "|")
+
+    For Each ch In badChars
+        s = Replace(s, ch, "_")
+    Next ch
+
+    s = Trim(s)
+    If Len(s) = 0 Then s = "Unknown_Manager"
+    If Len(s) > 150 Then s = Left(s, 150)
+
+    CleanFileName = s
+End Function
+
