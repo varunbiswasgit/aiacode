@@ -1,4 +1,4 @@
-# Windows 11 Startup Manager (Simplified Version)
+# Windows 11 Startup Manager (Menu + Startup Launcher)
 cls
 $ScriptRoot = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $defaultConfigPath = Join-Path $ScriptRoot 'Win11StartupConfig.json'
@@ -51,13 +51,9 @@ function Get-AppReadyState($ProcessName) {
 
 # ---------------------------------------------------------------------------
 # Poll until app is ready or timeouts expire.
-# If ProcessName looks like a display-name fallback (no file extension chars,
-# derived from an explorer.exe target), returns 'NotReady' immediately so the
-# caller falls through to UWP fork without waiting.
 # Returns: 'Window' | 'Tray' | 'NotReady'
 # ---------------------------------------------------------------------------
 function Wait-ForAppReady($ProcessName, $ProcessTimeout, $WindowTimeout, $IsDisplayNameFallback = $false) {
-    # If the proc name is unreliable (explorer target fallback), skip wait entirely
     if ($IsDisplayNameFallback) { return 'NotReady' }
 
     $found = $false
@@ -77,7 +73,6 @@ function Wait-ForAppReady($ProcessName, $ProcessTimeout, $WindowTimeout, $IsDisp
 
 # ---------------------------------------------------------------------------
 # Update shortcut .lnk target to a new exe path.
-# Only called explicitly on UWP resolution and file-picker repair.
 # ---------------------------------------------------------------------------
 function Update-Shortcut($Shortcut, $ExePath) {
     try {
@@ -106,6 +101,7 @@ function Update-AppEntry {
         $ExistingApp.LaunchType  = $LaunchType
         $ExistingApp.ExePath     = $ExePath
         $ExistingApp.Aumid       = $Aumid
+        $ExistingApp.ShortcutPath = $File.FullName
     } else {
         $Config.Shortcuts += [PSCustomObject]@{
             Name         = $AppDisplayName
@@ -120,7 +116,7 @@ function Update-AppEntry {
 }
 
 # ---------------------------------------------------------------------------
-# Search WindowsApps for a UWP package matching $AppName.
+# Search WindowsApps for a package matching $AppName.
 # Returns @{ ExePath; Aumid; ProcessName } or $null.
 # ---------------------------------------------------------------------------
 function Resolve-UwpExe($AppName) {
@@ -164,8 +160,8 @@ function Resolve-UwpExe($AppName) {
 }
 
 # ---------------------------------------------------------------------------
-# Shared UWP fork: resolve, update shortcut (explicit), update JSON, relaunch.
-# Falls back to file-picker if no UWP match found.
+# Shared UWP fork: resolve, update shortcut, update JSON, relaunch.
+# Falls back to file-picker if no package match found.
 # ---------------------------------------------------------------------------
 function Invoke-UwpFork {
     param(
@@ -173,28 +169,28 @@ function Invoke-UwpFork {
         $ExistingApp, $Config, $ConfigPath,
         $ProcessTimeout, $WindowTimeout
     )
-    Write-Host "  Attempting UWP resolution for '$AppDisplayName'..."
+    Write-Host "  Attempting package resolution for '$AppDisplayName'..."
     $resolved = Resolve-UwpExe -AppName $AppDisplayName
 
     if ($resolved) {
-        Write-Host "  Found UWP exe: $($resolved.ExePath)"
+        Write-Host "  Found packaged app executable: $($resolved.ExePath)"
         Update-Shortcut -Shortcut $Shortcut -ExePath $resolved.ExePath
         Update-AppEntry -ExistingApp $ExistingApp -Config $Config -ConfigPath $ConfigPath `
             -File $File -AppDisplayName $AppDisplayName `
             -ProcessName $resolved.ProcessName -LaunchType 'UWP' `
             -ExePath $resolved.ExePath -Aumid $resolved.Aumid
 
-        Write-Host "  Re-launching '$AppDisplayName' as UWP..."
+        Write-Host "  Re-launching '$AppDisplayName' as packaged app..."
         Start-Process -FilePath $resolved.ExePath -ErrorAction SilentlyContinue
         $state = Wait-ForAppReady -ProcessName $resolved.ProcessName `
                      -ProcessTimeout $ProcessTimeout -WindowTimeout $WindowTimeout
         switch ($state) {
             'Window'   { Write-Host "  Window ready. $AppDisplayName is up." }
             'Tray'     { Write-Host "  Running in tray. $AppDisplayName is up." }
-            'NotReady' { Write-Warning "'$AppDisplayName' still did not start after UWP resolution." }
+            'NotReady' { Write-Warning "'$AppDisplayName' still did not start after packaged app resolution." }
         }
     } else {
-        Write-Warning "'$AppDisplayName' did not start and no UWP match found. Select executable manually."
+        Write-Warning "'$AppDisplayName' did not start and no packaged app match was found. Select executable manually."
         Add-Type -AssemblyName System.Windows.Forms
         $dlg                  = New-Object System.Windows.Forms.OpenFileDialog
         $dlg.Title            = "Select executable for $AppDisplayName"
@@ -227,6 +223,484 @@ function Invoke-UwpFork {
 }
 
 # ---------------------------------------------------------------------------
+# File/path helper modules
+# ---------------------------------------------------------------------------
+function Read-ProgramPath($PromptText = 'Enter full program path') {
+    do {
+        $programPath = Read-Host $PromptText
+        if ([string]::IsNullOrWhiteSpace($programPath)) {
+            Write-Host 'Path cannot be empty.' -ForegroundColor Yellow
+            continue
+        }
+        if (-not (Test-Path -LiteralPath $programPath -PathType Leaf)) {
+            Write-Host 'File not found. Enter a valid executable or program path.' -ForegroundColor Yellow
+            $programPath = $null
+            continue
+        }
+        return $programPath
+    } while ($true)
+}
+
+# Strict 01-99 only. Examples matched: "01 App", "99 App". Not matched: "1 App", "001 App", "100 App".
+function Test-StrictShortcutSequence($BaseName) {
+    return ($BaseName -match '^(0[1-9]|[1-9][0-9])\s+')
+}
+
+function Get-ShortcutDisplayName($BaseName) {
+    return (($BaseName -replace '^(0[1-9]|[1-9][0-9])\s+', '').Trim())
+}
+
+function Get-ShortcutSequenceNumber($BaseName) {
+    if ($BaseName -match '^(0[1-9]|[1-9][0-9])\s+') {
+        return [int]$Matches[1]
+    }
+    return 9999
+}
+
+function Get-OrderedShortcutFiles($FolderPath) {
+    if (-not (Test-Path -LiteralPath $FolderPath -PathType Container)) { return @() }
+
+    $files = Get-ChildItem -LiteralPath $FolderPath -Filter '*.lnk' -ErrorAction SilentlyContinue |
+        Where-Object { Test-StrictShortcutSequence $_.BaseName }
+
+    if (-not $files) { return @() }
+
+    return $files | Sort-Object `
+        @{ Expression = { Get-ShortcutSequenceNumber $_.BaseName }; Ascending = $true },
+        @{ Expression = { Get-ShortcutDisplayName $_.BaseName }; Ascending = $true }
+}
+
+function Restore-OrRemoveTempShortcut {
+    param(
+        [Parameter(Mandatory = $true)] $TempFile,
+        [Parameter(Mandatory = $true)] $FolderPath
+    )
+
+    # Handles current temp format: __TMP_RESEQ__01 App.lnk -> 01 App.lnk
+    # Handles older temp format:   __TMP__01 App.lnk       -> 01 App.lnk
+    $base = $TempFile.BaseName
+    $restoreBase = $null
+
+    if ($base -match '^__TMP_RESEQ__(.+)$') {
+        $restoreBase = $Matches[1]
+    } elseif ($base -match '^__TMP__(.+)$') {
+        $restoreBase = $Matches[1]
+    }
+
+    if ([string]::IsNullOrWhiteSpace($restoreBase)) {
+        Remove-Item -LiteralPath $TempFile.FullName -Force
+        return
+    }
+
+    $restoreName = $restoreBase + $TempFile.Extension
+    $restorePath = Join-Path $FolderPath $restoreName
+
+    if (-not (Test-Path -LiteralPath $restorePath)) {
+        Rename-Item -LiteralPath $TempFile.FullName -NewName $restoreName -Force
+    } else {
+        $recoveredName = ('_Recovered_{0}_{1}' -f ([guid]::NewGuid().ToString('N')), $restoreName)
+        Rename-Item -LiteralPath $TempFile.FullName -NewName $recoveredName -Force
+        Write-Warning "Temp shortcut restored as '$recoveredName' because '$restoreName' already exists."
+    }
+}
+
+function Cleanup-OrphanTempShortcuts($FolderPath) {
+    if (-not (Test-Path -LiteralPath $FolderPath -PathType Container)) { return }
+
+    Get-ChildItem -LiteralPath $FolderPath -Filter '__TMP*.lnk' -ErrorAction SilentlyContinue |
+        ForEach-Object {
+            try {
+                Restore-OrRemoveTempShortcut -TempFile $_ -FolderPath $FolderPath
+            } catch {
+                Write-Warning "Failed to cleanup temp shortcut '$($_.FullName)': $($_.Exception.Message)"
+            }
+        }
+}
+
+function Sync-ConfigShortcutPaths($Config, $ConfigPath, $FolderPath) {
+    $files = Get-OrderedShortcutFiles -FolderPath $FolderPath
+    foreach ($entry in @($Config.Shortcuts)) {
+        $match = $files | Where-Object { (Get-ShortcutDisplayName $_.BaseName) -eq $entry.Name } | Select-Object -First 1
+        if ($match) {
+            $entry.ShortcutPath = $match.FullName
+        } elseif ($entry.ShortcutPath -and -not (Test-Path -LiteralPath $entry.ShortcutPath)) {
+            $Config.Shortcuts = @($Config.Shortcuts | Where-Object { $_.Name -ne $entry.Name })
+        }
+    }
+    Save-Config -Cfg $Config -Path $ConfigPath
+}
+
+function Resequence-Shortcuts {
+    param(
+        [Parameter(Mandatory = $true)] $FolderPath,
+        [Parameter(Mandatory = $true)] $Config,
+        [Parameter(Mandatory = $true)] $ConfigPath
+    )
+
+    if (-not (Test-Path -LiteralPath $FolderPath -PathType Container)) { return }
+
+    # Restore/clean temp files left from previous failed runs before doing new work.
+    Cleanup-OrphanTempShortcuts -FolderPath $FolderPath
+
+    $files = Get-OrderedShortcutFiles -FolderPath $FolderPath
+    if (-not $files -or $files.Count -eq 0) {
+        $Config.Shortcuts = @()
+        Save-Config -Cfg $Config -Path $ConfigPath
+        return
+    }
+
+    $tempMap = @()
+    $index = 1
+
+    try {
+        # STEP 1: rename every 01-99 shortcut to a temp name to avoid collisions.
+        foreach ($file in $files) {
+            $displayName = Get-ShortcutDisplayName $file.BaseName
+            $tempName = ('__TMP_RESEQ__{0:00} {1}{2}' -f $index, $displayName, $file.Extension)
+            $tempPath = Join-Path $FolderPath $tempName
+
+            Rename-Item -LiteralPath $file.FullName -NewName $tempName -Force
+
+            $finalName = ('{0:00} {1}{2}' -f $index, $displayName, $file.Extension)
+            $finalPath = Join-Path $FolderPath $finalName
+
+            $tempMap += [PSCustomObject]@{
+                DisplayName = $displayName
+                TempPath    = $tempPath
+                TempName    = $tempName
+                FinalName   = $finalName
+                FinalPath   = $finalPath
+            }
+            $index++
+        }
+
+        # STEP 2: rename temp files into final sequence.
+        foreach ($move in $tempMap) {
+            if (Test-Path -LiteralPath $move.FinalPath) {
+                throw "Target already exists during resequence: $($move.FinalPath)"
+            }
+
+            Rename-Item -LiteralPath $move.TempPath -NewName $move.FinalName -Force
+
+            $entry = $Config.Shortcuts | Where-Object { $_.Name -eq $move.DisplayName } | Select-Object -First 1
+            if ($entry) {
+                $entry.ShortcutPath = $move.FinalPath
+            }
+        }
+
+        $existingNames = Get-OrderedShortcutFiles -FolderPath $FolderPath |
+            ForEach-Object { Get-ShortcutDisplayName $_.BaseName }
+
+        $Config.Shortcuts = @($Config.Shortcuts | Where-Object { $existingNames -contains $_.Name })
+        Save-Config -Cfg $Config -Path $ConfigPath
+    }
+    catch {
+        Write-Warning "Resequence failed: $($_.Exception.Message)"
+        Write-Warning "Attempting to restore temp shortcuts."
+
+        foreach ($move in $tempMap) {
+            if (Test-Path -LiteralPath $move.TempPath) {
+                try {
+                    $restoreName = ($move.TempName -replace '^__TMP_RESEQ__', '')
+                    $restorePath = Join-Path $FolderPath $restoreName
+                    if (-not (Test-Path -LiteralPath $restorePath)) {
+                        Rename-Item -LiteralPath $move.TempPath -NewName $restoreName -Force
+                    } else {
+                        Restore-OrRemoveTempShortcut -TempFile (Get-Item -LiteralPath $move.TempPath) -FolderPath $FolderPath
+                    }
+                } catch {
+                    Write-Warning "Could not restore '$($move.TempPath)': $($_.Exception.Message)"
+                }
+            }
+        }
+
+        Cleanup-OrphanTempShortcuts -FolderPath $FolderPath
+    }
+}
+
+function Show-ShortcutList($FolderPath) {
+    $files = Get-OrderedShortcutFiles -FolderPath $FolderPath
+    if (-not $files -or $files.Count -eq 0) {
+        Write-Host 'No 01-99 numbered shortcuts found.' -ForegroundColor Yellow
+        return @()
+    }
+
+    Write-Host ''
+    Write-Host 'Current shortcuts:' -ForegroundColor Cyan
+    $i = 1
+    foreach ($file in $files) {
+        Write-Host ('[{0}] {1}' -f $i, $file.Name)
+        $i++
+    }
+    Write-Host ''
+    return $files
+}
+
+function Add-ShortcutModule {
+    param($FolderPath, $Config, $ConfigPath)
+
+    Write-Host ''
+    Write-Host '=== Add Shortcut ===' -ForegroundColor Cyan
+    $displayName = Read-Host 'Enter shortcut display name'
+    if ([string]::IsNullOrWhiteSpace($displayName)) {
+        Write-Host 'Display name cannot be empty.' -ForegroundColor Yellow
+        return
+    }
+
+    $programPath = Read-ProgramPath -PromptText 'Enter full program path for the shortcut'
+    $procName = [System.IO.Path]::GetFileNameWithoutExtension($programPath)
+
+    $existingFiles = Get-OrderedShortcutFiles -FolderPath $FolderPath
+    if ($existingFiles.Count -ge 99) {
+        Write-Host 'Cannot add shortcut. 01-99 limit reached.' -ForegroundColor Yellow
+        return
+    }
+
+    $nextNumber = if ($existingFiles.Count -gt 0) { $existingFiles.Count + 1 } else { 1 }
+    $newName = ('{0:00} {1}.lnk' -f $nextNumber, $displayName)
+    $newPath = Join-Path $FolderPath $newName
+
+    if (Test-Path -LiteralPath $newPath) {
+        Write-Host "Shortcut already exists: $newName" -ForegroundColor Yellow
+        return
+    }
+
+    try {
+        $sc = $WshShell.CreateShortcut($newPath)
+        $sc.TargetPath = $programPath
+        $sc.WorkingDirectory = Split-Path $programPath -Parent
+        $sc.Arguments = ''
+        $sc.Save()
+
+        $Config.Shortcuts += [PSCustomObject]@{
+            Name         = $displayName
+            ShortcutPath = $newPath
+            ProcessName  = $procName
+            LaunchType   = 'Win32'
+            ExePath      = $programPath
+            Aumid        = ''
+        }
+        Save-Config -Cfg $Config -Path $ConfigPath
+        Resequence-Shortcuts -FolderPath $FolderPath -Config $Config -ConfigPath $ConfigPath
+        Write-Host "Added shortcut: $newName" -ForegroundColor Green
+    } catch {
+        Write-Warning "Failed to add shortcut: $($_.Exception.Message)"
+    }
+}
+
+function Delete-ShortcutModule {
+    param($FolderPath, $Config, $ConfigPath)
+
+    Write-Host ''
+    Write-Host '=== Delete Shortcut ===' -ForegroundColor Cyan
+    $files = Show-ShortcutList -FolderPath $FolderPath
+    if (-not $files -or $files.Count -eq 0) { return }
+
+    $selection = Read-Host 'Enter the number of the shortcut to delete'
+    if (-not ($selection -as [int])) {
+        Write-Host 'Invalid selection.' -ForegroundColor Yellow
+        return
+    }
+    $index = [int]$selection
+    if ($index -lt 1 -or $index -gt $files.Count) {
+        Write-Host 'Selection out of range.' -ForegroundColor Yellow
+        return
+    }
+
+    $file = $files[$index - 1]
+    $displayName = Get-ShortcutDisplayName $file.BaseName
+
+    try {
+        Remove-Item -LiteralPath $file.FullName -Force
+        $Config.Shortcuts = @($Config.Shortcuts | Where-Object { $_.Name -ne $displayName })
+        Save-Config -Cfg $Config -Path $ConfigPath
+        Resequence-Shortcuts -FolderPath $FolderPath -Config $Config -ConfigPath $ConfigPath
+        Write-Host "Deleted shortcut: $($file.Name)" -ForegroundColor Green
+    } catch {
+        Write-Warning "Failed to delete shortcut: $($_.Exception.Message)"
+    }
+}
+
+function Modify-ShortcutModule {
+    param($FolderPath, $Config, $ConfigPath)
+
+    Write-Host ''
+    Write-Host '=== Modify Shortcut ===' -ForegroundColor Cyan
+    $files = Show-ShortcutList -FolderPath $FolderPath
+    if (-not $files -or $files.Count -eq 0) { return }
+
+    $selection = Read-Host 'Enter the number of the shortcut to modify'
+    if (-not ($selection -as [int])) {
+        Write-Host 'Invalid selection.' -ForegroundColor Yellow
+        return
+    }
+    $index = [int]$selection
+    if ($index -lt 1 -or $index -gt $files.Count) {
+        Write-Host 'Selection out of range.' -ForegroundColor Yellow
+        return
+    }
+
+    $file = $files[$index - 1]
+    $displayName = Get-ShortcutDisplayName $file.BaseName
+    $newProgramPath = Read-ProgramPath -PromptText ("Enter new full program path for '{0}'" -f $displayName)
+    $newProcName = [System.IO.Path]::GetFileNameWithoutExtension($newProgramPath)
+
+    try {
+        $shortcut = $WshShell.CreateShortcut($file.FullName)
+        Update-Shortcut -Shortcut $shortcut -ExePath $newProgramPath
+
+        $entry = $Config.Shortcuts | Where-Object { $_.Name -eq $displayName } | Select-Object -First 1
+        if ($entry) {
+            $entry.ProcessName = $newProcName
+            $entry.LaunchType  = 'Win32'
+            $entry.ExePath     = $newProgramPath
+            $entry.Aumid       = ''
+            $entry.ShortcutPath = $file.FullName
+        } else {
+            $Config.Shortcuts += [PSCustomObject]@{
+                Name         = $displayName
+                ShortcutPath = $file.FullName
+                ProcessName  = $newProcName
+                LaunchType   = 'Win32'
+                ExePath      = $newProgramPath
+                Aumid        = ''
+            }
+        }
+        Save-Config -Cfg $Config -Path $ConfigPath
+        Resequence-Shortcuts -FolderPath $FolderPath -Config $Config -ConfigPath $ConfigPath
+        Write-Host "Modified shortcut: $($file.Name)" -ForegroundColor Green
+    } catch {
+        Write-Warning "Failed to modify shortcut: $($_.Exception.Message)"
+    }
+}
+
+# ---------------------------------------------------------------------------
+# Startup launcher
+# ---------------------------------------------------------------------------
+function Start-StartupApps {
+    param($Config, $ConfigPath)
+
+    $startMenuFolder = $Config.StartMenuPath
+    if (-not (Test-Path -LiteralPath $startMenuFolder -PathType Container)) {
+        Write-Host "Start Menu folder not found: $startMenuFolder. Exiting." -ForegroundColor Red
+        return
+    }
+
+    Cleanup-OrphanTempShortcuts -FolderPath $startMenuFolder
+
+    $lnkFiles = Get-OrderedShortcutFiles -FolderPath $startMenuFolder
+    if (-not $lnkFiles -or $lnkFiles.Count -eq 0) {
+        Write-Host "No 01-99 numbered .lnk shortcuts found in '$startMenuFolder'."
+        return
+    }
+
+    $ProcessStartTimeout = 15
+    $WindowReadyTimeout  = 20
+
+    foreach ($file in $lnkFiles) {
+        $appDisplayName = Get-ShortcutDisplayName $file.BaseName
+        try {
+            $shortcut = $WshShell.CreateShortcut($file.FullName)
+        } catch {
+            Write-Warning "Skipping unreadable shortcut: $($file.FullName)"
+            continue
+        }
+        $targetPath = $shortcut.TargetPath
+
+        $existingApp = $Config.Shortcuts | Where-Object { $_.Name -eq $appDisplayName } | Select-Object -First 1
+
+        if ($existingApp -and $existingApp.ShortcutPath -ne $file.FullName) {
+            $existingApp.ShortcutPath = $file.FullName
+            Save-Config -Cfg $Config -Path $ConfigPath
+        }
+
+        $isStale = $existingApp -and (
+            [string]::IsNullOrEmpty($existingApp.ProcessName) -or
+            $existingApp.ProcessName -ieq 'explorer' -or
+            ($existingApp.LaunchType -eq 'Win32' -and
+                $existingApp.ExePath -ieq "$env:SystemRoot\explorer.exe") -or
+            ($existingApp.LaunchType -eq 'UWP' -and (
+                [string]::IsNullOrEmpty($existingApp.ExePath) -or
+                -not (Test-Path -LiteralPath $existingApp.ExePath)))
+        )
+        if ($isStale) {
+            Write-Host "Re-detecting $appDisplayName (stale or misclassified entry)..."
+            $existingApp.LaunchType  = $null
+            $existingApp.ProcessName = $null
+            $existingApp.ExePath     = $null
+            $existingApp.Aumid       = $null
+        }
+
+        $isDisplayNameFallback = $targetPath -ieq "$env:SystemRoot\explorer.exe"
+        $procName = if ($existingApp -and $existingApp.ProcessName -and
+                        $existingApp.ProcessName -ine 'explorer') {
+                        $isDisplayNameFallback = $false
+                        $existingApp.ProcessName
+                    } else {
+                        Get-ProcName -TargetPath $targetPath -DisplayName $appDisplayName
+                    }
+
+        $currentState = Get-AppReadyState -ProcessName $procName
+        if ($currentState -eq 'Window') {
+            Write-Host "Skipping $appDisplayName (already running with active window)."
+            continue
+        }
+        if ($currentState -eq 'Tray') {
+            Write-Host "Skipping $appDisplayName (already running in tray)."
+            continue
+        }
+
+        if ($existingApp -and $existingApp.LaunchType -eq 'UWP' -and
+            -not [string]::IsNullOrEmpty($existingApp.ExePath) -and
+            (Test-Path -LiteralPath $existingApp.ExePath)) {
+
+            Write-Host "Launching $appDisplayName [UWP]..."
+            Start-Process -FilePath $existingApp.ExePath -ErrorAction SilentlyContinue
+            $state = Wait-ForAppReady -ProcessName $procName `
+                         -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
+            switch ($state) {
+                'Window'   { Write-Host "  Window ready. $appDisplayName is up." }
+                'Tray'     { Write-Host "  Running in tray. $appDisplayName is up." }
+                'NotReady' {
+                    Write-Warning "'$appDisplayName' [UWP] did not start. Re-resolving..."
+                    Invoke-UwpFork -AppDisplayName $appDisplayName -Shortcut $shortcut -File $file `
+                        -ExistingApp $existingApp -Config $Config -ConfigPath $ConfigPath `
+                        -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
+                }
+            }
+            continue
+        }
+
+        if ($existingApp -and $existingApp.LaunchType -eq 'Win32') {
+            Write-Host "Launching $appDisplayName [Win32]..."
+        } else {
+            Write-Host "Launching $appDisplayName [detecting...]..."
+        }
+
+        $WshShell.Run('"' + $file.FullName + '"', 1, $false)
+
+        $state = Wait-ForAppReady -ProcessName $procName `
+                     -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout `
+                     -IsDisplayNameFallback $isDisplayNameFallback
+
+        switch ($state) {
+            { $_ -in 'Window', 'Tray' } {
+                $label = if ($state -eq 'Window') { 'Window ready' } else { 'Running in tray' }
+                Write-Host "  $label. $appDisplayName is up."
+                Update-AppEntry -ExistingApp $existingApp -Config $Config -ConfigPath $ConfigPath `
+                    -File $file -AppDisplayName $appDisplayName `
+                    -ProcessName $procName -LaunchType 'Win32' -ExePath $targetPath -Aumid ''
+            }
+            'NotReady' {
+                Invoke-UwpFork -AppDisplayName $appDisplayName -Shortcut $shortcut -File $file `
+                    -ExistingApp $existingApp -Config $Config -ConfigPath $ConfigPath `
+                    -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
+            }
+        }
+    }
+}
+
+# ---------------------------------------------------------------------------
 # Config load / create
 # ---------------------------------------------------------------------------
 $configPath = $defaultConfigPath
@@ -238,13 +712,13 @@ if (Test-Path -LiteralPath $configPath -PathType Leaf) {
         if (Test-ValidConfig $parsed) {
             $config = [PSCustomObject]@{
                 StartMenuPath = [string]$parsed.StartMenuPath
-                Shortcuts     = if ($parsed.Shortcuts) { $parsed.Shortcuts } else { @() }
+                Shortcuts     = if ($parsed.Shortcuts) { @($parsed.Shortcuts) } else { @() }
             }
         } else {
-            Write-Warning "Config is not a valid startup config. Reinitializing."
+            Write-Warning 'Config is not a valid startup config. Reinitializing.'
         }
     } catch {
-        Write-Warning "Config could not be loaded (invalid JSON). Reinitializing."
+        Write-Warning 'Config could not be loaded (invalid JSON). Reinitializing.'
     }
 }
 
@@ -255,178 +729,87 @@ if (-not $config) {
         $configPath = $jsonInput
     }
     if (-not (Test-Path -LiteralPath $configPath)) {
-        $startMenuPath = Read-Host "Enter the Start Menu folder path for startup .lnk files"
+        $startMenuPath = Read-Host 'Enter the Start Menu folder path for startup .lnk files'
         $config = [PSCustomObject]@{ StartMenuPath = $startMenuPath; Shortcuts = @() }
         Save-Config -Cfg $config -Path $configPath
         Write-Host "Configuration saved to $configPath."
     } else {
         $parsed = $null
         try { $parsed = Get-Content -LiteralPath $configPath -Raw | ConvertFrom-Json } catch {
-            Write-Warning "Selected config invalid JSON. Creating new config."
+            Write-Warning 'Selected config invalid JSON. Creating new config.'
         }
         if (Test-ValidConfig $parsed) {
             $config = [PSCustomObject]@{
                 StartMenuPath = [string]$parsed.StartMenuPath
-                Shortcuts     = if ($parsed.Shortcuts) { $parsed.Shortcuts } else { @() }
+                Shortcuts     = if ($parsed.Shortcuts) { @($parsed.Shortcuts) } else { @() }
             }
         } else {
-            Write-Warning "Selected config is not valid. Creating new config."
-            $startMenuPath = Read-Host "Enter the Start Menu folder path for startup .lnk files"
+            Write-Warning 'Selected config is not valid. Creating new config.'
+            $startMenuPath = Read-Host 'Enter the Start Menu folder path for startup .lnk files'
             $config = [PSCustomObject]@{ StartMenuPath = $startMenuPath; Shortcuts = @() }
             Save-Config -Cfg $config -Path $configPath
         }
         if (-not $config.StartMenuPath) {
-            $config.StartMenuPath = Read-Host "Enter the Start Menu folder path for startup .lnk files"
+            $config.StartMenuPath = Read-Host 'Enter the Start Menu folder path for startup .lnk files'
         }
         Save-Config -Cfg $config -Path $configPath
     }
 } else {
     if (-not $config.StartMenuPath) {
-        $config.StartMenuPath = Read-Host "Enter the Start Menu folder path for startup .lnk files"
+        $config.StartMenuPath = Read-Host 'Enter the Start Menu folder path for startup .lnk files'
     }
     if (-not $config.Shortcuts) { $config.Shortcuts = @() }
     Save-Config -Cfg $config -Path $configPath
 }
 
-$startMenuFolder = $config.StartMenuPath
-if (-not (Test-Path -LiteralPath $startMenuFolder -PathType Container)) {
-    Write-Host "Start Menu folder not found: $startMenuFolder. Exiting." -ForegroundColor Red
+if (-not (Test-Path -LiteralPath $config.StartMenuPath -PathType Container)) {
+    Write-Host "Start Menu folder not found: $($config.StartMenuPath). Exiting." -ForegroundColor Red
     return
 }
 
-$lnkFiles = Get-ChildItem -LiteralPath $startMenuFolder -Filter '*.lnk' -ErrorAction SilentlyContinue |
-    Where-Object { $_.BaseName -match '^\d{1,2}\s' } |
-    Sort-Object { if ($_.BaseName -match '^(\d{1,2})\s') { [int]$Matches[1] } else { 0 } }
-
-if ($lnkFiles.Count -eq 0) {
-    Write-Host "No numbered .lnk shortcuts found in '$startMenuFolder'."
-    return
-}
-
-$ProcessStartTimeout = 15
-$WindowReadyTimeout  = 20
+Cleanup-OrphanTempShortcuts -FolderPath $config.StartMenuPath
+Sync-ConfigShortcutPaths -Config $config -ConfigPath $configPath -FolderPath $config.StartMenuPath
+Resequence-Shortcuts -FolderPath $config.StartMenuPath -Config $config -ConfigPath $configPath
 
 # ---------------------------------------------------------------------------
-# Main launch loop
+# Main menu
 # ---------------------------------------------------------------------------
-foreach ($file in $lnkFiles) {
-    $appDisplayName = $file.BaseName -replace '^\d+\s*', ''
-    try {
-        $shortcut = $WshShell.CreateShortcut($file.FullName)
-    } catch {
-        Write-Warning "Skipping unreadable shortcut: $($file.FullName)"
-        continue
-    }
-    $targetPath = $shortcut.TargetPath
-
-    # Match config entry by Name (renumber-safe)
-    $existingApp = $config.Shortcuts | Where-Object { $_.Name -eq $appDisplayName } | Select-Object -First 1
-
-    # Keep ShortcutPath in sync if shortcut was renumbered
-    if ($existingApp -and $existingApp.ShortcutPath -ne $file.FullName) {
-        $existingApp.ShortcutPath = $file.FullName
-        Save-Config -Cfg $config -Path $configPath
-    }
-
-    # ------------------------------------------------------------------
-    # Stale entry detection: wipe classification so re-detection runs
-    # ------------------------------------------------------------------
-    $isStale = $existingApp -and (
-        [string]::IsNullOrEmpty($existingApp.ProcessName) -or
-        $existingApp.ProcessName -ieq 'explorer' -or
-        ($existingApp.LaunchType -eq 'Win32' -and
-            $existingApp.ExePath -ieq "$env:SystemRoot\explorer.exe") -or
-        ($existingApp.LaunchType -eq 'UWP' -and (
-            [string]::IsNullOrEmpty($existingApp.ExePath) -or
-            -not (Test-Path -LiteralPath $existingApp.ExePath)))
-    )
-    if ($isStale) {
-        Write-Host "Re-detecting $appDisplayName (stale or misclassified entry)..."
-        $existingApp.LaunchType  = $null
-        $existingApp.ProcessName = $null
-        $existingApp.ExePath     = $null
-        $existingApp.Aumid       = $null
-    }
-
-    # Derive real process name -- never use 'explorer'
-    # Track whether it is a display-name fallback (explorer.exe target)
-    $isDisplayNameFallback = $targetPath -ieq "$env:SystemRoot\explorer.exe"
-    $procName = if ($existingApp -and $existingApp.ProcessName -and
-                    $existingApp.ProcessName -ine 'explorer') {
-                    $isDisplayNameFallback = $false   # known good name from JSON
-                    $existingApp.ProcessName
-                } else {
-                    Get-ProcName -TargetPath $targetPath -DisplayName $appDisplayName
-                }
-
-    # ------------------------------------------------------------------
-    # Skip-if-running: only skip if window OR tray confirmed
-    # ------------------------------------------------------------------
-    $currentState = Get-AppReadyState -ProcessName $procName
-    if ($currentState -eq 'Window') {
-        Write-Host "Skipping $appDisplayName (already running with active window)."
-        continue
-    }
-    if ($currentState -eq 'Tray') {
-        Write-Host "Skipping $appDisplayName (already running in tray)."
-        continue
-    }
-
-    # ------------------------------------------------------------------
-    # PATH 1: Known UWP with valid ExePath -> Start-Process directly
-    # ------------------------------------------------------------------
-    if ($existingApp -and $existingApp.LaunchType -eq 'UWP' -and
-        -not [string]::IsNullOrEmpty($existingApp.ExePath) -and
-        (Test-Path -LiteralPath $existingApp.ExePath)) {
-
-        Write-Host "Launching $appDisplayName [UWP]..."
-        Start-Process -FilePath $existingApp.ExePath -ErrorAction SilentlyContinue
-        $state = Wait-ForAppReady -ProcessName $procName `
-                     -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
-        switch ($state) {
-            'Window'   { Write-Host "  Window ready. $appDisplayName is up." }
-            'Tray'     { Write-Host "  Running in tray. $appDisplayName is up." }
-            'NotReady' {
-                Write-Warning "'$appDisplayName' [UWP] did not start. Re-resolving..."
-                Invoke-UwpFork -AppDisplayName $appDisplayName -Shortcut $shortcut -File $file `
-                    -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
-                    -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
-            }
-        }
-        continue
-    }
-
-    # ------------------------------------------------------------------
-    # PATH 2 & 3: Known Win32 OR unknown/stale -> WshShell.Run .lnk
-    # Shortcut NOT updated here -- target is already correct for Win32.
-    # ------------------------------------------------------------------
-    if ($existingApp -and $existingApp.LaunchType -eq 'Win32') {
-        Write-Host "Launching $appDisplayName [Win32]..."
-    } else {
-        Write-Host "Launching $appDisplayName [detecting...]..."
-    }
-
-    $WshShell.Run('"' + $file.FullName + '"', 1, $false)
-
-    # Wait-ForAppReady returns 'NotReady' immediately if IsDisplayNameFallback
-    # (explorer.exe target) -- no inline branching needed here
-    $state = Wait-ForAppReady -ProcessName $procName `
-                 -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout `
-                 -IsDisplayNameFallback $isDisplayNameFallback
-
-    switch ($state) {
-        { $_ -in 'Window', 'Tray' } {
-            $label = if ($state -eq 'Window') { 'Window ready' } else { 'Running in tray' }
-            Write-Host "  $label. $appDisplayName is up."
-            # Shortcut already correct -- only update JSON
-            Update-AppEntry -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
-                -File $file -AppDisplayName $appDisplayName `
-                -ProcessName $procName -LaunchType 'Win32' -ExePath $targetPath -Aumid ''
-        }
-        'NotReady' {
-            Invoke-UwpFork -AppDisplayName $appDisplayName -Shortcut $shortcut -File $file `
-                -ExistingApp $existingApp -Config $config -ConfigPath $configPath `
-                -ProcessTimeout $ProcessStartTimeout -WindowTimeout $WindowReadyTimeout
-        }
-    }
+function Show-MainMenu {
+    Write-Host ''
+    Write-Host '=== Windows 11 Startup Manager ===' -ForegroundColor Cyan
+    Write-Host '1. Run startup apps'
+    Write-Host '2. Add shortcut'
+    Write-Host '3. Modify shortcut'
+    Write-Host '4. Delete shortcut'
+    Write-Host '5. List shortcuts'
+    Write-Host '6. Exit'
+    Write-Host ''
 }
+
+do {
+    Show-MainMenu
+    $choice = Read-Host 'Select an option'
+    switch ($choice) {
+        '1' {
+            Start-StartupApps -Config $config -ConfigPath $configPath
+        }
+        '2' {
+            Add-ShortcutModule -FolderPath $config.StartMenuPath -Config $config -ConfigPath $configPath
+        }
+        '3' {
+            Modify-ShortcutModule -FolderPath $config.StartMenuPath -Config $config -ConfigPath $configPath
+        }
+        '4' {
+            Delete-ShortcutModule -FolderPath $config.StartMenuPath -Config $config -ConfigPath $configPath
+        }
+       '5' {
+            Show-ShortcutList -FolderPath $config.StartMenuPath
+        }
+       '6' {
+            Write-Host 'Exiting program.' -ForegroundColor Cyan
+        }
+        default {
+            Write-Host 'Invalid option. Please select 1-6.' -ForegroundColor Yellow
+        }
+    }
+} while ($choice -ne '6')
