@@ -40,20 +40,20 @@ Sub SplitExcelByManager_UserInputs()
 
         Set newWb = Workbooks.Add
 
-        ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol)) _
-            .SpecialCells(xlCellTypeVisible).Copy
-
-     With newWb.Sheets(1).Range("A1")
-        .PasteSpecial xlPasteValues
-        .PasteSpecial xlPasteFormats
-        .PasteSpecial xlPasteValidation
-    End With
+         ws.Range(ws.Cells(1, 1), ws.Cells(lastRow, lastCol)) _
+        .SpecialCells(xlCellTypeVisible).Copy
+    
+        With newWb.Sheets(1).Range("A1")
+            .PasteSpecial Paste:=xlPasteAll
+            .PasteSpecial Paste:=xlPasteColumnWidths
+        End With
 
        With newWb.Sheets(1).UsedRange
             .WrapText = False
             .Columns.AutoFit
             .Rows.AutoFit
         End With
+        
         Application.DisplayAlerts = False
         newWb.SaveAs Filename:=outPath, FileFormat:=xlOpenXMLWorkbook
         Application.DisplayAlerts = True
