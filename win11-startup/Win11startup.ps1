@@ -551,7 +551,6 @@ function Modify-ShortcutModule {
     $newProgramPath = Read-Host ("Enter new full program path (or press Enter to keep '{0}')" -f $currentExePath)
 
     if ([string]::IsNullOrWhiteSpace($newProgramPath)) {
-        # User skipped path change -- keep existing
         $newProgramPath = $currentExePath
         Write-Host "  Keeping existing path: $newProgramPath" -ForegroundColor DarkGray
     } elseif (-not (Test-Path -LiteralPath $newProgramPath -PathType Leaf)) {
@@ -562,12 +561,10 @@ function Modify-ShortcutModule {
     $newProcName = [System.IO.Path]::GetFileNameWithoutExtension($newProgramPath)
 
     try {
-        # Update shortcut file target if path changed
         if ($newProgramPath -ne $currentExePath) {
             Update-Shortcut -Shortcut $shortcut -ExePath $newProgramPath
         }
 
-        # Rename shortcut file if display name changed
         $entry = $Config.Shortcuts | Where-Object { $_.Name -eq $displayName } | Select-Object -First 1
         if ($newDisplayName -ne $displayName) {
             $seqNum = Get-ShortcutSequenceNumber $file.BaseName
@@ -576,12 +573,10 @@ function Modify-ShortcutModule {
             Rename-Item -LiteralPath $file.FullName -NewName $newFileName -Force
             $file = Get-Item -LiteralPath $newFilePath
 
-            # Update config name and remove old entry if it exists under old name
             if ($entry) {
-                $entry.Name        = $newDisplayName
+                $entry.Name         = $newDisplayName
                 $entry.ShortcutPath = $file.FullName
             } else {
-                # Orphan entry -- add fresh
                 $Config.Shortcuts = @($Config.Shortcuts | Where-Object { $_.Name -ne $displayName })
             }
         }
@@ -832,17 +827,20 @@ do {
         }
         '2' {
             Add-ShortcutModule -FolderPath $config.StartMenuPath -Config $config -ConfigPath $configPath
+            Show-ShortcutList -FolderPath $config.StartMenuPath | Out-Null
         }
         '3' {
             Modify-ShortcutModule -FolderPath $config.StartMenuPath -Config $config -ConfigPath $configPath
+            Show-ShortcutList -FolderPath $config.StartMenuPath | Out-Null
         }
         '4' {
             Delete-ShortcutModule -FolderPath $config.StartMenuPath -Config $config -ConfigPath $configPath
+            Show-ShortcutList -FolderPath $config.StartMenuPath | Out-Null
         }
-       '5' {
+        '5' {
             Show-ShortcutList -FolderPath $config.StartMenuPath
         }
-       '6' {
+        '6' {
             Write-Host 'Exiting program.' -ForegroundColor Cyan
         }
         default {
