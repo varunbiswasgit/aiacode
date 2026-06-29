@@ -276,8 +276,6 @@ function Restore-OrRemoveTempShortcut {
         [Parameter(Mandatory = $true)] $FolderPath
     )
 
-    # Handles current temp format: __TMP_RESEQ__01 App.lnk -> 01 App.lnk
-    # Handles older temp format:   __TMP__01 App.lnk       -> 01 App.lnk
     $base = $TempFile.BaseName
     $restoreBase = $null
 
@@ -339,7 +337,6 @@ function Resequence-Shortcuts {
 
     if (-not (Test-Path -LiteralPath $FolderPath -PathType Container)) { return }
 
-    # Restore/clean temp files left from previous failed runs before doing new work.
     Cleanup-OrphanTempShortcuts -FolderPath $FolderPath
 
     $files = Get-OrderedShortcutFiles -FolderPath $FolderPath
@@ -353,7 +350,6 @@ function Resequence-Shortcuts {
     $index = 1
 
     try {
-        # STEP 1: rename every 01-99 shortcut to a temp name to avoid collisions.
         foreach ($file in $files) {
             $displayName = Get-ShortcutDisplayName $file.BaseName
             $tempName = ('__TMP_RESEQ__{0:00} {1}{2}' -f $index, $displayName, $file.Extension)
@@ -374,7 +370,6 @@ function Resequence-Shortcuts {
             $index++
         }
 
-        # STEP 2: rename temp files into final sequence.
         foreach ($move in $tempMap) {
             if (Test-Path -LiteralPath $move.FinalPath) {
                 throw "Target already exists during resequence: $($move.FinalPath)"
@@ -542,23 +537,64 @@ function Modify-ShortcutModule {
 
     $file = $files[$index - 1]
     $displayName = Get-ShortcutDisplayName $file.BaseName
-    $newProgramPath = Read-ProgramPath -PromptText ("Enter new full program path for '{0}'" -f $displayName)
+
+    # --- New display name (optional -- press Enter to keep current) ---
+    $newDisplayName = Read-Host ("Enter new display name for '{0}' (or press Enter to keep)" -f $displayName)
+    if ([string]::IsNullOrWhiteSpace($newDisplayName)) {
+        $newDisplayName = $displayName
+    }
+
+    # --- New program path (optional -- press Enter to keep current) ---
+    $shortcut = $WshShell.CreateShortcut($file.FullName)
+    $currentExePath = $shortcut.TargetPath
+
+    $newProgramPath = Read-Host ("Enter new full program path (or press Enter to keep '{0}')" -f $currentExePath)
+
+    if ([string]::IsNullOrWhiteSpace($newProgramPath)) {
+        # User skipped path change -- keep existing
+        $newProgramPath = $currentExePath
+        Write-Host "  Keeping existing path: $newProgramPath" -ForegroundColor DarkGray
+    } elseif (-not (Test-Path -LiteralPath $newProgramPath -PathType Leaf)) {
+        Write-Host 'File not found. Keeping existing path.' -ForegroundColor Yellow
+        $newProgramPath = $currentExePath
+    }
+
     $newProcName = [System.IO.Path]::GetFileNameWithoutExtension($newProgramPath)
 
     try {
-        $shortcut = $WshShell.CreateShortcut($file.FullName)
-        Update-Shortcut -Shortcut $shortcut -ExePath $newProgramPath
+        # Update shortcut file target if path changed
+        if ($newProgramPath -ne $currentExePath) {
+            Update-Shortcut -Shortcut $shortcut -ExePath $newProgramPath
+        }
 
+        # Rename shortcut file if display name changed
         $entry = $Config.Shortcuts | Where-Object { $_.Name -eq $displayName } | Select-Object -First 1
+        if ($newDisplayName -ne $displayName) {
+            $seqNum = Get-ShortcutSequenceNumber $file.BaseName
+            $newFileName = ('{0:00} {1}{2}' -f $seqNum, $newDisplayName, $file.Extension)
+            $newFilePath = Join-Path $FolderPath $newFileName
+            Rename-Item -LiteralPath $file.FullName -NewName $newFileName -Force
+            $file = Get-Item -LiteralPath $newFilePath
+
+            # Update config name and remove old entry if it exists under old name
+            if ($entry) {
+                $entry.Name        = $newDisplayName
+                $entry.ShortcutPath = $file.FullName
+            } else {
+                # Orphan entry -- add fresh
+                $Config.Shortcuts = @($Config.Shortcuts | Where-Object { $_.Name -ne $displayName })
+            }
+        }
+
         if ($entry) {
-            $entry.ProcessName = $newProcName
-            $entry.LaunchType  = 'Win32'
-            $entry.ExePath     = $newProgramPath
-            $entry.Aumid       = ''
+            $entry.ProcessName  = $newProcName
+            $entry.LaunchType   = 'Win32'
+            $entry.ExePath      = $newProgramPath
+            $entry.Aumid        = ''
             $entry.ShortcutPath = $file.FullName
         } else {
             $Config.Shortcuts += [PSCustomObject]@{
-                Name         = $displayName
+                Name         = $newDisplayName
                 ShortcutPath = $file.FullName
                 ProcessName  = $newProcName
                 LaunchType   = 'Win32'
@@ -566,6 +602,7 @@ function Modify-ShortcutModule {
                 Aumid        = ''
             }
         }
+
         Save-Config -Cfg $Config -Path $ConfigPath
         Resequence-Shortcuts -FolderPath $FolderPath -Config $Config -ConfigPath $ConfigPath
         Write-Host "Modified shortcut: $($file.Name)" -ForegroundColor Green
