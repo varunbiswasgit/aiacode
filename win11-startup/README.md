@@ -1,109 +1,94 @@
-# Win11 Startup Launcher (Simplified)
+# Windows 11 Startup Manager
 
-A lightweight PowerShell startup launcher for Windows 11 that sequentially launches numbered `.lnk` shortcuts found in a Start Menu folder. Launch order is driven by a numeric prefix on each shortcut filename (e.g., `01 Outlook.lnk`, `02 Teams.lnk`). Configuration is persisted automatically to a local JSON file. Windows Store / UWP apps (shortcuts targeting `explorer.exe shell:appsFolder\...`) are skipped.
+A modular, folder-first startup manager for Windows 11. It launches desktop (Win32) applications and Universal Windows Platform (UWP) apps in a strict sequential order with genuine readiness verification, automatic self-repair, and interactive shortcut management.
 
 ---
 
-## Quick Start
+## Key Features
 
+1. **Folder-First Runtime (Zero-Config Default)**:
+   * By default, the startup sequence reads directly from the designated Start Menu folder (`01-99 *.lnk`).
+   * No JSON configuration is queried or required to launch startup items.
+2. **First-Run Wizard & Dedicated Settings Menu**:
+   * Prompts new users on first launch to confirm recommended generic defaults (`%APPDATA%` and local JSON) or configure custom paths.
+   * Dedicated submenu (**Option 8**) allows changing the active Start Menu folder or pointing the JSON manifest to a cloud-synced folder (e.g., OneDrive, Dropbox) for multi-PC synchronization.
+3. **Environment Variable Path Expansion**:
+   * Supports portable paths like `%APPDATA%`, `%ProgramData%`, and `%USERPROFILE%`, expanding them dynamically on the host system without hardcoding user identifiers.
+4. **Automatic Shortcut Listing**:
+   * After any shortcut modification (Add, Remove, or Modify), the updated sequence of managed shortcuts is immediately printed to the console (Option 5 logic).
+5. **Readiness Detection**:
+   * Uses a two-stage verification process: polls for a valid top-level window handle (`MainWindowHandle`) first before considering an application running in the system tray or background.
+   * Prevents premature launches caused by background processes.
+6. **Automated Source Self-Repair**:
+   * If a shortcut target executable is missing (e.g., following an application update), the engine searches the parent directory recursively up to 3 levels deep.
+   * Automatically updates shortcut target paths upon finding the new binary.
+   * Prompts with an interactive file dialog if automated recovery fails.
+7. **Native UWP App Activation**:
+   * Resolves AppX packages and Application User Model IDs (AUMIDs) dynamically using Windows AppX cmdlets (`Get-AppxPackage`, `Get-AppxPackageManifest`).
+   * Launches packaged applications via `shell:AppsFolder\<AUMID>`, bypassing NTFS permissions on `WindowsApps`.
+8. **On-Demand Menu-Driven Synchronization**:
+---
+
+## File Structure
+
+```
+win11-startup/
+├── Win11startup.ps1           # Core executable launcher script
+├── Win11startupapps.json       # Optional JSON manifest (used for export/reverse-sync)
+├── Win11startup.Tests.ps1     # Pester unit tests for core script functions
+├── TESTING.md                 # Test execution and verification instructions
+├── tasks.md                   # Development backlog and changelog
+└── README.md                  # Project documentation
+```
+
+---
+
+## Numbering & Shortcut Conventions
+
+Shortcuts in the Start Menu folder must follow a two-digit prefix matching the regex:
+```regex
+^(0[1-9]|[1-9][0-9])\s
+```
+
+* **Valid examples:**
+  * `01 Windows Terminal.lnk`
+  * `02 Google Chrome.lnk`
+  * `03 Slack.lnk`
+* **Ignored files:** Shortcuts lacking a two-digit prefix or standard files are skipped during startup.
+
+---
+
+## Menu System
+
+### Main Menu
+
+| Option | Action | Description |
+| :--- | :--- | :--- |
+| **1** | **Launch all startup shortcuts** | Runs through `01-99` shortcuts in the folder sequentially, waiting for readiness. |
+| **2** | **Add a shortcut** | Selects an executable, calculates the next sequence number, creates the `.lnk`, and auto-lists updated shortcuts. |
+| **3** | **Remove a shortcut** | Deletes a managed `.lnk` file from disk and auto-lists remaining shortcuts. |
+| **4** | **Modify a shortcut** | Rename an application, update its target executable, or change its sequence number (01-99), then auto-lists. |
+| **5** | **List shortcuts in folder** | Displays all active numbered shortcuts and their target binaries. |
+| **6** | **Sync: Folder -> JSON** | Exports the current folder shortcuts into `Win11startupapps.json` (pruning missing items upon confirmation). |
+| **7** | **Reverse Sync: JSON -> Folder** | Recreates any shortcuts found in `Win11startupapps.json` that are missing from disk. |
+| **8** | **Settings & Path Configuration** | Opens the dedicated configuration submenu to manage active folder and JSON paths. |
+| **9** | **Quit** | Exits the application. |
+
+### Settings & Path Configuration Submenu (Option 8)
+* **1. View current active paths**: Displays the currently loaded Start Menu directory and active JSON manifest location.
+* **2. Configure Start Menu folder**: Choose between Current User (`%APPDATA%`), All Users (`%ProgramData%`), or browse to a custom folder.
+* **3. Configure JSON location**: Select script directory default or link to a cloud-synced folder (e.g., OneDrive) for multi-device sync.
+* **4. Reset to recommended defaults**: Reverts folder and JSON paths to generic standard defaults.
+* **5. Return to Main Menu**.
+
+---
+
+## Testing
+
+Automated tests are implemented with the **Pester** testing framework. See [TESTING.md](TESTING.md) for full details.
+
+To execute tests:
 ```powershell
-Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
-.\Win11startup.ps1
+Invoke-Pester .\Win11startup.Tests.ps1 -Output Detailed
 ```
 
-On first run the script prompts for:
-1. A config JSON path (defaults to `Win11StartupConfig.json` next to the script).
-2. The Start Menu folder that contains your numbered `.lnk` files.
-
-To run at Windows login, add a shortcut to this script in your Startup folder (`shell:startup`).
-
-**Requirements:** Windows 10/11 · PowerShell 5.1+ · `WScript.Shell` COM object (standard inbox)
-
----
-
-## How It Works
-
-| Step | What happens |
-|------|--------------|
-| 1 | Loads (or creates) `Win11StartupConfig.json` storing `StartMenuPath` and a `Shortcuts` array. |
-| 2 | Reads all `.lnk` files whose base name begins with 1–2 digits (e.g., `01 Outlook.lnk`) from the configured Start Menu folder. |
-| 3 | Sorts shortcuts by their numeric prefix. |
-| 4 | For each shortcut: resolves the target executable, skips Store apps, checks whether the process is already running, then launches via `WshShell.Run`. |
-| 5 | Waits up to `$ProcessStartTimeout` seconds for the process to appear. |
-| 6 | If the process never starts, presents a Windows **Open File** dialog so you can select the correct `.exe` — the shortcut is then repaired and re-launched. |
-
----
-
-## Configuration File (`Win11StartupConfig.json`)
-
-The file is created automatically on first run and updated live as shortcuts are discovered.
-
-```json
-{
-  "StartMenuPath": "C:\\ProgramData\\Microsoft\\Windows\\Start Menu\\Programs",
-  "Shortcuts": [
-    {
-      "Name": "Outlook",
-      "ShortcutPath": "C:\\...\\01 Outlook.lnk",
-      "ProcessName": "OUTLOOK"
-    }
-  ]
-}
-```
-
-| Field | Description |
-|-------|-------------|
-| `StartMenuPath` | Full path to the folder containing numbered `.lnk` files. |
-| `Shortcuts[].Name` | Display name derived from the shortcut filename (numeric prefix stripped). |
-| `Shortcuts[].ShortcutPath` | Full path to the `.lnk` file. |
-| `Shortcuts[].ProcessName` | Process name (without `.exe`) used to detect whether the app is already running. Auto-updated when a shortcut is repaired. |
-
----
-
-## Shortcut Naming Convention
-
-Shortcuts must start with a 1–2 digit number followed by a space:
-
-```
-01 Outlook.lnk
-02 Microsoft Teams.lnk
-03 Slack.lnk
-```
-
-Launch order is numeric (ascending). Shortcuts without a numeric prefix are ignored.
-
----
-
-## Key Behaviours
-
-- **Skip-if-running** — process already running? Shortcut is silently skipped.
-- **Store app guard** — shortcuts targeting `explorer.exe` with `shell:appsFolder\` arguments are skipped (UWP launch via `WshShell.Run` is unsupported).
-- **Self-healing shortcut repair** — if an app does not start within `$ProcessStartTimeout` seconds, a file-picker dialog lets you choose the correct `.exe`. The shortcut target and config are updated in place.
-- **Config auto-sync** — every shortcut encountered updates or adds its entry in `Win11StartupConfig.json` automatically.
-
----
-
-## Configuration Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `$ProcessStartTimeout` | `15` | Seconds to wait for a launched process to appear before offering repair. |
-
----
-
-## Tests (Pester)
-
-```powershell
-# Unit tests only
-Invoke-Pester .\Win11startup.Tests.ps1
-```
-
-Test mode is activated by setting `$env:PS_STARTUP_TESTMODE = '1'` before dot-sourcing the script, which suppresses the startup sequence.
-
-> **Note:** Tests for functions not present in this simplified script (e.g., `Import-AppsConfig`, `Resolve-Aumid`, `Invoke-AppLaunch`) are not applicable to this version.
-
----
-
-## License
-
-See [LICENSE](../LICENSE) in the repository root.
