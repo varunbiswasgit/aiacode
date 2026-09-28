@@ -2,6 +2,7 @@
 # Pester Unit Tests: Win11startup.Tests.ps1
 # ---------------------------------------------------------------------------
 # Validates core functions of Win11startup.ps1:
+#   - Environment variable path expansion (Expand-PathString)
 #   - Process name derivation (Get-ProcName)
 #   - Numbered shortcut regex pattern matching
 #   - Sequence number generation (Get-NextShortcutNumber)
@@ -15,11 +16,31 @@ BeforeAll {
     # Extract functions from the script without executing the interactive menu loop
     $scriptContent = Get-Content -LiteralPath $scriptPath -Raw
     
-    # Strip the execution loop at the bottom so functions can be unit-tested
-    $functionsOnly = $scriptContent -replace '(?s)# Master Menu Loop.*', ''
+    # Strip the execution loops and setup prompts so functions can be unit-tested
+    $functionsOnly = $scriptContent -replace '(?s)# First-Run Initialization Check.*', ''
+    $functionsOnly = $functionsOnly -replace '(?s)# Master Menu Loop.*', ''
     $functionsOnly = $functionsOnly -replace '(?s)\$quit\s*=\s*\$false.*', ''
     
     Invoke-Expression $functionsOnly
+}
+
+Describe 'Environment Variable Path Expansion Tests' {
+    It 'Expands standard Windows environment variables' {
+        $result = Expand-PathString -Path '%APPDATA%\TestFolder'
+        $expected = Join-Path $env:APPDATA 'TestFolder'
+        $result | Should -Be $expected
+    }
+
+    It 'Leaves paths without environment variables unmodified' {
+        $path = 'C:\CustomFolder\SubFolder'
+        $result = Expand-PathString -Path $path
+        $result | Should -Be $path
+    }
+
+    It 'Handles null or empty path gracefully' {
+        Expand-PathString -Path '' | Should -Be ''
+        Expand-PathString -Path $null | Should -Be ''
+    }
 }
 
 Describe 'Pattern Matching & Formatting Tests' {
@@ -110,13 +131,13 @@ Describe 'Configuration Loading Tests' {
             $res.Shortcuts.Count | Should -Be 0
         }
 
-        It 'Correctly parses valid configuration JSON' {
+        It 'Correctly parses valid configuration JSON with expanded environment variables' {
             $sampleJson = @{
-                StartMenuPath = 'C:\TestFolder'
+                StartMenuPath = '%APPDATA%\Microsoft\Windows\Start Menu\Programs'
                 Shortcuts = @(
                     @{
                         Name = 'App1'
-                        ShortcutPath = 'C:\TestFolder\01 App1.lnk'
+                        ShortcutPath = '%APPDATA%\Microsoft\Windows\Start Menu\Programs\01 App1.lnk'
                         ProcessName = 'app1'
                         LaunchType = 'Win32'
                         ExePath = 'C:\app1.exe'
@@ -127,7 +148,7 @@ Describe 'Configuration Loading Tests' {
             
             Set-Content -Path $tempConfigFile -Value $sampleJson -Encoding UTF8
             $res = Load-ConfigSafe -Path $tempConfigFile
-            $res.StartMenuPath | Should -Be 'C:\TestFolder'
+            $res.StartMenuPath | Should -Be (Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs')
             $res.Shortcuts.Count | Should -Be 1
             $res.Shortcuts[0].Name | Should -Be 'App1'
         }
