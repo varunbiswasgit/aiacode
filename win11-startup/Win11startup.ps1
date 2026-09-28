@@ -1,7 +1,7 @@
 # ===========================================================================
 # Windows 11 Startup Manager (Win11startup.ps1)
 # ---------------------------------------------------------------------------
-# Menu-driven startup launcher with:
+#   - First-run setup detection & dedicated Settings/Configuration submenu
 #   - Default folder-first runtime execution (zero JSON dependency on launch)
 #   - Sequential launch of numbered shortcuts (01-99) from the Start Menu
 #   - Window & Tray readiness verification (prevents premature launches)
@@ -11,24 +11,35 @@
 #   - User-menu-driven bidirectional sync:
 #       * Option 6: Folder -> JSON (Snapshot / export folder to config)
 #       * Option 7: Reverse Sync: JSON -> Folder (Rebuild shortcuts from config)
+#   - Option 8: Settings & Path Configuration (Folder & JSON path management)
 # ===========================================================================
 
 [CmdletBinding()]
+# ---------------------------------------------------------------------------
+# Path Helper: Environment Variable Expansion
+# ---------------------------------------------------------------------------
+function Expand-PathString {
+    param([string]$Path)
+    if ([string]::IsNullOrWhiteSpace($Path)) { return '' }
+    return [System.Environment]::ExpandEnvironmentVariables($Path)
+}
+
 param()
 
 # ---------------------------------------------------------------------------
 # Default Paths & Patterns
 # ---------------------------------------------------------------------------
-$script:UserStartMenu = [System.IO.Path]::Combine($env:APPDATA, 'Microsoft\Windows\Start Menu\Programs')
-$script:DefaultStartMenuFolder = if (Test-Path -LiteralPath $script:UserStartMenu) {
-    $script:UserStartMenu
-} else {
-    'C:\ProgramData\Microsoft\Windows\Start Menu\Programs'
+$script:DefaultUserStartMenu = [System.IO.Path]::Combine($env:APPDATA, 'Microsoft\Windows\Start Menu\Programs')
+$script:DefaultMachineStartMenu = 'C:\ProgramData\Microsoft\Windows\Start Menu\Programs'
+$script:DefaultStartMenuFolder = if (Test-Path -LiteralPath $script:DefaultUserStartMenu) {
+    $script:DefaultUserStartMenu
+    $script:DefaultMachineStartMenu
 }
 
 $ScriptRoot        = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $defaultConfigPath = Join-Path $ScriptRoot 'Win11startupapps.json'
 $StartMenuFolder   = $script:DefaultStartMenuFolder
+$ActiveConfigPath  = $defaultConfigPath
 $WshShell          = New-Object -ComObject WScript.Shell
 
 $ProcessStartTimeout = 15
@@ -57,7 +68,7 @@ function Load-ConfigSafe {
             $parsed = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json
             if ($parsed -and ($parsed | Get-Member -MemberType NoteProperty | Select-Object -ExpandProperty Name) -contains 'StartMenuPath') {
                 return [PSCustomObject]@{
-                    StartMenuPath = [string]$parsed.StartMenuPath
+                    StartMenuPath = Expand-PathString -Path ([string]$parsed.StartMenuPath)
                     Shortcuts     = if ($parsed.Shortcuts) { @($parsed.Shortcuts) } else { @() }
                 }
             }
@@ -184,6 +195,19 @@ function Select-ExecutableManually {
     $dlg.InitialDirectory = ${env:ProgramFiles}
     if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         return $dlg.FileName
+    }
+    return $null
+}
+
+function Select-FolderDialog {
+    param([string]$Description)
+
+    Add-Type -AssemblyName System.Windows.Forms
+    $dlg = New-Object System.Windows.Forms.FolderBrowserDialog
+    $dlg.Description = $Description
+    $dlg.ShowNewFolderButton = $true
+    if ($dlg.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
+        return $dlg.SelectedPath
     }
     return $null
 }
@@ -457,8 +481,7 @@ function Add-StartupShortcut {
         $sc.WorkingDirectory = Split-Path $targetPath -Parent
         $sc.Save()
         Write-Host "Shortcut created: '$lnkName'" -ForegroundColor Green
-        
-        # Auto-list shortcuts after add
+
         Show-FolderShortcuts -StartMenuFolder $StartMenuFolder
     } catch {
         Write-Warning "Failed to create shortcut: $($_.Exception.Message)"
@@ -495,7 +518,6 @@ function Remove-StartupShortcut {
         Remove-Item -LiteralPath $targetFile.FullName -Force -ErrorAction SilentlyContinue
         Write-Host "Deleted '$($targetFile.Name)'." -ForegroundColor Green
 
-        # Auto-list shortcuts after remove
         Show-FolderShortcuts -StartMenuFolder $StartMenuFolder
     }
 }
@@ -587,9 +609,7 @@ function Set-StartupShortcut {
     }
 
     if ($modified) {
-        # Auto-list shortcuts after modify
         Show-FolderShortcuts -StartMenuFolder $StartMenuFolder
-    }
 }
 
 # ---------------------------------------------------------------------------
@@ -671,7 +691,7 @@ function Sync-FolderToJson {
     }
 
     $config.Shortcuts = $shortcuts
-    $config.StartMenuPath = $StartMenuFolder
+    $config.StartMenuPath = '%APPDATA%\Microsoft\Windows\Start Menu\Programs'
     Save-Config -Cfg $config -Path $ConfigPath
 
     Write-Host "`nExport complete: $addedCount added, $updatedCount updated, $prunedCount pruned. Saved to $ConfigPath." -ForegroundColor Green
@@ -753,21 +773,136 @@ function Sync-JsonToFolder {
     Write-Host "`nReverse sync complete: $rebuiltCount shortcut(s) restored on disk." -ForegroundColor Green
 }
 
+# ---------------------------------------------------------------------------
+# Menu Option 8: Dedicated Settings & Path Configuration Submenu
+# ---------------------------------------------------------------------------
+function Show-SettingsMenu {
+    param(
+        [ref]$FolderRef,
+        [ref]$ConfigPathRef
+    )
+
+    $subQuit = $false
+    while (-not $subQuit) {
+        Write-Host "`n---------------------------------------------------" -ForegroundColor Yellow
+        Write-Host " Settings & Path Configuration" -ForegroundColor White
+        Write-Host "---------------------------------------------------" -ForegroundColor Yellow
+        Write-Host " 1. View current active paths"
+        Write-Host " 2. Configure Start Menu folder"
+        Write-Host " 3. Configure JSON configuration location"
+        Write-Host " 4. Reset to recommended defaults"
+        Write-Host " 5. Return to Main Menu"
+        Write-Host "---------------------------------------------------" -ForegroundColor Yellow
+
+        $subChoice = Read-Host "Select setting option (1-5)"
+        switch ($subChoice) {
+            '1' {
+                Write-Host "`n[Current Paths]" -ForegroundColor Cyan
+                Write-Host "  Start Menu Folder : $($FolderRef.Value)"
+                Write-Host "  Manifest JSON Path: $($ConfigPathRef.Value)"
+            }
+            '2' {
+                Write-Host "`nSelect Start Menu Folder:"
+                Write-Host "  [1] Current User: %APPDATA%\Microsoft\Windows\Start Menu\Programs (Recommended)"
+                Write-Host "  [2] All Users   : %ProgramData%\Microsoft\Windows\Start Menu\Programs (Admin required)"
+                Write-Host "  [3] Custom Folder (Browse / Manual Input)"
+                $opt = Read-Host "Choose option (1-3)"
+                switch ($opt) {
+                    '1' {
+                        $FolderRef.Value = $script:DefaultUserStartMenu
+                        Write-Host "Start Menu folder set to User programs folder." -ForegroundColor Green
+                    }
+                    '2' {
+                        $FolderRef.Value = $script:DefaultMachineStartMenu
+                        Write-Host "Start Menu folder set to All Users programs folder." -ForegroundColor Green
+                    }
+                    '3' {
+                        $browse = Select-FolderDialog -Description "Select Start Menu Folder for Startup Shortcuts"
+                        if ($browse -and (Test-Path -LiteralPath $browse -PathType Container)) {
+                            $FolderRef.Value = $browse
+                            Write-Host "Start Menu folder set to: $browse" -ForegroundColor Green
+                        } else {
+                            $manual = Read-Host "Enter folder path manually"
+                            $expanded = Expand-PathString -Path $manual
+                            if (Test-Path -LiteralPath $expanded -PathType Container) {
+                                $FolderRef.Value = $expanded
+                                Write-Host "Start Menu folder set to: $expanded" -ForegroundColor Green
+                            } else {
+                                Write-Warning "Folder does not exist. Path unchanged."
+                            }
+                        }
+                    }
+                    default { Write-Host "Canceled." }
+                }
+            }
+            '3' {
+                Write-Host "`nSelect JSON Configuration Location:"
+                Write-Host "  [1] Script directory (Default: .\Win11startupapps.json)"
+                Write-Host "  [2] Custom Path (e.g., OneDrive / Cloud sync directory)"
+                $jsonOpt = Read-Host "Choose option (1-2)"
+                switch ($jsonOpt) {
+                    '1' {
+                        $ConfigPathRef.Value = $defaultConfigPath
+                        Write-Host "JSON path set to default: $defaultConfigPath" -ForegroundColor Green
+                    }
+                    '2' {
+                        $inputJson = Read-Host "Enter JSON file path (e.g., C:\Users\<Username>\OneDrive\Win11startupapps.json)"
+                        $expandedJson = Expand-PathString -Path $inputJson
+                        if ($expandedJson -notmatch '\.json$') { $expandedJson += '.json' }
+                        $ConfigPathRef.Value = $expandedJson
+                        Write-Host "JSON configuration path set to: $expandedJson" -ForegroundColor Green
+                    }
+                    default { Write-Host "Canceled." }
+                }
+            }
+            '4' {
+                $FolderRef.Value = $script:DefaultStartMenuFolder
+                $ConfigPathRef.Value = $defaultConfigPath
+                Write-Host "Reset paths to recommended system defaults." -ForegroundColor Green
+            }
+            '5' { $subQuit = $true }
+            default { Write-Warning "Invalid choice." }
+        }
+    }
+}
+
+# ===========================================================================
+# First-Run Initialization Check
+# ===========================================================================
+if (-not (Test-Path -LiteralPath $defaultConfigPath)) {
+    Write-Host "`n===================================================\n Welcome to Windows 11 Startup Manager!\n===================================================" -ForegroundColor Cyan
+    Write-Host "Initial Setup Defaults:"
+    Write-Host "  - Start Menu Folder: %APPDATA%\Microsoft\Windows\Start Menu\Programs"
+    Write-Host "  - Manifest JSON    : .\Win11startupapps.json`n"
+    $acceptDefault = Read-Host "Use recommended defaults? (Y/n)"
+    if ($acceptDefault -match '^[Nn]') {
+        Show-SettingsMenu -FolderRef ([ref]$StartMenuFolder) -ConfigPathRef ([ref]$ActiveConfigPath)
+    } else {
+        # Initialize generic template
+        $initialConfig = [PSCustomObject]@{
+            StartMenuPath = '%APPDATA%\Microsoft\Windows\Start Menu\Programs'
+            Shortcuts     = @()
+        }
+        Save-Config -Cfg $initialConfig -Path $defaultConfigPath
+        Write-Host "Configured with recommended defaults." -ForegroundColor Green
+    }
+}
+
 # ===========================================================================
 # Master Menu Loop (Default: Direct Folder Access)
 # ===========================================================================
 $quit = $false
 while (-not $quit) {
     if (-not (Test-Path -LiteralPath $StartMenuFolder -PathType Container)) {
-        Write-Host "Start Menu folder missing: $StartMenuFolder" -ForegroundColor Red
-        $newPath = Read-Host "Enter valid Start Menu folder (Enter for default: $script:DefaultStartMenuFolder)"
-        if ([string]::IsNullOrWhiteSpace($newPath)) { $newPath = $script:DefaultStartMenuFolder }
-        $StartMenuFolder = $newPath
+        Write-Host "`nStart Menu folder missing: $StartMenuFolder" -ForegroundColor Red
+        Write-Host "Launching Settings Menu to configure a valid path..."
+        Show-SettingsMenu -FolderRef ([ref]$StartMenuFolder) -ConfigPathRef ([ref]$ActiveConfigPath)
     }
 
     Write-Host "`n===================================================" -ForegroundColor DarkCyan
     Write-Host " Windows 11 Startup Manager (Win11startup.ps1)" -ForegroundColor White
     Write-Host " Active Folder: $StartMenuFolder" -ForegroundColor DarkGray
+    Write-Host " Config JSON  : $ActiveConfigPath" -ForegroundColor DarkGray
     Write-Host "===================================================" -ForegroundColor DarkCyan
     Write-Host " 1. Launch all startup shortcuts"
     Write-Host " 2. Add a shortcut"
@@ -776,7 +911,7 @@ while (-not $quit) {
     Write-Host " 5. List shortcuts in folder"
     Write-Host " 6. Sync: Folder -> JSON (Export/backup folder to JSON)"
     Write-Host " 7. Reverse Sync: JSON -> Folder (Restore/rebuild shortcuts from JSON)"
-    Write-Host " 8. Change target folder"
+    Write-Host " 8. Settings & Path Configuration"
     Write-Host " 9. Quit"
     Write-Host "===================================================" -ForegroundColor DarkCyan
 
@@ -787,17 +922,9 @@ while (-not $quit) {
         '3' { Remove-StartupShortcut      -StartMenuFolder $StartMenuFolder }
         '4' { Set-StartupShortcut         -StartMenuFolder $StartMenuFolder }
         '5' { Show-FolderShortcuts        -StartMenuFolder $StartMenuFolder }
-        '6' { Sync-FolderToJson           -ConfigPath $defaultConfigPath -StartMenuFolder $StartMenuFolder }
-        '7' { Sync-JsonToFolder           -ConfigPath $defaultConfigPath -StartMenuFolder $StartMenuFolder }
-        '8' {
-            $inputPath = Read-Host "Enter new Start Menu folder path"
-            if (Test-Path -LiteralPath $inputPath -PathType Container) {
-                $StartMenuFolder = $inputPath
-                Write-Host "Folder updated to '$StartMenuFolder'." -ForegroundColor Green
-            } else {
-                Write-Warning "Folder does not exist."
-            }
-        }
+        '6' { Sync-FolderToJson           -ConfigPath $ActiveConfigPath -StartMenuFolder $StartMenuFolder }
+        '7' { Sync-JsonToFolder           -ConfigPath $ActiveConfigPath -StartMenuFolder $StartMenuFolder }
+        '8' { Show-SettingsMenu           -FolderRef ([ref]$StartMenuFolder) -ConfigPathRef ([ref]$ActiveConfigPath) }
         '9' { $quit = $true }
         'q' { $quit = $true }
         default { Write-Warning "Invalid choice." }
