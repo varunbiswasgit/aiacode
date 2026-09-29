@@ -27,6 +27,8 @@ A modular, folder-first startup manager for Windows 11. It launches desktop (Win
    * Resolves AppX packages and Application User Model IDs (AUMIDs) dynamically using Windows AppX cmdlets (`Get-AppxPackage`, `Get-AppxPackageManifest`).
    * Launches packaged applications via `shell:AppsFolder\<AUMID>`, bypassing NTFS permissions on `WindowsApps`.
 8. **On-Demand Menu-Driven Synchronization**:
+   * **Option 6 (Folder → JSON)**: Exports the current numbered folder shortcuts into `Win11startupapps.json` as a backup, pruning entries for shortcuts that no longer exist on disk (after confirmation).
+   * **Option 7 (JSON → Folder)**: Rebuilds any shortcuts listed in `Win11startupapps.json` that are missing from the Start Menu folder, restoring the managed sequence.
 ---
 
 ## File Structure
