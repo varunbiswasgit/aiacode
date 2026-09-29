@@ -24,6 +24,7 @@ if (-not (Get-Module -ListAvailable -Name Pester)) {
 
 Tests are defined in `Win11startup.Tests.ps1`. The test suite targets core business logic functions in isolation without invoking the interactive menu loop:
 
+* **Environment Variable Path Expansion (`Expand-PathString`)**: Confirms `%APPDATA%`/`%ProgramData%`/`%USERPROFILE%` expansion, passthrough of plain paths, and graceful handling of null or empty input.
 * **Pattern Matching**: Validates the zero-padded two-digit numbering regex (`01-99`).
 * **Process Name Derivation (`Get-ProcName`)**: Confirms executable name extraction and fallback behavior for `explorer.exe` targets.
 * **Sequence Calculation (`Get-NextShortcutNumber`)**: Ensures monotonic ordering and gap-filling behavior in managed folders.
@@ -42,6 +43,10 @@ Invoke-Pester .\Win11startup.Tests.ps1 -Output Detailed
 ### Expected Output
 ```text
 Running tests from 'Win11startup.Tests.ps1'
+Describing Environment Variable Path Expansion Tests
+  [+] Expands standard Windows environment variables
+  [+] Leaves paths without environment variables unmodified
+  [+] Handles null or empty path gracefully
 Describing Pattern Matching & Formatting Tests
   [+] Matches zero-padded numbers 01 to 99 followed by space
   [+] Rejects invalid or unnumbered shortcut formats
@@ -60,6 +65,6 @@ Describing Configuration Loading Tests
     [+] Correctly parses valid configuration JSON
 
 Tests completed in ...ms
-Tests Passed: 10, Failed: 0, Skipped: 0, Total: 10
+Tests Passed: 13, Failed: 0, Skipped: 0, Total: 13
 ```
 
