@@ -437,6 +437,16 @@ Each project has CSS that is intentionally unique and must not be overwritten du
 | [`word-normalize-table`](word-normalize-table/) | VBA (Word) | Normalises all tables in the active document — sets width to 100%, clears row/cell constraints, centres cell content vertically. |
 | [`word-resize-border-images`](word-resize-border-images/) | VBA (Word) | Resizes inline images to a user-specified width range, applies a configurable border, and cleans blank paragraphs including Unicode invisible characters. |
 | [`worldcup2026-scores`](worldcup2026-scores/) | HTML / JavaScript | Single-file browser app showing all 104 FIFA World Cup 2026 matches — group stage through final — with live scores, kickoff times, venues, and country flags. Fetches real-time data from the Zafronix World Cup API (free tier, 250 req/day). Royal Edition visual style. No install required — open in any modern browser. |
+| [`ai-rag-internal-systems/00-kickoff-and-governance`](ai-rag-internal-systems/00-kickoff-and-governance/) | Bash | Creates the AI-RAG project Git repository and branching layout. |
+| [`ai-rag-internal-systems/01-infrastructure`](ai-rag-internal-systems/01-infrastructure/) | Bash | Configures server identity, patching, AD join, firewall, GPU driver, storage, monitoring, and logging on the three nodes. |
+| [`ai-rag-internal-systems/02-platform-software`](ai-rag-internal-systems/02-platform-software/) | Bash + SQL | Installs Docker, Python, PostgreSQL + pgvector, Qdrant, Redis, Ollama/vLLM, Nginx with TLS, and runs the platform smoke test. |
+| [`ai-rag-internal-systems/03-internal-ingestion`](ai-rag-internal-systems/03-internal-ingestion/) | Python + Bash | Connects document sources, parses files, extracts metadata, OCRs scans, schedules ingestion, validates output, and maps documents to standard clauses. |
+| [`ai-rag-internal-systems/04-standards-corpus`](ai-rag-internal-systems/04-standards-corpus/) | Python + SQL | Fetches FDA eCFR, EU GMP, and ICH standards, builds the versioned clause registry, and detects and alerts on clause changes. |
+| [`ai-rag-internal-systems/05-rag-core`](ai-rag-internal-systems/05-rag-core/) | Python | Embeds documents, runs hybrid BM25 + vector retrieval with reranking, applies permission filters, and generates cited answers. |
+| [`ai-rag-internal-systems/06-local-llm`](ai-rag-internal-systems/06-local-llm/) | Bash + Python | Installs, serves, and load-tests the local language model, asking the user for model source, name, auth token, and quantization. |
+| [`ai-rag-internal-systems/07-security`](ai-rag-internal-systems/07-security/) | Bash + Python + SQL | Wires SSO, builds the AD access map and audit log, scans for PII, tests egress controls, and drills backup restore. |
+| [`ai-rag-internal-systems/08-app-and-ui`](ai-rag-internal-systems/08-app-and-ui/) | Python + Bash | Runs the internal Q&A web app and installs its systemd services. |
+| [`ai-rag-internal-systems/09-eval-and-pilot`](ai-rag-internal-systems/09-eval-and-pilot/) | Python + Bash | Builds the golden Q&A set, runs retrieval and faithfulness evaluation, and reports pilot feedback. |
 
 ---
 
