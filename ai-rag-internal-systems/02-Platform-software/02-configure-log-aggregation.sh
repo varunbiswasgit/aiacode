@@ -6,9 +6,12 @@
 # Prerequisites: Ubuntu 24.04, sudo, Docker installed. Run ON each node.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="/var/log/airag-log-aggregation.log"
 sudo mkdir -p /var/log/airag
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(sudo tee -a "${LOG_FILE}" >/dev/null) 2>&1 || true
 
 prompt() { # prompt <label> <default>
@@ -22,9 +25,9 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Values ==="
-siem_hostname_or_ip="$(prompt "SIEM / Graylog hostname or IP" "siem.internal")"
-siem_syslog_port="$(prompt "SIEM syslog port" "514")"
-docker_log_driver="$(prompt "Docker log driver (syslog/journald/json-file)" "syslog")"
+siem_hostname_or_ip="$(prompt "SIEM / Graylog hostname or IP (example — replace with your value)" "siem.internal")"
+siem_syslog_port="$(prompt "SIEM syslog port (example — replace with your value)" "514")"
+docker_log_driver="$(prompt "Docker log driver (syslog/journald/json-file) (example — replace with your value)" "syslog")"
 
 echo "=== Step 2: System logs ==="
 echo "*.* @${siem_hostname_or_ip}:${siem_syslog_port}" | sudo tee /etc/rsyslog.d/50-airag-siem.conf > /dev/null

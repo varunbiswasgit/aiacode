@@ -447,6 +447,7 @@ Each project has CSS that is intentionally unique and must not be overwritten du
 | [`ai-rag-internal-systems/07-security`](ai-rag-internal-systems/07-security/) | Bash + Python + SQL | Wires SSO, builds the AD access map and audit log, scans for PII, tests egress controls, and drills backup restore. |
 | [`ai-rag-internal-systems/08-app-and-ui`](ai-rag-internal-systems/08-app-and-ui/) | Python + Bash | Runs the internal Q&A web app and installs its systemd services. |
 | [`ai-rag-internal-systems/09-eval-and-pilot`](ai-rag-internal-systems/09-eval-and-pilot/) | Python + Bash | Builds the golden Q&A set, runs retrieval and faithfulness evaluation, and reports pilot feedback. |
+The AI-RAG project's preamble is its README file: [`ai-rag-internal-systems/README.md`](ai-rag-internal-systems/README.md).
 
 ---
 

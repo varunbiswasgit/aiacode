@@ -56,14 +56,14 @@ def call_once(backend, api_url, model_name, prompt_text):
 
 def main():
     print("=== Step 1: Load-test settings ===")
-    model_backend = prompt("Model backend (ollama/vllm)", "ollama").lower()
-    model_api_url = prompt("Model API URL", "http://PRD-AIRAG-GPU01:11434"
+    model_backend = prompt("Model backend (ollama/vllm) (example — replace with your value)", "ollama").lower()
+    model_api_url = prompt("Model API URL (example — replace with your value)", "http://PRD-AIRAG-GPU01:11434"
                            if model_backend == "ollama" else "http://PRD-AIRAG-GPU01:8000")
-    model_name = prompt("Model name", "llama3.1:8b")
-    concurrent_users = prompt_int("Concurrent users", 10)
-    prompts_per_user = prompt_int("Prompts per user", 5)
-    prompt_text = prompt("Test prompt", "Summarise good manufacturing practice in two sentences.")
-    output_report_path = prompt("Report path", "/tmp/airag-loadtest-report.md")
+    model_name = prompt("Model name (example — replace with your value)", "llama3.1:8b")
+    concurrent_users = prompt_int("Concurrent users (example — replace with your value)", 10)
+    prompts_per_user = prompt_int("Prompts per user (example — replace with your value)", 5)
+    prompt_text = prompt("Test prompt (example — replace with your value)", "Summarise good manufacturing practice in two sentences.")
+    output_report_path = prompt("Report path (example — replace with your value)", "/tmp/airag-loadtest-report.md")
 
     print("=== Step 2: Running load test ===")
     latencies = []

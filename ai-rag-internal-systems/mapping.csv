@@ -24,6 +24,7 @@ P2-11,02-install-nginx-tls.sh
 P2-12,02-install-docker.sh
 P2-13,02-configure-log-aggregation.sh
 P2-14,02-platform-smoke-test.sh
+P2-15,02-grant-database-permissions.sh
 P3-02,03-connect-document-sources.py
 P3-03,03-connect-document-sources.py
 P3-05,03-parse-documents.py
@@ -33,6 +34,7 @@ P3-08,03-schedule-ingestion.sh
 P3-09,03-ingest-corpus.py
 P3-10,03-validate-ingest.py
 P3-11,03-map-documents-to-clauses.py
+P3-13,03-build-chunks-fts.py
 P4-01,04-fetch-ecfr.py
 P4-02,04-fetch-ecfr.py
 P4-03,04-parse-ecfr-clauses.py
@@ -44,6 +46,7 @@ P4-08,04-load-standards-baseline.py
 P4-09,04-detect-standard-changes.py
 P4-09,04-schedule-standards-diff.sh
 P4-10,04-send-change-alert.py
+P4-12,04-generate-suggestions.py
 P5-01,05-embed-documents.py
 P5-02,05-embed-documents.py
 P5-03,05-embed-documents.py
@@ -55,6 +58,7 @@ P5-08,05-generate-answer.py
 P5-09,05-generate-answer.py
 P5-10,05-permission-filter.py
 P5-11,05-session-store.py
+P5-12,05-run-qa-pipeline.py
 P6-02,06-install-language-model.sh
 P6-03,06-install-language-model.sh
 P6-04,06-serve-language-model.sh

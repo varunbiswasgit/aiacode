@@ -5,16 +5,18 @@ fused with reciprocal rank fusion (RRF).
 Tracker task: P5-04 (hybrid retriever)
 Prompts: user_query, qdrant_url, collection_name, embedding_model_name,
          db_host, db_port, db_name, db_user, db_password (secret),
-         top_k_candidates, rrf_k
+         top_k_candidates, rrf_k, candidates_output_dir
 Prerequisites: Qdrant collection from 05-embed-documents.py; a Postgres
-  table named chunks_fts (doc_id, chunk_index, text, tsv) - create it with:
-    CREATE TABLE chunks_fts AS SELECT doc_id, chunk_index, text,
-    to_tsvector('english', text) AS tsv FROM <your chunks table>;
-  sentence-transformers is installed automatically if missing.
-Output: ranked candidates JSON printed and saved to candidates.json.
+  table named chunks_fts (doc_id, chunk_index, text, tsv), built by
+  03-Internal-ingestion/03-build-chunks-fts.py from the chunk JSONL
+  produced by 03-ingest-corpus.py. sentence-transformers is installed
+  automatically if missing.
+Output: ranked candidates JSON printed and saved to
+  <candidates_output_dir>/candidates.json.
 """
 import getpass
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -55,6 +57,20 @@ def qdrant_search(url, collection, vector, limit):
         return json.loads(response.read().decode("utf-8"))["result"]
 
 
+def prompt_output_dir():
+    # Any absolute path is accepted, not just paths under /opt/airag:
+    # the web app passes a per-request temp dir and the QA pipeline
+    # passes its work directory, so restricting output to /opt/airag
+    # would break both callers. The path must still be absolute.
+    while True:
+        value = prompt("Candidates output directory", "/opt/airag/output")
+        path = os.path.normpath(value)
+        if not os.path.isabs(path):
+            print("Enter an absolute path.")
+            continue
+        return path
+
+
 def postgres_search(host, port, db, user, password, query, limit):
     sql = ("SELECT doc_id, chunk_index, text FROM chunks_fts "
            "WHERE tsv @@ plainto_tsquery('english', $QUERY$) "
@@ -64,10 +80,16 @@ def postgres_search(host, port, db, user, password, query, limit):
         handle.write(sql)
         sql_path = handle.name
     env = {"PGPASSWORD": password, "PATH": "/usr/bin:/bin:/usr/local/bin"}
-    result = subprocess.run(
-        ["psql", "-h", host, "-p", port, "-U", user, "-d", db,
-         "-t", "-A", "-F", "\t", "-f", sql_path],
-        capture_output=True, text=True, env=env)
+    try:
+        result = subprocess.run(
+            ["psql", "-h", host, "-p", port, "-U", user, "-d", db,
+             "-t", "-A", "-F", "\t", "-f", sql_path],
+            capture_output=True, text=True, env=env)
+    finally:
+        try:
+            os.unlink(sql_path)
+        except OSError:
+            pass
     if result.returncode != 0:
         print(f"WARNING: Postgres FTS failed ({result.stderr.strip()}); continuing vector-only.")
         return []
@@ -93,6 +115,8 @@ def main():
     db_password = prompt_secret("Postgres password (not echoed, never saved)")
     top_k_candidates = prompt_int("Candidates per path", 50)
     rrf_k = prompt_int("RRF constant k", 60)
+    candidates_output_dir = prompt_output_dir()
+    os.makedirs(candidates_output_dir, exist_ok=True)
 
     print("=== Step 2: Searching ===")
     try:
@@ -119,9 +143,10 @@ def main():
                                 "text": hit["text"], "score": 0.0})
         scores[key]["score"] += 1.0 / (rrf_k + rank)
     ranked = sorted(scores.values(), key=lambda item: item["score"], reverse=True)
-    with open("candidates.json", "w", encoding="utf-8") as handle:
+    candidates_path = os.path.join(candidates_output_dir, "candidates.json")
+    with open(candidates_path, "w", encoding="utf-8") as handle:
         json.dump(ranked, handle, indent=2)
-    print(f"Done. {len(ranked)} fused candidates -> candidates.json")
+    print(f"Done. {len(ranked)} fused candidates -> {candidates_path}")
     for item in ranked[:10]:
         print(f"  [{item['score']:.4f}] {item['doc_id']}#{item['chunk_index']}: {item['text'][:120]}")
 

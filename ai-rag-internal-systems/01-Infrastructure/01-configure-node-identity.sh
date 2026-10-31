@@ -7,9 +7,12 @@
 # Prerequisites: Ubuntu 24.04, sudo. Run ON the node being configured.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="/var/log/airag-configure-node-identity.log"
 sudo mkdir -p /var/log/airag
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(sudo tee -a "${LOG_FILE}" >/dev/null) 2>&1 || exec >>"${LOG_FILE}" 2>&1
 
 prompt() { # prompt <label> <default>
@@ -23,12 +26,12 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Identity values ==="
-node_hostname="$(prompt "Hostname for this node" "PRD-AIRAG-APP01")"
-static_ip_address="$(prompt "Static IP address" "10.0.0.21")"
-netmask_prefix="$(prompt "Netmask prefix length" "24")"
-gateway_ip="$(prompt "Gateway IP" "10.0.0.1")"
-dns_server_ip="$(prompt "DNS server IP" "10.0.0.2")"
-network_interface="$(prompt "Network interface name" "ens160")"
+node_hostname="$(prompt "Hostname for this node (example — replace with your value)" "PRD-AIRAG-APP01")"
+static_ip_address="$(prompt "Static IP address (example — replace with your value)" "10.0.0.21")"
+netmask_prefix="$(prompt "Netmask prefix length (example — replace with your value)" "24")"
+gateway_ip="$(prompt "Gateway IP (example — replace with your value)" "10.0.0.1")"
+dns_server_ip="$(prompt "DNS server IP (example — replace with your value)" "10.0.0.2")"
+network_interface="$(prompt "Network interface name (example — replace with your value)" "ens160")"
 
 echo "=== Step 2: Set the hostname ==="
 if [ "$(hostname)" = "${node_hostname}" ]; then

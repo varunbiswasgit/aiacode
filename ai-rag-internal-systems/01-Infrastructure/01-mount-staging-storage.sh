@@ -8,9 +8,12 @@
 #               Run ON the app node and the DB node.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="/var/log/airag-staging-storage.log"
 sudo mkdir -p /var/log/airag
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(sudo tee -a "${LOG_FILE}" >/dev/null) 2>&1 || true
 
 prompt() { # prompt <label> <default>
@@ -24,10 +27,10 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Share details ==="
-nas_hostname_or_ip="$(prompt "NAS hostname or IP" "nas.internal")"
-nas_export_path="$(prompt "NAS export path" "/staging")"
-mount_point="$(prompt "Local mount point" "/data/staging")"
-mount_owner_account="$(prompt "Owner account for the mount" "svc-airag-ingest")"
+nas_hostname_or_ip="$(prompt "NAS hostname or IP (example — replace with your value)" "nas.internal")"
+nas_export_path="$(prompt "NAS export path (example — replace with your value)" "/staging")"
+mount_point="$(prompt "Local mount point (example — replace with your value)" "/data/staging")"
+mount_owner_account="$(prompt "Owner account for the mount (example — replace with your value)" "svc-airag-ingest")"
 
 echo "=== Step 2: Mount ==="
 sudo apt install -y nfs-common

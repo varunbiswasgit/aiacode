@@ -26,10 +26,10 @@ TESTING.md, following the repository conventions.
 |---|---|
 | 00-Kickoff-and-governance | Project repo bootstrap |
 | 01-Infrastructure | Node identity, patching, AD join, firewall, GPU driver, storage, monitoring, time/logging |
-| 02-Platform-software | Docker, Python, Git, Postgres plus pgvector, Qdrant, Redis, Ollama, vLLM, Nginx/TLS, smoke test |
-| 03-Internal-ingestion | Source connectors, parsing, metadata, OCR, scheduling, ingest, validation, clause mapping |
-| 04-Standards-corpus | eCFR, EU GMP and ICH fetchers, clause parsing, registry, change detection, alerts |
-| 05-RAG-core | Embedding, hybrid retrieval, reranking, prompt templates, generation, permission filter, sessions |
+| 02-Platform-software | Docker, Python, Git, Postgres plus pgvector, Qdrant, Redis, Ollama, vLLM, Nginx/TLS, smoke test, database-permission grants |
+| 03-Internal-ingestion | Source connectors, parsing, metadata, OCR, scheduling, ingest, validation, clause mapping, chunks_fts keyword-index build |
+| 04-Standards-corpus | eCFR, EU GMP and ICH fetchers, clause parsing, registry, change detection, document-update suggestions, alerts |
+| 05-RAG-core | Embedding, hybrid retrieval, reranking, prompt templates, generation, permission filter, sessions, end-to-end Q&A pipeline runner (orchestrator) |
 | 06-Local-LLM | Model install (Ollama/Hugging Face, quantization), serving, load testing |
 | 07-Security | SSO, access map, audit log, PII scan, egress test, vulnerability scan, restore drill |
 | 08-App-and-UI | FastAPI application and systemd services |
@@ -40,15 +40,15 @@ Supporting files in this folder:
 
 - `mapping.csv` — task_id to script_file (filename only, no paths),
   one row per tracker task that has a script.
-- The tracker itself (`AI-RAG-IT-Task-List.xlsx`, 117 tasks) is the
+- The tracker itself (`AI-RAG-IT-Task-List.xlsx`, 121 tasks) is the
   source of truth for scope, order, owners and hour estimates.
 
 ## Tracker description
 
 The tracker has one row per task with columns: ID, Phase, Task,
 Details/acceptance, Download/source, Run on, Commands, Owner, Priority,
-Est. hours, Status, Depends on. 117 tasks across 11 phases, about 709
-estimated hours. 80 tasks are covered by the 64 scripts in this
+Est. hours, Status, Depends on. 121 tasks across 11 phases, about 727
+estimated hours. 84 tasks are covered by the 68 scripts in this
 project; the remaining 37 are deliberately script-free (approvals,
 policy documents, meetings, manual reviews, and console-only VM work
 such as slicing VMs and attaching GPUs).
@@ -60,7 +60,15 @@ folder, run scripts in tracker task-ID order (the filenames sort the
 same way). The dependency chain in the tracker says the same thing:
 infrastructure before platform, platform before ingestion and
 standards, ingestion plus standards before the RAG core, RAG core
-before the app, and evaluation before rollout.
+before the app, and evaluation before rollout. Within that order: the
+FTS build (03-build-chunks-fts.py) runs before retrieval
+(05-hybrid-retrieve.py); the suggestion step
+(04-generate-suggestions.py) runs after change detection
+(04-detect-standard-changes.py); the grants step
+(02-grant-database-permissions.sh) runs after the table-creating
+scripts and is re-run after the suggestion step creates the suggestions
+table; and the orchestrator (05-run-qa-pipeline.py) is the CLI pipeline
+runner for the phase-05 chain (retrieve → filter → rerank → generate).
 
 ## Script conventions (applies to every script)
 
@@ -94,3 +102,4 @@ before the app, and evaluation before rollout.
 | Version | Summary |
 |---|---|
 | v1 | Initial version |
+| v2 | Fix pass: preamble scope note; run-order/overview now include the four new scripts (02-grant-database-permissions.sh, 03-build-chunks-fts.py, 04-generate-suggestions.py, 05-run-qa-pipeline.py): FTS build before retrieval, suggestion step after change detection, grants step, orchestrator as the CLI pipeline runner. |

@@ -37,9 +37,9 @@ def tokenize(text):
 
 def main():
     print("=== Step 1: Evaluation inputs ===")
-    golden_json_path = prompt("Golden set JSON", "/opt/airag/eval/golden.json")
-    answers_jsonl_path = prompt("Answers JSONL", "/tmp/airag-answers.jsonl")
-    output_report_path = prompt("Report output path", "/opt/airag/eval/eval-report.md")
+    golden_json_path = prompt("Golden set JSON (example — replace with your value)", "/opt/airag/eval/golden.json")
+    answers_jsonl_path = prompt("Answers JSONL (example — replace with your value)", "/tmp/airag-answers.jsonl")
+    output_report_path = prompt("Report output path (example — replace with your value)", "/opt/airag/eval/eval-report.md")
 
     with open(golden_json_path, encoding="utf-8") as handle:
         golden = json.load(handle)

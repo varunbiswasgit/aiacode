@@ -8,9 +8,12 @@
 #               Run ON each node.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="/var/log/airag-join-ad-domain.log"
 sudo mkdir -p /var/log/airag
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(sudo tee -a "${LOG_FILE}" >/dev/null) 2>&1 || true
 
 prompt() { # prompt <label> <default>
@@ -24,8 +27,8 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Domain values ==="
-ad_domain_name="$(prompt "Active Directory domain" "corp.example.com")"
-ad_admin_username="$(prompt "Domain admin username" "administrator")"
+ad_domain_name="$(prompt "Active Directory domain (example — replace with your value)" "corp.example.com")"
+ad_admin_username="$(prompt "Domain admin username (example — replace with your value)" "administrator")"
 read -rsp "Domain admin password (not echoed, never logged): " ad_admin_password
 echo
 
@@ -44,6 +47,6 @@ unset ad_admin_password
 
 echo "=== Step 4: Verify ==="
 realm list
-test_domain_username="$(prompt "Test domain username (without @domain)" "testuser")"
+test_domain_username="$(prompt "Test domain username (without @domain) (example — replace with your value)" "testuser")"
 id "${test_domain_username}@${ad_domain_name}" && echo "Domain login lookup OK."
 echo "Done. Node joined to ${ad_domain_name}."

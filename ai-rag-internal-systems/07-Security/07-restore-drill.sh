@@ -11,6 +11,7 @@
 #               The password is never echoed or saved.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 prompt() { # prompt <label> <default>
     local value
@@ -23,15 +24,15 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Restored copy details ==="
-restored_db_host="$(prompt "Restored DB host" "PRD-AIRAG-DB01-RESTORED")"
-restored_db_port="$(prompt "Restored DB port" "5432")"
-restored_db_name="$(prompt "Restored database" "airag_docs")"
-restored_db_user="$(prompt "Restored DB user" "airag_app")"
+restored_db_host="$(prompt "Restored DB host (example — replace with your value)" "PRD-AIRAG-DB01-RESTORED")"
+restored_db_port="$(prompt "Restored DB port (example — replace with your value)" "5432")"
+restored_db_name="$(prompt "Restored database (example — replace with your value)" "airag_docs")"
+restored_db_user="$(prompt "Restored DB user (example — replace with your value)" "airag_app")"
 read -rsp "Restored DB password (not echoed): " restored_db_password
 echo
-restored_qdrant_url="$(prompt "Restored Qdrant URL" "http://PRD-AIRAG-DB01-RESTORED:6333")"
-prod_doc_count="$(prompt "Production doc count (from production, for comparison)" "0")"
-prod_collection_count="$(prompt "Production Qdrant point count (for comparison)" "0")"
+restored_qdrant_url="$(prompt "Restored Qdrant URL (example — replace with your value)" "http://PRD-AIRAG-DB01-RESTORED:6333")"
+prod_doc_count="$(prompt "Production doc count (from production, for comparison) (example — replace with your value)" "0")"
+prod_collection_count="$(prompt "Production Qdrant point count (for comparison) (example — replace with your value)" "0")"
 
 echo "=== Step 2: Compare Postgres ==="
 export PGPASSWORD="${restored_db_password}"

@@ -3,7 +3,8 @@
 
 Tracker task: P4-05 (ICH fetcher)
 Prompts: ich_guidelines (comma-separated, e.g. Q7,Q8,Q9,Q10,Q12),
-         output_directory, http_proxy (blank = none)
+         output_directory, http_proxy (blank = none),
+         pdf_url (per guideline, blank = skip)
 Prerequisites: Python 3.12, network route to ich.org.
   Like the EU GMP fetcher, this asks for the current PDF URL per guideline
   because ich.org reorganises links; paste them when prompted.
@@ -31,8 +32,8 @@ def prompt_optional(label, default=""):
 def main():
     print("=== Step 1: ICH selection ===")
     print(f"Source landing page (verify current links there): {ICH_LANDING}")
-    ich_guidelines = prompt("Guidelines to fetch, comma-separated", "Q7,Q8,Q9,Q10,Q12")
-    output_directory = prompt("Output directory", "/data/staging/ich")
+    ich_guidelines = prompt("Guidelines to fetch, comma-separated (example — replace with your value)", "Q7,Q8,Q9,Q10,Q12")
+    output_directory = prompt("Output directory (example — replace with your value)", "/data/staging/ich")
     http_proxy = prompt_optional("HTTP proxy (blank = direct)")
     opener = urllib.request.build_opener(
         urllib.request.ProxyHandler({"http": http_proxy, "https": http_proxy}) if http_proxy else None)

@@ -38,9 +38,9 @@ def fetch_json(url, proxy):
 
 def main():
     print("=== Step 1: eCFR settings ===")
-    ecfr_title = prompt("eCFR title", "21")
-    ecfr_parts = prompt("Parts, comma-separated", "210,211,11")
-    output_directory = prompt("Output directory", "/data/staging/ecfr")
+    ecfr_title = prompt("eCFR title (example — replace with your value)", "21")
+    ecfr_parts = prompt("Parts, comma-separated (example — replace with your value)", "210,211,11")
+    output_directory = prompt("Output directory (example — replace with your value)", "/data/staging/ecfr")
     http_proxy = prompt_optional("HTTP proxy (blank = direct)")
 
     print("=== Step 2: Connectivity check (P4-01) ===")

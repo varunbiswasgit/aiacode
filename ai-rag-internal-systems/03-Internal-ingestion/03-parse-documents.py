@@ -2,8 +2,8 @@
 """Parse documents (PDF, DOCX, TXT, HTML) into chunked JSONL for the RAG pipeline.
 
 Tracker task: P3-05 (document parsers)
-Prompts: input_directory, output_jsonl_path, chunk_size_tokens (approx words),
-         chunk_overlap_words
+Prompts: input_directory, output_jsonl_path, chunk_size,
+         chunk_overlap
 Prerequisites: Python 3.12. Optional: pypdf, python-docx (used if installed,
   otherwise PDF/DOCX files are skipped with a warning).
 Output: one JSON object per line: doc_id, source_path, chunk_index, text.
@@ -103,10 +103,10 @@ def chunk_words(words, chunk_size, overlap):
 
 def main():
     print("=== Step 1: Parse settings ===")
-    input_directory = prompt("Input directory with documents", "/data/staging/pilot")
-    output_jsonl_path = prompt("Output JSONL path", "/data/staging/chunks.jsonl")
-    chunk_size = prompt_int("Chunk size (words, approx 1000 tokens ~ 750 words)", 750)
-    chunk_overlap = prompt_int("Chunk overlap (words)", 150)
+    input_directory = prompt("Input directory with documents (example — replace with your value)", "/data/staging/pilot")
+    output_jsonl_path = prompt("Output JSONL path (example — replace with your value)", "/data/staging/chunks.jsonl")
+    chunk_size = prompt_int("Chunk size (words, approx 1000 tokens ~ 750 words) (example — replace with your value)", 750)
+    chunk_overlap = prompt_int("Chunk overlap (words) (example — replace with your value)", 150)
 
     print("=== Step 2: Parsing and chunking ===")
     total_docs = 0
@@ -127,6 +127,7 @@ def main():
                     }) + "\n")
                     total_chunks += 1
                 total_docs += 1
+    os.chmod(output_jsonl_path, 0o600)
     print(f"Done. {total_docs} documents -> {total_chunks} chunks in {output_jsonl_path}")
 
 

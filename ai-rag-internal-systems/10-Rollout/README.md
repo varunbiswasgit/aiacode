@@ -1,3 +1,5 @@
+AI-RAG Internal Systems is an on-premises retrieval-augmented generation platform for internal content discovery, question answering over internal documents and regulatory standards (FDA eCFR Title 21, EU GMP, ICH), and document-update recommendations when a standard changes. It is generic: every deployment value is supplied as user input at runtime, and no company-specific value is hardcoded. Every recommendation is a suggestion for human QA and document-owner approval; the system never auto-edits a controlled document.
+
 # 10 — Rollout
 
 ## Purpose
@@ -39,3 +41,4 @@ output_jsonl_path, ingest_mode).
 | Version | Summary |
 |---|---|
 | v1 | Initial version |
+| v2 | Fix pass: preamble only; no scripts changed; rollout still reuses phase-03 ingest (03-ingest-corpus.py) for phase-2 corpus expansion. |

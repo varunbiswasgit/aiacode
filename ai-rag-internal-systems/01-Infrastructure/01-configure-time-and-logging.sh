@@ -6,9 +6,12 @@
 # Prerequisites: Ubuntu 24.04, sudo. Run ON each node.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="/var/log/airag-time-and-logging.log"
 sudo mkdir -p /var/log/airag
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(sudo tee -a "${LOG_FILE}" >/dev/null) 2>&1 || true
 
 prompt() { # prompt <label> <default>
@@ -27,12 +30,12 @@ prompt_optional() {
 }
 
 echo "=== Step 1: Time and logging values ==="
-system_timezone="$(prompt "Timezone" "America/New_York")"
-ntp_server="$(prompt "NTP server" "pool.ntp.org")"
+system_timezone="$(prompt "Timezone (example — replace with your value)" "America/New_York")"
+ntp_server="$(prompt "NTP server (example — replace with your value)" "pool.ntp.org")"
 siem_hostname_or_ip="$(prompt_optional "SIEM hostname or IP (blank to skip forwarding)" "")"
 siem_port="514"
 if [ -n "${siem_hostname_or_ip}" ]; then
-    siem_port="$(prompt "SIEM syslog port" "514")"
+    siem_port="$(prompt "SIEM syslog port (example — replace with your value)" "514")"
 fi
 
 echo "=== Step 2: Timezone and NTP ==="

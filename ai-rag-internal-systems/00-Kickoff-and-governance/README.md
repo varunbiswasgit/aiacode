@@ -1,3 +1,5 @@
+AI-RAG Internal Systems is an on-premises retrieval-augmented generation platform for internal content discovery, question answering over internal documents and regulatory standards (FDA eCFR Title 21, EU GMP, ICH), and document-update recommendations when a standard changes. It is generic: every deployment value is supplied as user input at runtime, and no company-specific value is hardcoded. Every recommendation is a suggestion for human QA and document-owner approval; the system never auto-edits a controlled document.
+
 # 00 — Kickoff and governance
 
 ## Purpose
@@ -35,6 +37,8 @@ brackets.
 
 ## Configuration
 
+- Prompt labels carry "(example — replace with your value)".
+- The script runs with umask 027 and the log file is mode 640.
 - Default branch: `main` (prompted).
 - Seeded folders: `docs`, `prompts`, `sql`, `eval`.
 - Log file: `~/airag-create-repo.log`.
@@ -44,3 +48,4 @@ brackets.
 | Version | Summary |
 |---|---|
 | v1 | Initial version |
+| v2 | Fix pass: prompt labels carry "(example — replace with your value)"; umask 027; log file mode 640. |

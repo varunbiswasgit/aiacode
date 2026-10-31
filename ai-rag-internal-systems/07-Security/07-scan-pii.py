@@ -12,8 +12,13 @@ Optional: if presidio-analyzer is installed it is NOT used here, to keep
   this script dependency-free; swap the pattern list for Presidio later.
 """
 import json
+import os
 import re
 
+# NOTE: pattern-based only, not a guarantee. Patterns can miss PII
+# (unusual formats, obfuscation) and can flag non-PII; quarantined
+# documents need human review before release, and a clean result does
+# not certify a chunk PII-free.
 PATTERNS = {
     "us_ssn": re.compile(r"\b\d{3}-\d{2}-\d{4}\b"),
     "credit_card_like": re.compile(r"\b(?:\d[ -]?){13,19}\b"),
@@ -33,12 +38,22 @@ def main():
     print("=== Step 1: Scan settings ===")
     input_jsonl_path = prompt("Input chunk JSONL", "/data/staging/chunks-pilot.jsonl")
     output_clean_path = prompt("Clean output JSONL", "/data/staging/chunks-clean.jsonl")
-    output_quarantine_path = prompt("Quarantine output JSONL", "/data/staging/chunks-quarantine.jsonl")
+    # The quarantine file holds flagged (potentially PII-bearing) chunks,
+    # so it must live under a restricted, owner-only directory (mode 700),
+    # never a shared staging directory. The default below is under such
+    # a directory; if a different path is entered, make sure its
+    # directory is restricted the same way before running.
+    output_quarantine_path = prompt("Quarantine output JSONL", "/opt/airag/quarantine/chunks-quarantine.jsonl")
 
     print("=== Step 2: Scanning ===")
     clean = 0
     quarantined = 0
     quarantined_docs = set()
+    quarantine_dir = os.path.dirname(output_quarantine_path)
+    if quarantine_dir:
+        # Only creates a missing directory, with owner-only mode; an
+        # existing directory's permissions are left untouched.
+        os.makedirs(quarantine_dir, mode=0o700, exist_ok=True)
     with open(input_jsonl_path, encoding="utf-8") as source, \
             open(output_clean_path, "w", encoding="utf-8") as clean_out, \
             open(output_quarantine_path, "w", encoding="utf-8") as quarantine_out:
@@ -54,6 +69,10 @@ def main():
             else:
                 clean_out.write(json.dumps(record) + "\n")
                 clean += 1
+    # Lock down both outputs right after writing them: the quarantine
+    # file may contain PII, and the clean file is still staged content.
+    os.chmod(output_clean_path, 0o600)
+    os.chmod(output_quarantine_path, 0o600)
     print(f"Done. {clean} clean chunks, {quarantined} quarantined chunks.")
     if quarantined_docs:
         print("Quarantined documents for human review:")

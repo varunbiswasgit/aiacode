@@ -10,6 +10,7 @@ Prerequisites: Python 3.12; candidates.json from 05-hybrid-retrieve.py.
 Output: top-N reranked chunks JSON with scores.
 """
 import json
+import os
 import subprocess
 import sys
 
@@ -33,10 +34,10 @@ def prompt_int(label, default):
 def main():
     print("=== Step 1: Rerank settings ===")
     user_query = prompt("User query")
-    candidates_json_path = prompt("Candidates JSON", "candidates.json")
-    reranker_model_name = prompt("Reranker model (Hugging Face id)", "BAAI/bge-reranker-large")
-    final_top_k = prompt_int("Final top-k to keep", 8)
-    output_json_path = prompt("Output JSON path", "reranked.json")
+    candidates_json_path = prompt("Candidates JSON (example — replace with your value)", "candidates.json")
+    reranker_model_name = prompt("Reranker model (Hugging Face id) (example — replace with your value)", "BAAI/bge-reranker-large")
+    final_top_k = prompt_int("Final top-k to keep (example — replace with your value)", 8)
+    output_json_path = prompt("Output JSON path (example — replace with your value)", "reranked.json")
 
     print("=== Step 2: Loading reranker (downloads on first use) ===")
     try:
@@ -55,6 +56,7 @@ def main():
     ranked = sorted(candidates, key=lambda item: item["rerank_score"], reverse=True)[:final_top_k]
     with open(output_json_path, "w", encoding="utf-8") as handle:
         json.dump(ranked, handle, indent=2)
+    os.chmod(output_json_path, 0o600)
     print(f"Done. Top {len(ranked)} -> {output_json_path}")
     for item in ranked:
         print(f"  [{item['rerank_score']:.4f}] {item['doc_id']}#{item['chunk_index']}")

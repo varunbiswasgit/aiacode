@@ -61,14 +61,14 @@ def call_model(backend, api_url, model_name, prompt_text, temperature):
 def main():
     print("=== Step 1: Generation settings ===")
     user_question = prompt("User question")
-    reranked_json_path = prompt("Reranked chunks JSON", "reranked.json")
-    prompts_directory = prompt("Prompts directory", "/opt/airag/prompts")
-    model_backend = prompt("Model backend (ollama/vllm)", "ollama").lower()
-    model_api_url = prompt("Model API URL", "http://PRD-AIRAG-GPU01:11434"
+    reranked_json_path = prompt("Reranked chunks JSON (example — replace with your value)", "reranked.json")
+    prompts_directory = prompt("Prompts directory (example — replace with your value)", "/opt/airag/prompts")
+    model_backend = prompt("Model backend (ollama/vllm) (example — replace with your value)", "ollama").lower()
+    model_api_url = prompt("Model API URL (example — replace with your value)", "http://PRD-AIRAG-GPU01:11434"
                            if model_backend == "ollama" else "http://PRD-AIRAG-GPU01:8000")
-    model_name = prompt("Model name", "llama3.1:8b")
-    min_rerank_score = prompt_float("Minimum rerank score to answer", 0.0)
-    temperature = prompt_float("Temperature (0.1-0.3 for factual answers)", 0.2)
+    model_name = prompt("Model name (example — replace with your value)", "llama3.1:8b")
+    min_rerank_score = prompt_float("Minimum rerank score to answer (example — replace with your value)", 0.0)
+    temperature = prompt_float("Temperature (0.1-0.3 for factual answers) (example — replace with your value)", 0.2)
 
     with open(reranked_json_path, encoding="utf-8") as handle:
         chunks = json.load(handle)

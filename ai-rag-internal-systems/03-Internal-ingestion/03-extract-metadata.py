@@ -8,6 +8,7 @@ Prerequisites: chunk JSONL from 03-parse-documents.py.
 Output: same JSONL plus metadata fields on every chunk.
 """
 import json
+import os
 import re
 
 
@@ -21,12 +22,12 @@ def prompt(label, default=""):
 
 def main():
     print("=== Step 1: Metadata settings ===")
-    input_jsonl_path = prompt("Input chunk JSONL", "/data/staging/chunks.jsonl")
-    output_jsonl_path = prompt("Output enriched JSONL", "/data/staging/chunks-meta.jsonl")
-    doc_id_pattern = prompt("Doc-ID regex (named group 'docid')",
+    input_jsonl_path = prompt("Input chunk JSONL (example — replace with your value)", "/data/staging/chunks.jsonl")
+    output_jsonl_path = prompt("Output enriched JSONL (example — replace with your value)", "/data/staging/chunks-meta.jsonl")
+    doc_id_pattern = prompt("Doc-ID regex (named group 'docid') (example — replace with your value)",
                             r"(?P<docid>[A-Z]{2,}-\d{3,})")
-    default_owner = prompt("Default document owner", "QA")
-    default_department = prompt("Default department", "Quality")
+    default_owner = prompt("Default document owner (example — replace with your value)", "QA")
+    default_department = prompt("Default department (example — replace with your value)", "Quality")
     try:
         pattern = re.compile(doc_id_pattern)
     except re.error as error:
@@ -50,6 +51,7 @@ def main():
             }
             output.write(json.dumps(record) + "\n")
             count += 1
+    os.chmod(output_jsonl_path, 0o600)
     print(f"Done. {count} chunks enriched -> {output_jsonl_path}")
     print("NOTE: version/effective_date are null unless your DMS export provides them;")
     print("      join them in by doc_id before loading into the vector store.")

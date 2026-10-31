@@ -48,12 +48,12 @@ def run_psql_file(host, port, db, user, password, sql_path):
 
 def main():
     print("=== Step 1: Load settings ===")
-    clauses_jsonl_paths = prompt("Clause JSONL files, comma-separated",
+    clauses_jsonl_paths = prompt("Clause JSONL files, comma-separated (example — replace with your value)",
                                  "/data/staging/clauses-ecfr.jsonl,/data/staging/clauses-standards.jsonl")
-    db_host = prompt("Database host", "PRD-AIRAG-DB01")
-    db_port = prompt("Database port", "5432")
-    db_name = prompt("Database name", "airag_standards")
-    db_user = prompt("Database user", "airag_app")
+    db_host = prompt("Database host (example — replace with your value)", "PRD-AIRAG-DB01")
+    db_port = prompt("Database port (example — replace with your value)", "5432")
+    db_name = prompt("Database name (example — replace with your value)", "airag_standards")
+    db_user = prompt("Database user (example — replace with your value)", "airag_app")
     db_password = prompt_secret("Database password (not echoed, never saved)")
 
     print("=== Step 2: Loading ===")
@@ -88,8 +88,13 @@ def main():
     with tempfile.NamedTemporaryFile("w", suffix=".sql", delete=False) as sql:
         sql.write("SELECT standard, COUNT(*) FROM clauses GROUP BY standard ORDER BY standard;\n")
         sql_path = sql.name
-    print(run_psql_file(db_host, db_port, db_name, db_user, db_password, sql_path))
-    os.unlink(sql_path)
+    try:
+        print(run_psql_file(db_host, db_port, db_name, db_user, db_password, sql_path))
+    finally:
+        try:
+            os.unlink(sql_path)
+        except FileNotFoundError:
+            pass
     print(f"Done. {total} clause rows processed (baseline).")
 
 

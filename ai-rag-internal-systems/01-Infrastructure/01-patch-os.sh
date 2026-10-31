@@ -7,9 +7,12 @@
 #               Run ON each node.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="/var/log/airag-patch-os.log"
 sudo mkdir -p /var/log/airag
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(sudo tee -a "${LOG_FILE}" >/dev/null) 2>&1 || true
 
 prompt() { # prompt <label> <default>
@@ -32,7 +35,7 @@ sudo systemctl enable --now unattended-upgrades 2>/dev/null || true
 
 echo "=== Step 3: Reboot if required ==="
 if [ -f /var/run/reboot-required ]; then
-    reboot_after_patch="$(prompt "Reboot now (required by updates)? (yes/no)" "yes")"
+    reboot_after_patch="$(prompt "Reboot now (required by updates)? (yes/no) (example — replace with your value)" "yes")"
     if [ "${reboot_after_patch}" = "yes" ]; then
         echo "Rebooting..."
         sudo reboot

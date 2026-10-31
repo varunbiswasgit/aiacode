@@ -10,6 +10,7 @@ Output: a Markdown report with total feedback, % helpful, and a per-week
   breakdown. File the report with the weekly pilot review notes.
 """
 import getpass
+import os
 import subprocess
 import sys
 import tempfile
@@ -44,10 +45,16 @@ def run_psql(host, port, db, user, password, sql):
         handle.write(sql)
         sql_path = handle.name
     env = {"PGPASSWORD": password, "PATH": "/usr/bin:/bin:/usr/local/bin"}
-    result = subprocess.run(
-        ["psql", "-h", host, "-p", port, "-U", user, "-d", db,
-         "-t", "-A", "-F", "|", "-f", sql_path],
-        capture_output=True, text=True, env=env)
+    try:
+        result = subprocess.run(
+            ["psql", "-h", host, "-p", port, "-U", user, "-d", db,
+             "-t", "-A", "-F", "|", "-f", sql_path],
+            capture_output=True, text=True, env=env)
+    finally:
+        try:
+            os.unlink(sql_path)
+        except OSError:
+            pass
     if result.returncode != 0:
         print(result.stderr)
         sys.exit(1)
@@ -56,13 +63,13 @@ def run_psql(host, port, db, user, password, sql):
 
 def main():
     print("=== Step 1: Report settings ===")
-    db_host = prompt("Database host", "PRD-AIRAG-DB01")
-    db_port = prompt("Database port", "5432")
-    db_name = prompt("Database name", "airag_audit")
-    db_user = prompt("Database user", "airag_app")
+    db_host = prompt("Database host (example — replace with your value)", "PRD-AIRAG-DB01")
+    db_port = prompt("Database port (example — replace with your value)", "5432")
+    db_name = prompt("Database name (example — replace with your value)", "airag_audit")
+    db_user = prompt("Database user (example — replace with your value)", "airag_app")
     db_password = prompt_secret("Database password (not echoed, never saved)")
-    report_weeks = prompt_int("How many past weeks to include", 4)
-    output_report_path = prompt("Report output path", "/tmp/airag-pilot-feedback.md")
+    report_weeks = prompt_int("How many past weeks to include (example — replace with your value)", 4)
+    output_report_path = prompt("Report output path (example — replace with your value)", "/tmp/airag-pilot-feedback.md")
 
     print("=== Step 2: Querying feedback ===")
     totals = run_psql(

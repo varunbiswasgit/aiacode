@@ -2,12 +2,13 @@
 # =============================================================================
 # Purpose:      Create systemd service + timer for scheduled ingestion runs.
 # Tracker task: P3-08
-# Prompts:      ingest_command, run_user, full_schedule, incremental_schedule,
-#               project_dir, log_dir
+# Prompts:      ingest_command, run_user, project_dir, log_dir,
+#               extra_write_dirs, full_schedule, incremental_schedule
 # Prerequisites: Ubuntu 24.04, sudo, ingest script in place (03-ingest-corpus.py).
 #               Run ON the app node.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 prompt() { # prompt <label> <default>
     local value
@@ -20,15 +21,17 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Schedule values ==="
-ingest_command="$(prompt "Ingest command (full path, e.g. venv python + script)" "/opt/airag/venv/bin/python /opt/airag/ingest-corpus.py")"
-run_user="$(prompt "User the job runs as" "svc-airag-ingest")"
+ingest_command="$(prompt "Ingest command (full path, e.g. venv python + script) (example — replace with your value)" "/opt/airag/venv/bin/python /opt/airag/ingest-corpus.py")"
+run_user="$(prompt "User the job runs as (example — replace with your value)" "svc-airag-ingest")"
 project_dir="$(prompt "Project directory" "/opt/airag")"
 log_dir="$(prompt "Log directory" "/var/log/airag")"
+extra_write_dirs="$(prompt "Additional writable directories, space-separated (e.g. the staging root the ingest output goes to) (example — replace with your value)" "/data/staging")"
 full_schedule="$(prompt "Full re-index schedule (systemd OnCalendar)" "Sun 02:00")"
 incremental_schedule="$(prompt "Incremental schedule (systemd OnCalendar)" "hourly")"
 
 echo "=== Step 2: Write units ==="
 sudo mkdir -p "${log_dir}"
+if [ -f "${log_dir}/ingest.log" ]; then sudo chmod 640 "${log_dir}/ingest.log"; fi
 sudo tee /etc/systemd/system/airag-ingest.service > /dev/null <<EOF
 [Unit]
 Description=AI-RAG ingestion run
@@ -41,6 +44,11 @@ WorkingDirectory=${project_dir}
 ExecStart=${ingest_command}
 StandardOutput=append:${log_dir}/ingest.log
 StandardError=append:${log_dir}/ingest.log
+UMask=0027
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=${project_dir} ${log_dir} ${extra_write_dirs}
 EOF
 sudo tee /etc/systemd/system/airag-ingest-full.timer > /dev/null <<EOF
 [Unit]

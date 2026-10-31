@@ -8,9 +8,12 @@
 #               Run ON the app node.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="/var/log/airag-clone-repo.log"
 sudo mkdir -p /var/log/airag
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(sudo tee -a "${LOG_FILE}" >/dev/null) 2>&1 || true
 
 prompt() { # prompt <label> <default>
@@ -24,11 +27,11 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Repository details ==="
-git_server_hostname="$(prompt "Git server hostname" "git.internal")"
-git_repository_path="$(prompt "Repository path on the server" "/srv/git/airag.git")"
-project_dir="$(prompt "Local project directory" "/opt/airag")"
-project_owner_account="$(prompt "Project owner account" "svc-airag-app")"
-checkout_branch="$(prompt "Branch to check out" "main")"
+git_server_hostname="$(prompt "Git server hostname (example — replace with your value)" "git.internal")"
+git_repository_path="$(prompt "Repository path on the server (example — replace with your value)" "/srv/git/airag.git")"
+project_dir="$(prompt "Local project directory (example — replace with your value)" "/opt/airag")"
+project_owner_account="$(prompt "Project owner account (example — replace with your value)" "svc-airag-app")"
+checkout_branch="$(prompt "Branch to check out (example — replace with your value)" "main")"
 
 echo "=== Step 2: Clone (idempotent) ==="
 sudo apt install -y git

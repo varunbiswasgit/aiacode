@@ -12,6 +12,7 @@ Output: mappings JSONL with status 'confirmed' (citation) or 'needs_review'
   (keyword match only). Review 'needs_review' rows in the app review queue.
 """
 import json
+import os
 import re
 import string
 
@@ -49,10 +50,10 @@ def tokenize(text):
 
 def main():
     print("=== Step 1: Mapping settings ===")
-    chunks_jsonl_path = prompt("Internal chunks JSONL", "/data/staging/chunks-pilot.jsonl")
-    clauses_jsonl_path = prompt("Clauses JSONL", "/data/staging/clauses.jsonl")
-    output_mappings_path = prompt("Output mappings JSONL", "/data/staging/mappings.jsonl")
-    keyword_overlap_threshold = prompt_float("Keyword overlap threshold (0-1)", 0.25)
+    chunks_jsonl_path = prompt("Internal chunks JSONL (example — replace with your value)", "/data/staging/chunks-pilot.jsonl")
+    clauses_jsonl_path = prompt("Clauses JSONL (example — replace with your value)", "/data/staging/clauses.jsonl")
+    output_mappings_path = prompt("Output mappings JSONL (example — replace with your value)", "/data/staging/mappings.jsonl")
+    keyword_overlap_threshold = prompt_float("Keyword overlap threshold (0-1) (example — replace with your value)", 0.25)
 
     with open(clauses_jsonl_path, encoding="utf-8") as handle:
         clauses = [json.loads(line) for line in handle]
@@ -88,6 +89,7 @@ def main():
                     confirmed += 1
                 else:
                     needs_review += 1
+    os.chmod(output_mappings_path, 0o600)
     print(f"Done. {confirmed} citation-confirmed, {needs_review} keyword-only (needs_review).")
     print("Review the 'needs_review' rows in the app review queue before go-live.")
 

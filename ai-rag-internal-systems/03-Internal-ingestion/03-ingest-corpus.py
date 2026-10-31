@@ -3,7 +3,7 @@
 
 Tracker tasks: P3-09 (first load / ingest pilot corpus),
                P10-04 (expand corpora, phase 2 sources - rerun with a new source)
-Prompts: source_directory, corpus_name, chunk_size_words, chunk_overlap_words,
+Prompts: source_directory, corpus_name, chunk_size, chunk_overlap,
          output_jsonl_path, ingest_mode (full/incremental)
 Prerequisites: Python 3.12. Reuses 03-parse-documents.py + 03-extract-metadata.py
   when they sit next to this script; otherwise falls back to plain-text parsing.
@@ -40,12 +40,12 @@ def prompt_int(label, default):
 
 def main():
     print("=== Step 1: Ingest settings ===")
-    source_directory = prompt("Source directory", "/data/staging/pilot")
-    corpus_name = prompt("Corpus name (pilot, phase2, ...)", "pilot")
-    chunk_size = prompt_int("Chunk size (words)", 750)
-    chunk_overlap = prompt_int("Chunk overlap (words)", 150)
-    output_jsonl_path = prompt("Output JSONL path", f"/data/staging/chunks-{corpus_name}.jsonl")
-    ingest_mode = prompt("Mode (full/incremental)", "full").lower()
+    source_directory = prompt("Source directory (example — replace with your value)", "/data/staging/pilot")
+    corpus_name = prompt("Corpus name (pilot, phase2, ...) (example — replace with your value)", "pilot")
+    chunk_size = prompt_int("Chunk size (words) (example — replace with your value)", 750)
+    chunk_overlap = prompt_int("Chunk overlap (words) (example — replace with your value)", 150)
+    output_jsonl_path = prompt("Output JSONL path (example — replace with your value)", f"/data/staging/chunks-{corpus_name}.jsonl")
+    ingest_mode = prompt("Mode (full/incremental) (example — replace with your value)", "full").lower()
     if ingest_mode not in ("full", "incremental"):
         print("ERROR: mode must be full or incremental.")
         raise SystemExit(1)
@@ -93,6 +93,7 @@ def main():
                     if index + chunk_size >= len(words):
                         break
                 total_docs += 1
+    os.chmod(output_jsonl_path, 0o600)
     print(f"Done. {total_docs} documents, {total_chunks} new chunks -> {output_jsonl_path}")
     print("Next: 03-extract-metadata.py, then 05-embed-documents.py.")
 

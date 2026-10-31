@@ -40,10 +40,10 @@ def extract_pdf_text(path):
 
 def main():
     print("=== Step 1: Split settings ===")
-    pdf_directories = prompt("PDF directories, comma-separated",
+    pdf_directories = prompt("PDF directories, comma-separated (example — replace with your value)",
                              "/data/staging/eugmp,/data/staging/ich")
-    output_clauses_path = prompt("Output clauses JSONL", "/data/staging/clauses-standards.jsonl")
-    split_pattern = prompt("Clause-heading regex (named group 'clause')",
+    output_clauses_path = prompt("Output clauses JSONL (example — replace with your value)", "/data/staging/clauses-standards.jsonl")
+    split_pattern = prompt("Clause-heading regex (named group 'clause') (example — replace with your value)",
                            r"^(?P<clause>\d+(?:\.\d+)+)\s")
     try:
         heading = re.compile(split_pattern, re.MULTILINE)

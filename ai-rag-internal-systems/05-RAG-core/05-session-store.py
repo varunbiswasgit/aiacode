@@ -39,11 +39,11 @@ def redis_cli(host, port, *args):
 
 def main():
     print("=== Step 1: Session settings ===")
-    redis_host = prompt("Redis host", "PRD-AIRAG-DB01")
-    redis_port = prompt_int("Redis port", 6379)
+    redis_host = prompt("Redis host (example — replace with your value)", "PRD-AIRAG-DB01")
+    redis_port = prompt_int("Redis port (example — replace with your value)", 6379)
     session_id = prompt("Session ID")
-    action = prompt("Action (set/get/clear)", "get").lower()
-    ttl_seconds = prompt_int("Session TTL (seconds)", 3600)
+    action = prompt("Action (set/get/clear) (example — replace with your value)", "get").lower()
+    ttl_seconds = prompt_int("Session TTL (seconds) (example — replace with your value)", 3600)
 
     key = f"session:{session_id}"
     if action == "set":

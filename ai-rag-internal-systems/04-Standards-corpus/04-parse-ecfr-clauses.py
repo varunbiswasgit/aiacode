@@ -4,7 +4,14 @@
 Tracker task: P4-03 (clause parser for eCFR)
 Prompts: ecfr_json_directory, output_clauses_path
 Prerequisites: JSON files from 04-fetch-ecfr.py.
-Output JSONL rows: standard, chapter, clause_no, text, version, source_url.
+Output JSONL rows: standard, chapter, clause_no, clause_path, text,
+  version, source_url.
+  clause_no is the LEAF label only (e.g. '211.100', '211.22(a)'), matching
+  the form citations use, so the mapping join in
+  03-map-documents-to-clauses.py and the registry key in
+  04-create-clause-registry.sql match it. clause_path keeps the full
+  ancestor path (e.g. '211/211.100') for traceability; it is never used
+  as a join key.
   version = the fetch date (YYYY-MM-DD); re-running a fetch creates a new
   version, which 04-detect-standard-changes.py diffs against the previous one.
 """
@@ -24,14 +31,20 @@ def prompt(label, default=""):
 def walk_sections(node, part, rows, path=""):
     """Recursively collect leaf sections (those with text) from eCFR JSON."""
     if isinstance(node, dict):
-        label = node.get("label", "")
+        label = str(node.get("label", "") or "").strip()
         section_path = f"{path}/{label}" if path else label
+        # Leaf label only (e.g. '211.100', not the full '211/211.100'
+        # path). Fall back to the last path segment when the node
+        # itself carries no label, so clause_no is never empty while
+        # a path exists.
+        clause_no = label or section_path.rsplit("/", 1)[-1]
         text = node.get("text") or node.get("content")
         if isinstance(text, str) and text.strip():
             rows.append({
                 "standard": "FDA eCFR",
                 "chapter": f"Title 21 Part {part}",
-                "clause_no": section_path,
+                "clause_no": clause_no,
+                "clause_path": section_path,
                 "text": text.strip(),
                 "version": datetime.date.today().isoformat(),
                 "source_url": "https://www.ecfr.gov/current/title-21",

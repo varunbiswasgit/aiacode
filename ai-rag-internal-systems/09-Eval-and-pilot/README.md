@@ -1,3 +1,5 @@
+AI-RAG Internal Systems is an on-premises retrieval-augmented generation platform for internal content discovery, question answering over internal documents and regulatory standards (FDA eCFR Title 21, EU GMP, ICH), and document-update recommendations when a standard changes. It is generic: every deployment value is supplied as user input at runtime, and no company-specific value is hardcoded. Every recommendation is a suggestion for human QA and document-owner approval; the system never auto-edits a controlled document.
+
 # 09 — Eval and pilot
 
 ## Purpose
@@ -14,7 +16,7 @@ pilot training (P9-05) and the go/no-go meeting (P9-07) stay manual.
 | 09-create-golden-set.py | P9-01 | Interactively builds golden.json: question, expected answer, expected source doc IDs, appended one item at a time. |
 | 09-run-evaluation.py | P9-02 | Scores an answers JSONL against the golden set: retrieval hit rate, citation accuracy, abstain rate, keyword overlap; writes a Markdown report with the failure list. |
 | 09-create-pilot-group.sh | P9-04 | Creates the pilot AD group and adds members (samba-tool, or prints the manual ADUC steps when samba-tool is absent). |
-| 09-pilot-feedback-report.py | P9-06 | Queries the feedback table for totals, helpful rate, per-week breakdown and recent comments; writes a Markdown report. |
+| 09-pilot-feedback-report.py | P9-06 | Queries the feedback table for totals, helpful rate, per-week breakdown and recent comments; writes a Markdown report. The temporary SQL file is deleted in try/finally, including on failure. |
 
 ## Inputs (prompts asked at runtime)
 
@@ -39,6 +41,7 @@ pilot group → 4-week pilot with weekly feedback reports → go/no-go.
 
 ## Configuration
 
+- Prompt labels carry "(example — replace with your value)".
 - Default golden set path: /opt/airag/eval/golden.json.
 - Default eval report path: /opt/airag/eval/eval-report.md.
 - Default pilot group: AIRAG-Pilot.
@@ -48,3 +51,4 @@ pilot group → 4-week pilot with weekly feedback reports → go/no-go.
 | Version | Summary |
 |---|---|
 | v1 | Initial version |
+| v2 | Fix pass: pilot feedback report temp SQL file deleted in try/finally (including on failure); prompt labels carry "(example — replace with your value)"; other scripts: labels only. No TESTING invalidations. |

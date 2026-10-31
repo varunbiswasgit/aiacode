@@ -7,9 +7,12 @@
 #               Run ON the DB node.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="/var/log/airag-postgres.log"
 sudo mkdir -p /var/log/airag
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(sudo tee -a "${LOG_FILE}" >/dev/null) 2>&1 || true
 
 prompt() { # prompt <label> <default>
@@ -23,8 +26,8 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Values ==="
-postgres_version="$(prompt "PostgreSQL major version" "16")"
-postgres_data_dir="$(prompt "Data directory (must exist as a mount for large disks)" "/var/lib/postgresql")"
+postgres_version="$(prompt "PostgreSQL major version (example — replace with your value)" "16")"
+postgres_data_dir="$(prompt "Data directory (must exist as a mount for large disks) (example — replace with your value)" "/var/lib/postgresql")"
 
 echo "=== Step 2: Install ==="
 if command -v "psql" &>/dev/null && psql --version | grep -q "${postgres_version}"; then

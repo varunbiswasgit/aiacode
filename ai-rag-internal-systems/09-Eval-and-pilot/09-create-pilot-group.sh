@@ -10,6 +10,7 @@
 #               steps instead of failing.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 prompt() { # prompt <label> <default>
     local value
@@ -22,10 +23,10 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Group details ==="
-ad_domain_name="$(prompt "Active Directory domain" "corp.example.com")"
-pilot_group_name="$(prompt "Pilot group name" "AIRAG-Pilot")"
-group_member_usernames="$(prompt "Pilot member usernames, comma-separated" "qa.user,ops.user")"
-ad_admin_username="$(prompt "Domain admin username" "administrator")"
+ad_domain_name="$(prompt "Active Directory domain (example — replace with your value)" "corp.example.com")"
+pilot_group_name="$(prompt "Pilot group name (example — replace with your value)" "AIRAG-Pilot")"
+group_member_usernames="$(prompt "Pilot member usernames, comma-separated (example — replace with your value)" "qa.user,ops.user")"
+ad_admin_username="$(prompt "Domain admin username (example — replace with your value)" "administrator")"
 
 echo "=== Step 2: Create group and add members ==="
 if command -v samba-tool &>/dev/null; then

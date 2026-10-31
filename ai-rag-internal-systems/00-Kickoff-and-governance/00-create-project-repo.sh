@@ -9,8 +9,11 @@
 #               Run the server part on the Git server, the clone part anywhere.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="${HOME}/airag-create-repo.log"
+touch "${LOG_FILE}" 2>/dev/null || true
+chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(tee -a "${LOG_FILE}") 2>&1
 
 prompt() { # prompt <label> <default>
@@ -24,10 +27,10 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Where the repository will live ==="
-git_server_hostname="$(prompt "Git server hostname" "git.internal")"
-git_repository_path="$(prompt "Repository path on the server" "/srv/git/airag.git")"
-local_clone_path="$(prompt "Local clone path" "${HOME}/airag")"
-default_branch="$(prompt "Default branch name" "main")"
+git_server_hostname="$(prompt "Git server hostname (example — replace with your value)" "git.internal")"
+git_repository_path="$(prompt "Repository path on the server (example — replace with your value)" "/srv/git/airag.git")"
+local_clone_path="$(prompt "Local clone path (example — replace with your value)" "${HOME}/airag")"
+default_branch="$(prompt "Default branch name (example — replace with your value)" "main")"
 
 echo "=== Step 2: Create the bare repository (on the Git server) ==="
 echo "Run this on ${git_server_hostname}:"

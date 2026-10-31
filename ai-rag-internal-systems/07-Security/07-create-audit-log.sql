@@ -2,12 +2,18 @@
 -- Purpose:      Create the audit log tables (queries, answers, feedback).
 -- Tracker task: P7-03
 -- Run:         sudo -u postgres psql -v audit_db=airag_audit \
+--                   -v app_user=airag_app \
 --                   -f 07-create-audit-log.sql
+--              (All -v values above are examples — replace with your value.
+--               Run after 02-create-databases.sql so the app user already
+--               exists; run as the table owner or a superuser so the
+--               GRANT statements below succeed.)
 -- Prerequisites: PostgreSQL 16. Run ON the DB node.
 -- Design note: audit tables are append-only. The app user gets INSERT and
 --               SELECT only - never UPDATE or DELETE.
 -- =============================================================================
 \if :{?audit_db} \else \echo 'ERROR: missing -v audit_db=<name>' \quit \endif
+\if :{?app_user} \else \echo 'ERROR: missing -v app_user=<name>' \quit \endif
 \c :"audit_db"
 
 CREATE TABLE IF NOT EXISTS audit_log (
@@ -44,5 +50,9 @@ CREATE TABLE IF NOT EXISTS review_decisions (
 CREATE INDEX IF NOT EXISTS idx_audit_user_time ON audit_log (username, event_time DESC);
 CREATE INDEX IF NOT EXISTS idx_feedback_event ON feedback (event_id);
 
-\echo 'Done. Audit tables created. Grant the app user INSERT/SELECT only:'
-\echo '  GRANT INSERT, SELECT ON audit_log, feedback, review_decisions TO <app_user>;'
+-- Table-level grants (actual statements, INSERT/SELECT only).
+GRANT INSERT, SELECT ON audit_log TO :"app_user";
+GRANT INSERT, SELECT ON feedback TO :"app_user";
+GRANT INSERT, SELECT ON review_decisions TO :"app_user";
+
+\echo 'Done. Audit tables created. The app user has INSERT/SELECT only — never UPDATE or DELETE.'

@@ -20,11 +20,11 @@ def prompt(label, default=""):
 
 def main():
     print("=== Step 1: Template settings ===")
-    organisation_name = prompt("Organisation name", "Internal")
-    answer_tone = prompt("Answer tone (concise/detailed)", "concise")
-    abstain_message = prompt("Message when the answer is not in the documents",
+    organisation_name = prompt("Organisation name (example — replace with your value)", "Internal")
+    answer_tone = prompt("Answer tone (concise/detailed) (example — replace with your value)", "concise")
+    abstain_message = prompt("Message when the answer is not in the documents (example — replace with your value)",
                              "Not found in internal documents.")
-    prompts_directory = prompt("Prompts directory", "/opt/airag/prompts")
+    prompts_directory = prompt("Prompts directory (example — replace with your value)", "/opt/airag/prompts")
     os.makedirs(prompts_directory, exist_ok=True)
 
     qa_template = f"""You are the {organisation_name} internal document assistant.

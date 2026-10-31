@@ -49,13 +49,13 @@ def run_psql_file(host, port, db, user, password, sql_path):
 
 def main():
     print("=== Step 1: Diff settings ===")
-    new_clauses_jsonl_path = prompt("Fresh clauses JSONL", "/data/staging/clauses-ecfr.jsonl")
-    db_host = prompt("Database host", "PRD-AIRAG-DB01")
-    db_port = prompt("Database port", "5432")
-    db_name = prompt("Database name", "airag_standards")
-    db_user = prompt("Database user", "airag_app")
+    new_clauses_jsonl_path = prompt("Fresh clauses JSONL (example — replace with your value)", "/data/staging/clauses-ecfr.jsonl")
+    db_host = prompt("Database host (example — replace with your value)", "PRD-AIRAG-DB01")
+    db_port = prompt("Database port (example — replace with your value)", "5432")
+    db_name = prompt("Database name (example — replace with your value)", "airag_standards")
+    db_user = prompt("Database user (example — replace with your value)", "airag_app")
     db_password = prompt_secret("Database password (not echoed, never saved)")
-    alert_on_change = prompt("Print a change summary for alerting? (yes/no)", "yes")
+    alert_on_change = prompt("Print a change summary for alerting? (yes/no) (example — replace with your value)", "yes")
 
     print("=== Step 2: Comparing ===")
     rows = []

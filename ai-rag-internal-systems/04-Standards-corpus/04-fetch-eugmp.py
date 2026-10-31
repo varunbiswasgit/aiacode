@@ -3,7 +3,8 @@
 
 Tracker task: P4-04 (EU GMP fetcher)
 Prompts: eugmp_chapters (comma-separated), eugmp_annexes (comma-separated),
-         output_directory, http_proxy (blank = none)
+         output_directory, http_proxy (blank = none),
+         pdf_url (per chapter/annex, blank = skip)
 Prerequisites: Python 3.12, network route to health.ec.europa.eu.
   The script asks for the document URLs because the EC site reorganises
   links; paste the current PDF URLs when prompted. If a URL fails, the
@@ -32,9 +33,9 @@ def prompt_optional(label, default=""):
 def main():
     print("=== Step 1: EU GMP selection ===")
     print(f"Source landing page (verify current links there): {EUDRALEX_LANDING}")
-    eugmp_chapters = prompt("Chapters to fetch, comma-separated", "1,2,3,4,5,6,7,8,9")
-    eugmp_annexes = prompt("Annexes to fetch, comma-separated", "1,11,15")
-    output_directory = prompt("Output directory", "/data/staging/eugmp")
+    eugmp_chapters = prompt("Chapters to fetch, comma-separated (example — replace with your value)", "1,2,3,4,5,6,7,8,9")
+    eugmp_annexes = prompt("Annexes to fetch, comma-separated (example — replace with your value)", "1,11,15")
+    output_directory = prompt("Output directory (example — replace with your value)", "/data/staging/eugmp")
     http_proxy = prompt_optional("HTTP proxy (blank = direct)")
     opener = urllib.request.build_opener(
         urllib.request.ProxyHandler({"http": http_proxy, "https": http_proxy}) if http_proxy else None)

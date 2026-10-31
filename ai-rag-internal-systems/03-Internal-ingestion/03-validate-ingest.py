@@ -29,8 +29,8 @@ def prompt_int(label, default):
 
 def main():
     print("=== Step 1: Sample settings ===")
-    input_jsonl_path = prompt("Input chunk JSONL", "/data/staging/chunks-pilot.jsonl")
-    sample_size = prompt_int("How many random chunks to review", 20)
+    input_jsonl_path = prompt("Input chunk JSONL (example — replace with your value)", "/data/staging/chunks-pilot.jsonl")
+    sample_size = prompt_int("How many random chunks to review (example — replace with your value)", 20)
 
     with open(input_jsonl_path, encoding="utf-8") as handle:
         chunks = [json.loads(line) for line in handle]

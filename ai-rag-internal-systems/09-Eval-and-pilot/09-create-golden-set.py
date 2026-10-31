@@ -18,7 +18,7 @@ def prompt(label, default=""):
 
 def main():
     print("=== Step 1: Output ===")
-    output_golden_path = prompt("Golden set output path", "/opt/airag/eval/golden.json")
+    output_golden_path = prompt("Golden set output path (example — replace with your value)", "/opt/airag/eval/golden.json")
     existing = []
     try:
         with open(output_golden_path, encoding="utf-8") as handle:

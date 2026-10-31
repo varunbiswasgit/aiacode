@@ -12,6 +12,7 @@ Prerequisites: candidates.json from 05-hybrid-retrieve.py; an access map
 Output: filtered candidates JSON. Apply this BEFORE reranking/generation.
 """
 import json
+import os
 
 
 def prompt(label, default=""):
@@ -25,10 +26,10 @@ def prompt(label, default=""):
 def main():
     print("=== Step 1: Filter settings ===")
     username = prompt("Username")
-    user_ad_groups = prompt("User's AD groups, comma-separated", "AIRAG-Users")
-    access_map_path = prompt("Access map JSON path", "/opt/airag/access-map.json")
-    candidates_json_path = prompt("Candidates JSON", "candidates.json")
-    output_json_path = prompt("Filtered output JSON", "candidates-filtered.json")
+    user_ad_groups = prompt("User's AD groups, comma-separated (example — replace with your value)", "AIRAG-Users")
+    access_map_path = prompt("Access map JSON path (example — replace with your value)", "/opt/airag/access-map.json")
+    candidates_json_path = prompt("Candidates JSON (example — replace with your value)", "candidates.json")
+    output_json_path = prompt("Filtered output JSON (example — replace with your value)", "candidates-filtered.json")
 
     with open(access_map_path, encoding="utf-8") as handle:
         access_map = json.load(handle)
@@ -45,6 +46,7 @@ def main():
                    for prefix in allowed_prefixes)]
     with open(output_json_path, "w", encoding="utf-8") as handle:
         json.dump(kept, handle, indent=2)
+    os.chmod(output_json_path, 0o600)
     print(f"Done. {len(kept)}/{len(candidates)} candidates kept for {username}.")
     print("Feed the filtered file (not the original) into 05-rerank-results.py.")
 

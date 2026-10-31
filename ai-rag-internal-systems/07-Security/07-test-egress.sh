@@ -10,6 +10,7 @@
 #               change firewall rules.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 prompt() { # prompt <label> <default>
     local value
@@ -22,10 +23,10 @@ prompt() { # prompt <label> <default>
 }
 
 echo "=== Step 1: Test values ==="
-app_base_url="$(prompt "App base URL" "https://localhost")"
-test_question="$(prompt "Test question" "What does the cleaning validation SOP require?")"
-allowed_proxy_host="$(prompt "Allowed standards host (should resolve)" "ecfr.gov")"
-blocked_test_host="$(prompt "External host that must be blocked" "example.com")"
+app_base_url="$(prompt "App base URL (example — replace with your value)" "https://localhost")"
+test_question="$(prompt "Test question (example — replace with your value)" "What does the cleaning validation SOP require?")"
+allowed_proxy_host="$(prompt "Allowed standards host (should resolve) (example — replace with your value)" "ecfr.gov")"
+blocked_test_host="$(prompt "External host that must be blocked (example — replace with your value)" "example.com")"
 
 echo "=== Step 2: Allowed host check ==="
 if getent hosts "${allowed_proxy_host}" > /dev/null; then

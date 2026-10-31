@@ -7,9 +7,12 @@
 #               Run ON the app node.
 # =============================================================================
 set -euo pipefail
+umask 027
 
 LOG_FILE="/var/log/airag-ocr.log"
 sudo mkdir -p /var/log/airag
+sudo touch "${LOG_FILE}" 2>/dev/null || true
+sudo chmod 640 "${LOG_FILE}" 2>/dev/null || true
 exec > >(sudo tee -a "${LOG_FILE}" >/dev/null) 2>&1 || true
 
 prompt() { # prompt <label> <default>
@@ -22,8 +25,8 @@ prompt() { # prompt <label> <default>
     done
 }
 
-venv_path="$(prompt "Virtual environment path" "/opt/airag/venv")"
-ocr_languages="$(prompt "OCR languages (tesseract codes, comma-separated)" "eng")"
+venv_path="$(prompt "Virtual environment path (example — replace with your value)" "/opt/airag/venv")"
+ocr_languages="$(prompt "OCR languages (tesseract codes, comma-separated) (example — replace with your value)" "eng")"
 
 sudo apt update
 sudo apt install -y tesseract-ocr
